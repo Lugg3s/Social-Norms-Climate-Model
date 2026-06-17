@@ -1,3 +1,8 @@
+# Interesting plots for evaluation might be: 
+# Rate of social learning (kappa) against net cost of mitigation (Beta) (from the paper)
+# Mitigators
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -13,11 +18,17 @@ plt.rcParams.update({
 })
 
 
-def plot_all():
+
+def plot_emissions(scenarios=None):
+    pass
+
+
+def plot_temperature(scenarios=None):
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
     ax.set_ylim(top=5)
+    ax.set_xlim(1900, 2200)
 
     inset_ax = inset_axes(
         ax,
@@ -27,11 +38,14 @@ def plot_all():
         bbox_transform=ax.transAxes,
         loc="center",
     )
-    inset_ax.set_xlim(2000, 2075)
+    # inset_ax.set_xlim(2000, 2075)
+    inset_ax.set_xlim(1900, 2200)
     inset_ax.set_xlabel("Time (year)", fontsize=14)
     inset_ax.set_ylabel("X", fontsize=14)
 
     model_equations = load_scenarios()
+    if scenarios:
+         model_equations = {k: v for k, v in model_equations.items() if k in scenarios}
     for scenario_name, _ in model_equations.items():
         print(f"Simulating scenario: {scenario_name}")
         t, _, _, _, _, T, x = simulate(scenario_name)

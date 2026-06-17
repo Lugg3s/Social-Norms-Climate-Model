@@ -19,10 +19,10 @@ def _load_baseline_parameters():
     with scenarios_path.open("r", encoding="utf-8") as file:
         scenarios = json.load(file)
 
-    if "Baseline" not in scenarios:
-        raise KeyError('Missing "Baseline" scenario in scenarios.json')
+    if "baseline" not in scenarios:
+        raise KeyError('Missing "baseline" scenario in scenarios.json')
 
-    return scenarios["Baseline"]
+    return scenarios["baseline"]
 
 
 def load_scenarios():
@@ -34,10 +34,10 @@ def load_scenarios():
 
 def _resolve_extension(extension):
     """Resolve `extension` to a parameter dictionary.
-    Accepts `None`/`"Baseline"`, a scenario name, or a dictionary of
+    Accepts `None`/`"baseline"`, a scenario name, or a dictionary of
     parameter values loaded from JSON.
     """
-    if extension is None or extension == "Baseline":
+    if extension is None or extension == "baseline":
         return _baseline
 
     if isinstance(extension, str):
@@ -58,7 +58,7 @@ def _resolve_extension(extension):
 _baseline = _load_baseline_parameters()
 
 
-def simulate(extension="Baseline"):
+def simulate(extension="baseline"):
     """Run the coupled climate-social model for given parameters and return
     time series for each state variable."""
     p = _resolve_extension(extension)
@@ -149,10 +149,23 @@ def simulate(extension="Baseline"):
         return p["f_max"] / (1 + np.exp(-p["omega"] * (T - p["T_c"])))
 
     def diff_x(t, z):
-        """Time derivative of social state variable x (adoption level)."""
-        if t < 216:
-            return 0
-        return p["kappa"] * z[5] * (1 - z[5]) * (-p["beta"] + f_T(z[4]) + p["delta"] * (2 * z[5] - 1))
+        match p["social_norm"]:
+            case "Observation-based / imitation":
+                if t < 216:
+                    return 0
+                return p["kappa"] * z[5] * (1 - z[5]) * (-p["beta"] + f_T(z[4]) + p["delta"] * (2 * z[5] - 1))
+            case "Obersvation-based / intention motivation":
+                if t < 216:
+                    return 0
+                pass
+            case "Belief-based / intention motivation":
+                pass
+            case "Belief-based / approval":
+                pass
+            case "Obervation based / approval":
+                pass
+            case _:
+                raise ValueError(f"Unknown social norm type: {p['social_norm']}")
 
     def model(t, z):
         """Pack state derivatives into array for ODE solver."""
@@ -186,3 +199,5 @@ def simulate(extension="Baseline"):
         sol.y.T[:, 4],
         sol.y.T[:, 5],
     )
+
+

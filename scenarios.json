@@ -1,5 +1,6 @@
 {
-  "Baseline": {
+  "baseline": {
+    "social_norm": "Observation-based / imitation",
     "C_s0": 1500,
     "C_veg0": 550,
     "C_at0": 596,
@@ -43,7 +44,6 @@
     
 
 
-    "tau_CH4": 0.0231, 
     "tp": 10,
     "tf": 25
   },
