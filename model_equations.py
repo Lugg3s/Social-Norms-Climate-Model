@@ -157,12 +157,25 @@ def simulate(extension="baseline"):
             case "Obersvation-based / intention motivation":
                 if t < 216:
                     return 0
+                # if N_B/N >= tau:
+                #     return A + (omega*N_B/N)
+                # else:
+                #     return A 
                 pass
             case "Belief-based / intention motivation":
+                if t < 216:
+                    return 0
+                # ...
                 pass
             case "Belief-based / approval":
-                pass
+                if t < 216:
+                    return 0
+                n = p["n"]  # sanction term
+                return p["kappa"] * z[5] * (1 - z[5]) * (-p["beta"] + f_T(z[4]) + 2 * n)
             case "Obervation based / approval":
+                if t < 216:
+                    return 0
+                # ...
                 pass
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")
