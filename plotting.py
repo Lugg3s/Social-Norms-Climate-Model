@@ -25,19 +25,13 @@ def plot_emissions(scenarios=None):
 
 def plot_temperature(scenarios=None):
     fig, ax = plt.subplots(figsize=(10, 6))
+    fig.subplots_adjust(left=0.12, right=0.72, bottom=0.12, top=0.95)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
     ax.set_ylim(top=5)
     ax.set_xlim(1900, 2200)
 
-    inset_ax = inset_axes(
-        ax,
-        width="30%",
-        height="30%",
-        bbox_to_anchor=(-0.25, 0, 1, 1),
-        bbox_transform=ax.transAxes,
-        loc="center",
-    )
+    inset_ax = ax.inset_axes([0.15, 0.64, 0.30, 0.30])
     # inset_ax.set_xlim(2000, 2075)
     inset_ax.set_xlim(1900, 2200)
     inset_ax.set_xlabel("Time (year)", fontsize=14)
@@ -48,13 +42,12 @@ def plot_temperature(scenarios=None):
          model_equations = {k: v for k, v in model_equations.items() if k in scenarios}
     for scenario_name, _ in model_equations.items():
         print(f"Simulating scenario: {scenario_name}")
-        t, _, _, _, _, T, x = simulate(scenario_name)
-        ax.plot(t + 1800, T, label=scenario_name)
-        inset_ax.plot(t + 1800, x, label=scenario_name)
+        result = simulate(scenario_name)
+        ax.plot(result.t + 1800, result.T, label=scenario_name)
+        inset_ax.plot(result.t + 1800, result.x, label=scenario_name)
 
-    ax.legend(loc="upper left", fontsize=14)
-    plt.tight_layout()
-    plt.savefig("all_scenarios.png", dpi=300, bbox_inches="tight")
+    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=9)
+    plt.savefig("all_scenarios.png", dpi=300)
     plt.show()
 
 

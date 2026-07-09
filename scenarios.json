@@ -47,8 +47,33 @@
         "tp": 10,
         "tf": 25
     },
-    "belief-based_approval": {
+
+    "Obersvation-based / intention motivation": {
+        "social_norm": "Obersvation-based / intention motivation",
+        "threshold": 0.01,
+        "omega": 0.01  
+    },
+    "Belief-based / intention motivation": {
+        "social_norm": "Belief-based / intention motivation"
+    },
+    "Belief-based / approval": {
         "social_norm": "Belief-based / approval",
-        "n": 0.01
+        "sanction_term": 0.01
+    },
+    "Obervation based / approval (only one behaviour is punished)": {
+        "social_norm": "Obervation based / approval (only one behaviour is punished)",
+        "xfactor": 1
+    },
+    "Obervation based / approval (punishment depends on number of punishers)": {
+        "social_norm": "Obervation based / approval (punishment depends on number of punishers)"
+    },
+    "Obervation based / approval (relative to difference to mean behaviour)": {
+        "social_norm": "Obervation based / approval (relative to difference to mean behaviour)"
+    },
+
+
+
+    "ignore":{
+
     }
 }

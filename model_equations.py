@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,9 @@ def _load_baseline_parameters():
     if "baseline" not in scenarios:
         raise KeyError('Missing "baseline" scenario in scenarios.json')
 
+    if "ignore" in scenarios:
+        del scenarios["ignore"]
+
     return scenarios["baseline"]
 
 
@@ -29,7 +33,8 @@ def load_scenarios():
     """Load all parameter scenarios from `scenarios.json`."""
     scenarios_path = Path(__file__).with_name("scenarios.json")
     with scenarios_path.open("r", encoding="utf-8") as file:
-        return json.load(file)
+        return {k: v for k, v in json.load(file).items() if k != "ignore"}
+        # return json.load(file)
 
 
 def _resolve_extension(extension):
@@ -56,6 +61,14 @@ def _resolve_extension(extension):
     )
 
 _baseline = _load_baseline_parameters()
+
+STATE_NAMES = ("C_at", "C_oc", "C_v", "C_so", "T", "x")
+SimulationResult = namedtuple("SimulationResult", ("t",) + STATE_NAMES)
+
+
+def unpack_state(z):
+    """Map the solver state vector to named state variables."""
+    return dict(zip(STATE_NAMES, z))
 
 
 def simulate(extension="baseline"):
@@ -118,80 +131,104 @@ def simulate(extension="baseline"):
         """Downward radiative flux at the surface given CO2 and temperature."""
         return (1 - p["A"]) * p["S"] / 4 * (1 + 0.75 * tau(C_a, T))
 
-    def diff_C_at(t, z):
+    def diff_C_at(t, state):
         """Time derivative of atmospheric carbon pool C_a."""
         return (
-            epsilon(t) * (1 - z[5])
-            - P(z[0], z[4])
-            + R_veg(z[2], z[4])
-            + R_so(z[4], z[3])
-            - F_oc(z[0], z[1])
+            epsilon(t) * (1 - state["x"])
+            - P(state["C_at"], state["T"])
+            + R_veg(state["C_v"], state["T"])
+            + R_so(state["T"], state["C_so"])
+            - F_oc(state["C_at"], state["C_oc"])
         )
 
-    def diff_C_o(t, z):
+    def diff_C_o(t, state):
         """Time derivative of ocean carbon pool C_oc (flux to/from atmosphere)."""
-        return F_oc(z[0], z[1])
+        return F_oc(state["C_at"], state["C_oc"])
 
-    def diff_C_v(t, z):
+    def diff_C_v(t, state):
         """Time derivative of vegetation carbon pool C_v."""
-        return P(z[0], z[4]) - R_veg(z[2], z[4]) - L(z[2])
+        return P(state["C_at"], state["T"]) - R_veg(state["C_v"], state["T"]) - L(state["C_v"])
 
-    def diff_C_so(t, z):
+    def diff_C_so(t, state):
         """Time derivative of soil organic carbon pool C_so."""
-        return L(z[2]) - R_so(z[4], z[3])
+        return L(state["C_v"]) - R_so(state["T"], state["C_so"])
 
-    def diff_T(t, z):
+    def diff_T(t, state):
         """Time derivative of temperature anomaly T from radiative imbalance."""
-        return (p["a_E"] / p["c"]) * (F_d(z[0], z[4]) - p["sigma"] * (z[4] + p["T_0"]) ** 4) * 3.14 * 10**7
+        return (p["a_E"] / p["c"]) * (F_d(state["C_at"], state["T"]) - p["sigma"] * (state["T"] + p["T_0"]) ** 4) * 3.14 * 10**7
 
     def f_T(T):
         """Temperature-dependent benefit function for social dynamics."""
         return p["f_max"] / (1 + np.exp(-p["omega"] * (T - p["T_c"])))
 
-    def diff_x(t, z):
+    def diff_x(t, state):
         match p["social_norm"]:
             case "Observation-based / imitation":
+                # Baseline from Bury
                 if t < 216:
                     return 0
-                return p["kappa"] * z[5] * (1 - z[5]) * (-p["beta"] + f_T(z[4]) + p["delta"] * (2 * z[5] - 1))
+                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + p["delta"] * (2 * state["x"] - 1))
             case "Obersvation-based / intention motivation":
                 if t < 216:
                     return 0
-                # if N_B/N >= tau:
-                #     return A + (omega*N_B/N)
+                # BI = agent based Behavioural Intention (Verhaltensabsicht) (from theory of planned behvaoiur)
+                # N = N/B = proportion of the population that cooperates
+                # A = the influcence of other aspects (besides the social Norm)
+                # TODO: replicator equation verstehen. Evtl. kann man das dort iwo sinnvoll einbauen?
+                # if N_B/N >= p["threshold"]:
+                #     return p["A"] + (p["omega"]*N_B/N)
                 # else:
-                #     return A 
-                pass
+                #     return p["A"]
+                return 0
             case "Belief-based / intention motivation":
+                # here the norm is not based on behaviour, but eg as a static value (beckage) or differently (Chen et al)
+                # TODO TODO Bei Beckage et al und Chen et al nachschauen wie die das implementiert haben
                 if t < 216:
                     return 0
                 # ...
-                pass
+                return 0
             case "Belief-based / approval":
                 if t < 216:
                     return 0
-                n = p["n"]  # sanction term
-                return p["kappa"] * z[5] * (1 - z[5]) * (-p["beta"] + f_T(z[4]) + 2 * n)
-            case "Obervation based / approval":
+                n = p["sanction_term"]  # sanction term
+                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + 2 * n)
+            case "Obervation based / approval (only one behaviour is punished)":
+                # Obervation based / approval (in general) follows dynamics similar to Observation-based / imitation. however, here the agents pay-off is not determined by the observed majority, but by a distinct sanction term
+                # approach 1: replicator equation with cost/reward is only applied to one behaviour (an agent not following the norm expects to be punished, while agents following the norm are not affected)
+                # equation was built by combining the model of sigdel et al. and bury et al. 
+                # This should have some different dynamics shouldnt it?
                 if t < 216:
                     return 0
-                # ...
-                pass
+                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + p["xfactor"] * state["x"])     # one could add a factor for x at the end for sensitivity analysis, but it is not necessary for the dynamics to work
+            case "Obervation based / approval (punishment depends on number of punishers)":
+                # approach 2: replicator equation with punisher agents, who punish non-mitigators and the sanction depends on how many punishers exist (parameter z in the review)
+                # TODO TODO TODO umsetzung von Punishern überlegen & implementieren
+                if t < 216:
+                    return 0
+                return 0
+            case "Obervation based / approval (relative to difference to mean behaviour)":
+                #  approach 3: agent based: Here, agents are rewarded if they, for example, fish less than the mean population and punished if they fish more
+                # TODO: in ODE konvertieren & implementieren
+                if t < 216:
+                    return 0
+                return 0
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")
 
     def model(t, z):
         """Pack state derivatives into array for ODE solver."""
+        state = unpack_state(z)
         return np.array([
-            diff_C_at(t, z),
-            diff_C_o(t, z),
-            diff_C_v(t, z),
-            diff_C_so(t, z),
-            diff_T(t, z),
-            diff_x(t, z),
+            diff_C_at(t, state),
+            diff_C_o(t, state),
+            diff_C_v(t, state),
+            diff_C_so(t, state),
+            diff_T(t, state),
+            diff_x(t, state),
         ])
 
-    z0 = np.array([0, 0, 0, 0, 0, p["x0"]])
+    initial_state = {"C_at": 0, "C_oc": 0, "C_v": 0, "C_so": 0, "T": 0, "x": p["x0"]}
+    z0 = np.array([initial_state[name] for name in STATE_NAMES])
     simulation_time = 400
     t_span = (0, simulation_time)
 
@@ -203,14 +240,6 @@ def simulate(extension="baseline"):
         t_eval=np.linspace(0, simulation_time, simulation_time * 100),
     )
 
-    return (
-        sol.t,
-        sol.y.T[:, 0],
-        sol.y.T[:, 1],
-        sol.y.T[:, 2],
-        sol.y.T[:, 3],
-        sol.y.T[:, 4],
-        sol.y.T[:, 5],
-    )
+    return SimulationResult(sol.t, *sol.y)
 
 
