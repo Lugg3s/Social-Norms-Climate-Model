@@ -24,18 +24,17 @@ def plot_emissions(scenarios=None):
 
 
 def plot_temperature(scenarios=None):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    fig.subplots_adjust(left=0.12, right=0.72, bottom=0.12, top=0.95)
+    fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
+    fig.subplots_adjust(left=0.08, right=0.82, bottom=0.12, top=0.95, wspace=0.25)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
     ax.set_ylim(top=5)
     ax.set_xlim(1900, 2200)
 
-    inset_ax = ax.inset_axes([0.15, 0.64, 0.30, 0.30])
-    # inset_ax.set_xlim(2000, 2075)
-    inset_ax.set_xlim(1900, 2200)
-    inset_ax.set_xlabel("Time (year)", fontsize=14)
-    inset_ax.set_ylabel("X", fontsize=14)
+    ax_x.set_xlabel("Time (year)", fontsize=16)
+    ax_x.set_ylabel("X", fontsize=16)
+    ax_x.set_xlim(1900, 2200)
+    ax_x.set_ylim(0, 1)
 
     model_equations = load_scenarios()
     if scenarios:
@@ -44,11 +43,51 @@ def plot_temperature(scenarios=None):
         print(f"Simulating scenario: {scenario_name}")
         result = simulate(scenario_name)
         ax.plot(result.t + 1800, result.T, label=scenario_name)
-        inset_ax.plot(result.t + 1800, result.x, label=scenario_name)
+        ax_x.plot(result.t + 1800, result.x, label=scenario_name)
 
-    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=9)
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     plt.savefig("all_scenarios.png", dpi=300)
     plt.show()
+
+
+def plot_temperature_sensitivity(parameter_name, parameter_values, scenarios=None, save_prefix="temperature_sensitivity"):
+    """Plot temperature and mitigation trajectories for one parameter sweep.
+
+    A separate figure is created for each scenario. Each figure keeps the same
+    axes and inset layout as `plot_temperature()` and overlays the trajectories
+    produced by the different parameter values.
+    """
+    scenarios_dict = load_scenarios()
+    if scenarios:
+        scenarios_dict = {k: v for k, v in scenarios_dict.items() if k in scenarios}
+
+    for scenario_name, scenario_params in scenarios_dict.items():
+        fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
+        fig.subplots_adjust(left=0.08, right=0.82, bottom=0.12, top=0.95, wspace=0.25)
+        ax.set_xlabel("Time (year)", fontsize=16)
+        ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
+        ax.set_ylim(top=5)
+        ax.set_xlim(1900, 2200)
+
+        ax_x.set_xlabel("Time (year)", fontsize=16)
+        ax_x.set_ylabel("X", fontsize=16)
+        ax_x.set_xlim(1900, 2200)
+        ax_x.set_ylim(0, 1)
+
+        for parameter_value in parameter_values:
+            run_params = {**scenario_params, parameter_name: parameter_value}
+            print(f"Simulating {scenario_name} with {parameter_name}={parameter_value}")
+            result = simulate(run_params)
+            label = f"{parameter_name}={parameter_value}"
+            ax.plot(result.t + 1800, result.T, label=label)
+            ax_x.plot(result.t + 1800, result.x, label=label)
+
+        ax.set_title(f"{scenario_name}: sensitivity over {parameter_name}")
+        handles, labels = ax.get_legend_handles_labels()
+        fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
+        fig.savefig(f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png", dpi=300)
+        plt.show()
 
 
 def plot_contour(x_values, y_values, z_values, x_label, y_label, title, colorbar_label, contour_color="k"):
