@@ -62,10 +62,7 @@
     },
     "Obervation based / approval (only one behaviour is punished)": {
         "social_norm": "Obervation based / approval (only one behaviour is punished)",
-        "xfactor": 1
-    },
-    "Obervation based / approval (punishment depends on number of punishers)": {
-        "social_norm": "Obervation based / approval (punishment depends on number of punishers)"
+        "alpha": 1
     },
     "Obervation based / approval (relative to difference to mean behaviour)": {
         "social_norm": "Obervation based / approval (relative to difference to mean behaviour)"
@@ -74,6 +71,6 @@
 
 
     "ignore":{
-
+        "free letters (baseline)": "alpha, gamma, eta, theta, iota, lambda, mu, nu, omicron, pi, rho, phi, chi, psi, upsilon."
     }
 }

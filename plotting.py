@@ -5,6 +5,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
+from pathlib import Path
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from model_equations import *
 
@@ -16,6 +18,18 @@ plt.rcParams.update({
     "ytick.labelsize": 14,
     "legend.fontsize": 14,
 })
+
+
+_RUN_OUTPUT_DIR = None
+
+
+def _get_run_output_dir():
+    global _RUN_OUTPUT_DIR
+    if _RUN_OUTPUT_DIR is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        _RUN_OUTPUT_DIR = Path("plots") / timestamp
+        _RUN_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return _RUN_OUTPUT_DIR
 
 
 
@@ -58,7 +72,8 @@ def plot_temperature(scenarios=None, results=None):
 
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
-    plt.savefig("all_scenarios.png", dpi=300)
+    output_dir = _get_run_output_dir()
+    plt.savefig(output_dir / "all_scenarios.png", dpi=300)
     plt.show()
 
 
@@ -97,7 +112,8 @@ def plot_temperature_sensitivity(parameter_name, parameter_values, scenarios=Non
         ax.set_title(f"{scenario_name}: sensitivity over {parameter_name}")
         handles, labels = ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
-        fig.savefig(f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png", dpi=300)
+        output_dir = _get_run_output_dir()
+        fig.savefig(output_dir / f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png", dpi=300)
         plt.show()
 
 
