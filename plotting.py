@@ -23,7 +23,12 @@ def plot_emissions(scenarios=None):
     pass
 
 
-def plot_temperature(scenarios=None):
+def plot_temperature(scenarios=None, results=None):
+    """Plot temperature and mitigation trajectories.
+
+    If `results` is provided, it must map scenario names to simulation results
+    and no simulations are run inside this function.
+    """
     fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
     fig.subplots_adjust(left=0.08, right=0.82, bottom=0.12, top=0.95, wspace=0.25)
     ax.set_xlabel("Time (year)", fontsize=16)
@@ -36,12 +41,18 @@ def plot_temperature(scenarios=None):
     ax_x.set_xlim(1900, 2200)
     ax_x.set_ylim(0, 1)
 
-    model_equations = load_scenarios()
-    if scenarios:
-         model_equations = {k: v for k, v in model_equations.items() if k in scenarios}
-    for scenario_name, _ in model_equations.items():
-        print(f"Simulating scenario: {scenario_name}")
-        result = simulate(scenario_name)
+    if results is None:
+        model_equations = load_scenarios()
+        if scenarios:
+            model_equations = {k: v for k, v in model_equations.items() if k in scenarios}
+        results = {}
+        for scenario_name in model_equations:
+            print(f"Simulating scenario: {scenario_name}")
+            results[scenario_name] = simulate(scenario_name)
+    elif scenarios:
+        results = {name: result for name, result in results.items() if name in scenarios}
+
+    for scenario_name, result in results.items():
         ax.plot(result.t + 1800, result.T, label=scenario_name)
         ax_x.plot(result.t + 1800, result.x, label=scenario_name)
 
