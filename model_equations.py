@@ -29,12 +29,32 @@ def _load_baseline_parameters():
     return scenarios["baseline"]
 
 
-def load_scenarios():
-    """Load all parameter scenarios from `scenarios.json`."""
+def load_scenarios(include=None, exclude=None):
+    """Load parameter scenarios from `scenarios.json`.
+
+    Args:
+        include: Scenario name or iterable of names to keep. If None, all
+            scenarios are included.
+        exclude: Scenario name or iterable of names to remove after include
+            filtering.
+    """
     scenarios_path = Path(__file__).with_name("scenarios.json")
     with scenarios_path.open("r", encoding="utf-8") as file:
-        return {k: v for k, v in json.load(file).items() if k != "ignore"}
-        # return json.load(file)
+        loaded_scenarios = {k: v for k, v in json.load(file).items() if k != "ignore"}
+
+    if include is not None:
+        include = set(include)
+        loaded_scenarios = {
+            name: params for name, params in loaded_scenarios.items() if name in include
+        }
+
+    if exclude is not None:
+        exclude = set(exclude)
+        loaded_scenarios = {
+            name: params for name, params in loaded_scenarios.items() if name not in exclude
+        }
+
+    return loaded_scenarios
 
 
 def _resolve_extension(extension):
@@ -62,7 +82,7 @@ def _resolve_extension(extension):
 
 _baseline = _load_baseline_parameters()
 
-STATE_NAMES = ("C_at", "C_oc", "C_v", "C_so", "T", "x")
+STATE_NAMES = ("C_at", "C_oc", "C_v", "C_so", "T", "x", "x_p", "x_ref")
 SimulationResult = namedtuple("SimulationResult", ("t",) + STATE_NAMES)
 
 
@@ -86,7 +106,7 @@ def simulate(extension="baseline"):
 
     def P_co2(C_a):
         """Compute partial pressure of CO2 from atmospheric carbon `C_a`."""
-        return p["f_gtm"] * (C_a + p["C_at0"]) / p["K_a"]
+        return max(0.0, p["f_gtm"] * (C_a + p["C_at0"]) / p["K_a"])
 
     def P(C_a, T):
         """Gross primary productivity as a function of atmospheric CO2 and T."""
@@ -185,8 +205,7 @@ def simulate(extension="baseline"):
                 # TODO TODO Bei Beckage et al und Chen et al nachschauen wie die das implementiert haben
                 if t < 216:
                     return 0
-                # ...
-                return 0
+                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + p["N"])
             case "Belief-based / approval":
                 if t < 216:
                     return 0
@@ -208,8 +227,25 @@ def simulate(extension="baseline"):
                 if t < 216:
                     return 0
                 return 0
+            case "dynamic social norm":
+                # based on the paper by Rajah et al.
+                if t < 216:
+                    return 0
+                trend = (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])  # relative change in the social norm
+                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + trend)            
+                # return np.clip((p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"])) + trend) , 0, 1)            # this one had more interesting dynamics, but likely was wrong because the social norm of bury was inside the brackets
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")
+
+    def diff_x_ref(t, state):
+        if p["social_norm"] != "dynamic social norm":
+            return 0
+        return (state["x_p"] - state["x_ref"]) / p["tau_ref"]
+    
+    def diff_x_p(t, state):
+        if p["social_norm"] != "dynamic social norm":
+            return 0
+        return (state["x"] - state["x_p"]) / p["tau_xp"]
 
     def model(t, z):
         """Pack state derivatives into array for ODE solver."""
@@ -221,11 +257,13 @@ def simulate(extension="baseline"):
             diff_C_so(t, state),
             diff_T(t, state),
             diff_x(t, state),
+            diff_x_p(t, state),
+            diff_x_ref(t, state),
         ])
 
-    initial_state = {"C_at": 0, "C_oc": 0, "C_v": 0, "C_so": 0, "T": 0, "x": p["x0"]}
+    initial_state = {"C_at": 0, "C_oc": 0, "C_v": 0, "C_so": 0, "T": 0, "x": p["x0"], "x_ref": p["x0"], "x_p": p["x0"]}
     z0 = np.array([initial_state[name] for name in STATE_NAMES])
-    simulation_time = 400
+    simulation_time = 450
     t_span = (0, simulation_time)
 
     sol = solve_ivp(

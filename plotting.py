@@ -32,12 +32,31 @@ def _get_run_output_dir():
     return _RUN_OUTPUT_DIR
 
 
+def _is_dynamic_social_norm(scenario_params):
+    return scenario_params.get("social_norm") == "dynamic social norm"
+
+
 
 def plot_emissions(scenarios=None):
     pass
 
 
-def plot_temperature(scenarios=None, results=None):
+def _collect_legend_handles_labels(*axes):
+    handles = []
+    labels = []
+    seen = set()
+    for axis in axes:
+        axis_handles, axis_labels = axis.get_legend_handles_labels()
+        for handle, label in zip(axis_handles, axis_labels):
+            if label in seen:
+                continue
+            seen.add(label)
+            handles.append(handle)
+            labels.append(label)
+    return handles, labels
+
+
+def plot_temperature(scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False):
     """Plot temperature and mitigation trajectories.
 
     If `results` is provided, it must map scenario names to simulation results
@@ -48,45 +67,55 @@ def plot_temperature(scenarios=None, results=None):
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
     ax.set_ylim(top=5)
-    ax.set_xlim(1900, 2200)
+    ax.set_xlim(1900, 2250)
 
     ax_x.set_xlabel("Time (year)", fontsize=16)
     ax_x.set_ylabel("X", fontsize=16)
-    ax_x.set_xlim(1900, 2200)
+    ax_x.set_xlim(1900, 2250)
     ax_x.set_ylim(0, 1)
 
     if results is None:
-        model_equations = load_scenarios()
-        if scenarios:
-            model_equations = {k: v for k, v in model_equations.items() if k in scenarios}
+        model_equations = load_scenarios(include=scenarios, exclude=exclude_scenarios)
         results = {}
         for scenario_name in model_equations:
             print(f"Simulating scenario: {scenario_name}")
             results[scenario_name] = simulate(scenario_name)
-    elif scenarios:
-        results = {name: result for name, result in results.items() if name in scenarios}
+    elif scenarios or exclude_scenarios:
+        selected_scenarios = load_scenarios(include=scenarios, exclude=exclude_scenarios)
+        results = {name: result for name, result in results.items() if name in selected_scenarios}
+
+    scenario_parameters = load_scenarios()
 
     for scenario_name, result in results.items():
         ax.plot(result.t + 1800, result.T, label=scenario_name)
         ax_x.plot(result.t + 1800, result.x, label=scenario_name)
+        if show_x_auxiliary and _is_dynamic_social_norm(scenario_parameters.get(scenario_name, {})):
+            ax_x.plot(result.t + 1800, result.x_p, linestyle="--", label=f"{scenario_name} x_p")
+        if show_x_auxiliary and _is_dynamic_social_norm(scenario_parameters.get(scenario_name, {})):
+            ax_x.plot(result.t + 1800, result.x_ref, linestyle=":", label=f"{scenario_name} x_ref")
 
-    handles, labels = ax.get_legend_handles_labels()
+    handles, labels = _collect_legend_handles_labels(ax, ax_x)
     fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
     plt.savefig(output_dir / "all_scenarios.png", dpi=300)
     plt.show()
 
 
-def plot_temperature_sensitivity(parameter_name, parameter_values, scenarios=None, save_prefix="temperature_sensitivity"):
+def plot_temperature_sensitivity(
+    parameter_name,
+    parameter_values,
+    scenarios=None,
+    exclude_scenarios=None,
+    save_prefix="temperature_sensitivity",
+    show_x_auxiliary=False,
+):
     """Plot temperature and mitigation trajectories for one parameter sweep.
 
     A separate figure is created for each scenario. Each figure keeps the same
     axes and inset layout as `plot_temperature()` and overlays the trajectories
     produced by the different parameter values.
     """
-    scenarios_dict = load_scenarios()
-    if scenarios:
-        scenarios_dict = {k: v for k, v in scenarios_dict.items() if k in scenarios}
+    scenarios_dict = load_scenarios(include=scenarios, exclude=exclude_scenarios)
 
     for scenario_name, scenario_params in scenarios_dict.items():
         fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
@@ -94,11 +123,11 @@ def plot_temperature_sensitivity(parameter_name, parameter_values, scenarios=Non
         ax.set_xlabel("Time (year)", fontsize=16)
         ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
         ax.set_ylim(top=5)
-        ax.set_xlim(1900, 2200)
+        ax.set_xlim(1900, 2250)
 
         ax_x.set_xlabel("Time (year)", fontsize=16)
         ax_x.set_ylabel("X", fontsize=16)
-        ax_x.set_xlim(1900, 2200)
+        ax_x.set_xlim(1900, 2250)
         ax_x.set_ylim(0, 1)
 
         for parameter_value in parameter_values:
@@ -108,9 +137,13 @@ def plot_temperature_sensitivity(parameter_name, parameter_values, scenarios=Non
             label = f"{parameter_name}={parameter_value}"
             ax.plot(result.t + 1800, result.T, label=label)
             ax_x.plot(result.t + 1800, result.x, label=label)
+            if show_x_auxiliary and _is_dynamic_social_norm(run_params):
+                ax_x.plot(result.t + 1800, result.x_p, linestyle="--", label=f"{label} x_p")
+            if show_x_auxiliary and _is_dynamic_social_norm(run_params):
+                ax_x.plot(result.t + 1800, result.x_ref, linestyle=":", label=f"{label} x_ref")
 
         ax.set_title(f"{scenario_name}: sensitivity over {parameter_name}")
-        handles, labels = ax.get_legend_handles_labels()
+        handles, labels = _collect_legend_handles_labels(ax, ax_x)
         fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
         output_dir = _get_run_output_dir()
         fig.savefig(output_dir / f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png", dpi=300)

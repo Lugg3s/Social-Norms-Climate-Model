@@ -48,13 +48,20 @@
         "tf": 25
     },
 
+    "dynamic social norm": {
+        "social_norm": "dynamic social norm",
+        "tau_ref": 1,
+        "tau_STref": 2,
+        "tau_xp": 10
+    },
     "Obersvation-based / intention motivation": {
         "social_norm": "Obersvation-based / intention motivation",
         "threshold": 0.01,
         "omega": 0.01  
     },
     "Belief-based / intention motivation": {
-        "social_norm": "Belief-based / intention motivation"
+        "social_norm": "Belief-based / intention motivation",
+        "N": 0.1
     },
     "Belief-based / approval": {
         "social_norm": "Belief-based / approval",
@@ -67,6 +74,7 @@
     "Obervation based / approval (relative to difference to mean behaviour)": {
         "social_norm": "Obervation based / approval (relative to difference to mean behaviour)"
     },
+
 
 
 
