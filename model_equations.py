@@ -91,7 +91,7 @@ def unpack_state(z):
     return dict(zip(STATE_NAMES, z))
 
 
-def simulate(extension="baseline"):
+def simulate(extension="baseline", simulation_time=400):
     """Run the coupled climate-social model for given parameters and return
     time series for each state variable."""
     p = _resolve_extension(extension)
@@ -181,36 +181,36 @@ def simulate(extension="baseline"):
         """Temperature-dependent benefit function for social dynamics."""
         return p["f_max"] / (1 + np.exp(-p["omega"] * (T - p["T_c"])))
 
-    def diff_x(t, state):
+    def get_social_norm_term(state):
         match p["social_norm"]:
             case "Observation-based / imitation":
                 # Baseline from Bury
-                if t < 216:
-                    return 0
-                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + p["delta"] * (2 * state["x"] - 1))
-            case "Obersvation-based / intention motivation":
-                if t < 216:
-                    return 0
+                return p["delta"] * (2 * state["x"] - 1)
+            case "Observation-based / intention motivation":
                 # BI = agent based Behavioural Intention (Verhaltensabsicht) (from theory of planned behvaoiur)
                 # N = N/B = proportion of the population that cooperates
                 # A = the influcence of other aspects (besides the social Norm)
                 # TODO: replicator equation verstehen. Evtl. kann man das dort iwo sinnvoll einbauen?
+                
+
+
+                # if state["x"] >= p["threshold"]:
+                #     return p["A"] + (p["omega"] * state["x"])
+                # else:
+                #     return p["A"]
+                # original formulation:
                 # if N_B/N >= p["threshold"]:
                 #     return p["A"] + (p["omega"]*N_B/N)
                 # else:
                 #     return p["A"]
-                return 0
+                # social_norm_term = 
+                
+                return None
             case "Belief-based / intention motivation":
-                # here the norm is not based on behaviour, but eg as a static value (beckage) or differently (Chen et al)
-                # TODO TODO Bei Beckage et al und Chen et al nachschauen wie die das implementiert haben
-                if t < 216:
-                    return 0
-                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + p["N"])
+                # here the norm is not based on behaviour, but eg as a static value (beckage)
+                return p["N"]
             case "Belief-based / approval":
-                if t < 216:
-                    return 0
-                n = p["sanction_term"]  # sanction term
-                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + 2 * n)
+                return 2 * p["sanction_term"]  # sanction term
             case "Obervation based / approval (only one behaviour is punished)":
                 # Obervation based / approval (in general) follows dynamics similar to Observation-based / imitation. however, here the agents pay-off is not determined by the observed majority, but by a distinct sanction term
                 # approach 1: replicator equation with cost/reward is only applied to one behaviour (an agent not following the norm expects to be punished, while agents following the norm are not affected)
@@ -218,32 +218,41 @@ def simulate(extension="baseline"):
                 # approach 2: replicator equation with punisher agents, who punish non-mitigators and the sanction depends on how many punishers exist (parameter z in the review). 
                 #               In this case, the punishment is implemented by using a fixed proportion of cooperators as punishers and a fixed strength of the punishment. Combined they result in alpha * x.
                 # This should have some different dynamics shouldnt it?
-                if t < 216:
-                    return 0
-                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + p["alpha"] * state["x"])     # one could add a factor for x at the end for sensitivity analysis, but it is not necessary for the dynamics to work
+                return p["alpha"] * state["x"]     # one could add a factor for x at the end for sensitivity analysis, but it is not necessary for the dynamics to work
             case "Obervation based / approval (relative to difference to mean behaviour)":
                 #  approach 3: agent based: Here, agents are rewarded if they, for example, fish less than the mean population and punished if they fish more
                 # TODO: in ODE konvertieren & implementieren
-                if t < 216:
-                    return 0
-                return 0
+                # social_norm_term = 
+                return None
             case "dynamic social norm":
                 # based on the paper by Rajah et al.
-                if t < 216:
-                    return 0
-                trend = (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])  # relative change in the social norm
-                return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + trend)            
-                # return np.clip((p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"])) + trend) , 0, 1)            # this one had more interesting dynamics, but likely was wrong because the social norm of bury was inside the brackets
+                # x_p = current perceiption of x (aktuelle Wahrnehmung von x im Alltag)
+                # x_ref = reference value for x (Referenzwert für x, der als normal angesehen wird) (deutlich träger als x_p) (gesellschaftliche Norm) (etablierter Maßstab)
+                return (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])  # relative change in the social norm
+            case "dynamic baseline":
+                # dynamic social norm factors the baseline norm
+                trend = (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])
+                return (1 + trend) * p["delta"] * (2 * state["x"] - 1)
             case _:
-                raise ValueError(f"Unknown social norm type: {p['social_norm']}")
+                raise ValueError(f"Unknown social norm type: {p['social_norm']}")     
+               
+
+    def diff_x(t, state):
+        social_norm_term = get_social_norm_term(state)
+        if t < 216:
+            return 0
+        if social_norm_term is None:
+            return 0
+        return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + social_norm_term)
+
 
     def diff_x_ref(t, state):
-        if p["social_norm"] != "dynamic social norm":
+        if p["social_norm"] != "dynamic social norm" and p["social_norm"] != "dynamic baseline":
             return 0
         return (state["x_p"] - state["x_ref"]) / p["tau_ref"]
     
     def diff_x_p(t, state):
-        if p["social_norm"] != "dynamic social norm":
+        if p["social_norm"] != "dynamic social norm" and p["social_norm"] != "dynamic baseline":
             return 0
         return (state["x"] - state["x_p"]) / p["tau_xp"]
 
@@ -263,7 +272,6 @@ def simulate(extension="baseline"):
 
     initial_state = {"C_at": 0, "C_oc": 0, "C_v": 0, "C_so": 0, "T": 0, "x": p["x0"], "x_ref": p["x0"], "x_p": p["x0"]}
     z0 = np.array([initial_state[name] for name in STATE_NAMES])
-    simulation_time = 450
     t_span = (0, simulation_time)
 
     sol = solve_ivp(
@@ -274,6 +282,18 @@ def simulate(extension="baseline"):
         t_eval=np.linspace(0, simulation_time, simulation_time * 100),
     )
 
-    return SimulationResult(sol.t, *sol.y)
+    # create a list of all states at each time step by unpacking the solver state vector
+    states = [
+        unpack_state(sol.y[:, i])
+        for i in range(sol.y.shape[1])
+    ]
+    social_norm_term = np.array([
+        get_social_norm_term(state)
+        for state in states
+    ])
 
+    return {
+        "simulation": SimulationResult(sol.t, *sol.y),
+        "social_norm_term": social_norm_term
+    }
 

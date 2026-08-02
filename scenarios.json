@@ -50,12 +50,18 @@
 
     "dynamic social norm": {
         "social_norm": "dynamic social norm",
-        "tau_ref": 1,
-        "tau_STref": 2,
-        "tau_xp": 10
+        "tau_ref": 2,
+        "tau_STref": 1,
+        "tau_xp": 2
     },
-    "Obersvation-based / intention motivation": {
-        "social_norm": "Obersvation-based / intention motivation",
+    "dynamic baseline": {
+        "social_norm": "dynamic baseline",
+        "tau_ref": 2,
+        "tau_STref": 1,
+        "tau_xp": 2
+    },
+    "Observation-based / intention motivation": {
+        "social_norm": "Observation-based / intention motivation",
         "threshold": 0.01,
         "omega": 0.01  
     },
