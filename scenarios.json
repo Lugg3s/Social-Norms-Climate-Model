@@ -38,32 +38,36 @@
         "epsilon_max": 7,
         "s": 50,
         "r_0": 5,
-        "x0": 0.05,
+        "x0": 0.65,
         "f_gtm": 8.3259e+13,
         
-        
+        "social_norm_factor": 1,
+        "temperature_factor": 1,
 
 
         "tp": 10,
         "tf": 25
     },
 
-    "dynamic social norm": {
+    "Dynamic social norm": {
         "social_norm": "dynamic social norm",
         "tau_ref": 2,
         "tau_STref": 1,
         "tau_xp": 2
     },
-    "dynamic baseline": {
+    "Dynamic baseline": {
         "social_norm": "dynamic baseline",
         "tau_ref": 2,
         "tau_STref": 1,
         "tau_xp": 2
     },
-    "Observation-based / intention motivation": {
+    "Observation-based / intention motivation (agents)": {
+        "ABM": true,
         "social_norm": "Observation-based / intention motivation",
         "threshold": 0.01,
-        "omega": 0.01  
+        "omega": 0.01,
+        "network_size": 50,
+        "agent_susceptibility": 0.5
     },
     "Belief-based / intention motivation": {
         "social_norm": "Belief-based / intention motivation",
@@ -84,7 +88,13 @@
 
 
 
+
     "ignore":{
+        "Agent-based / peer norm": {
+            "social_norm": "Agent-based / peer norm",
+            "agent_update_rate": 0.01,
+            "agent_susceptibility": 1.0
+    },
         "free letters (baseline)": "alpha, gamma, eta, theta, iota, lambda, mu, nu, omicron, pi, rho, phi, chi, psi, upsilon."
     }
 }

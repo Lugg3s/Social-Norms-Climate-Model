@@ -5,7 +5,7 @@ from collections import namedtuple
 import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
-
+import agent
 
 df = pd.read_csv("global.1751_2017.csv")
 second_column = df.iloc[:, 1]
@@ -44,15 +44,11 @@ def load_scenarios(include=None, exclude=None):
 
     if include is not None:
         include = set(include)
-        loaded_scenarios = {
-            name: params for name, params in loaded_scenarios.items() if name in include
-        }
+        loaded_scenarios = {name: params for name, params in loaded_scenarios.items() if name in include}
 
     if exclude is not None:
         exclude = set(exclude)
-        loaded_scenarios = {
-            name: params for name, params in loaded_scenarios.items() if name not in exclude
-        }
+        loaded_scenarios = {name: params for name, params in loaded_scenarios.items() if name not in exclude}
 
     return loaded_scenarios
 
@@ -80,23 +76,55 @@ def _resolve_extension(extension):
         "extension must be None, a scenario name string, or a parameter dict"
     )
 
-_baseline = _load_baseline_parameters()
+def _make_time_breaks(simulation_time, coupling_interval):
+    """
+    Create outer-loop coupling times.
+    """
 
+    if simulation_time <= 0:
+        raise ValueError("simulation_time must be positive")
+
+    if coupling_interval <= 0:
+        raise ValueError("coupling_interval must be positive")
+
+    breaks = [0.0]
+    current_time = 0.0
+
+    while current_time + coupling_interval < simulation_time:
+        current_time += coupling_interval
+        breaks.append(current_time)
+
+    if breaks[-1] < simulation_time:
+        breaks.append(float(simulation_time))
+
+    return np.asarray(breaks, dtype=float)
+
+
+_baseline = _load_baseline_parameters()
 STATE_NAMES = ("C_at", "C_oc", "C_v", "C_so", "T", "x", "x_p", "x_ref")
 SimulationResult = namedtuple("SimulationResult", ("t",) + STATE_NAMES)
-
 
 def unpack_state(z):
     """Map the solver state vector to named state variables."""
     return dict(zip(STATE_NAMES, z))
 
 
-def simulate(extension="baseline", simulation_time=400):
+def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100):     # network_size
     """Run the coupled climate-social model for given parameters and return
     time series for each state variable."""
     p = _resolve_extension(extension)
     print(f"Running {extension} with parameters: {p}")
-
+    use_agentic_norm = p.get("ABM", False)
+    rng = np.random.default_rng(seed)
+    agents = None
+    if use_agentic_norm:
+        agents = agent.initialize_agents(
+            n_agents=n_agents,
+            initial_mitigation_share=p["x0"],
+            rng=rng,
+            network_size = p["network_size"] if "network_size" in p and p["network_size"] != 0 else None,
+            susceptibility=p.get("agent_susceptibility", 1.0),
+        )
     def epsilon(t):
         """Return the prescribed (or saturating) emission rate at timestep t."""
         t = int(t)
@@ -181,31 +209,14 @@ def simulate(extension="baseline", simulation_time=400):
         """Temperature-dependent benefit function for social dynamics."""
         return p["f_max"] / (1 + np.exp(-p["omega"] * (T - p["T_c"])))
 
-    def get_social_norm_term(state):
+    def get_social_norm_term(state, frozen_agentic_term_observation_intention=None):
         match p["social_norm"]:
             case "Observation-based / imitation":
                 # Baseline from Bury
                 return p["delta"] * (2 * state["x"] - 1)
             case "Observation-based / intention motivation":
                 # BI = agent based Behavioural Intention (Verhaltensabsicht) (from theory of planned behvaoiur)
-                # N = N/B = proportion of the population that cooperates
-                # A = the influcence of other aspects (besides the social Norm)
-                # TODO: replicator equation verstehen. Evtl. kann man das dort iwo sinnvoll einbauen?
-                
-
-
-                # if state["x"] >= p["threshold"]:
-                #     return p["A"] + (p["omega"] * state["x"])
-                # else:
-                #     return p["A"]
-                # original formulation:
-                # if N_B/N >= p["threshold"]:
-                #     return p["A"] + (p["omega"]*N_B/N)
-                # else:
-                #     return p["A"]
-                # social_norm_term = 
-                
-                return None
+                return frozen_agentic_term_observation_intention
             case "Belief-based / intention motivation":
                 # here the norm is not based on behaviour, but eg as a static value (beckage)
                 return p["N"]
@@ -237,13 +248,13 @@ def simulate(extension="baseline", simulation_time=400):
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")     
                
 
-    def diff_x(t, state):
-        social_norm_term = get_social_norm_term(state)
+    def diff_x(t, state, frozen_agentic_term_observation_intention=None):
+        social_norm_term = get_social_norm_term(state, frozen_agentic_term_observation_intention)
         if t < 216:
             return 0
         if social_norm_term is None:
             return 0
-        return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + f_T(state["T"]) + social_norm_term)
+        return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + p["temperature_factor"] * f_T(state["T"]) + p["social_norm_factor"] * social_norm_term)
 
 
     def diff_x_ref(t, state):
@@ -270,30 +281,167 @@ def simulate(extension="baseline", simulation_time=400):
             diff_x_ref(t, state),
         ])
 
+    def make_model(frozen_agentic_term_observation_intention):
+        """
+        Create a pure solve_ivp right-hand-side function.
+
+        The agent-derived social-norm term remains fixed
+        during the current coupling interval.
+        """
+
+        def model(t, z):
+            state = unpack_state(z)
+            return np.array([
+                diff_C_at(t, state),
+                diff_C_o(t, state),
+                diff_C_v(t, state),
+                diff_C_so(t, state),
+                diff_T(t, state),
+                diff_x(t, state, frozen_agentic_term_observation_intention),
+                diff_x_p(t, state),
+                diff_x_ref(t, state),
+            ])
+
+        return model
+
     initial_state = {"C_at": 0, "C_oc": 0, "C_v": 0, "C_so": 0, "T": 0, "x": p["x0"], "x_ref": p["x0"], "x_p": p["x0"]}
-    z0 = np.array([initial_state[name] for name in STATE_NAMES])
-    t_span = (0, simulation_time)
+    z_current = np.array([initial_state[name] for name in STATE_NAMES])     # initialize the current state vector for the ODE solver
+    time_breaks = _make_time_breaks(simulation_time=simulation_time, coupling_interval=coupling_interval)
 
-    sol = solve_ivp(
-        model,
-        t_span,
-        z0,
-        method="BDF",
-        t_eval=np.linspace(0, simulation_time, simulation_time * 100),
-    )
+    all_times = []
+    all_states = []
+    all_social_terms = []
 
-    # create a list of all states at each time step by unpacking the solver state vector
-    states = [
-        unpack_state(sol.y[:, i])
-        for i in range(sol.y.shape[1])
-    ]
-    social_norm_term = np.array([
-        get_social_norm_term(state)
-        for state in states
-    ])
+    agent_times = []
+    agent_shares = []
+    agent_social_terms = []
 
-    return {
-        "simulation": SimulationResult(sol.t, *sol.y),
-        "social_norm_term": social_norm_term
+    if use_agentic_norm:
+        initial_agent_share = agent.mitigation_share(agents)
+
+        initial_agent_social_term = agent.calculate_agent_social_norm_term(agents,p)
+
+        agent_times.append(0.0)
+        agent_shares.append(initial_agent_share)
+        agent_social_terms.append(initial_agent_social_term)
+
+    # -------------------------------------------------------------
+    # Coupled simulation loop
+    # -------------------------------------------------------------
+
+    for interval_index, (t0, t1) in enumerate(zip(time_breaks[:-1], time_breaks[1:])):
+        if use_agentic_norm:
+                    frozen_agentic_term = agent.calculate_agent_social_norm_term(agents,p)
+        else:
+            frozen_agentic_term = None
+        interval_length = t1 - t0
+        n_output_points = max(2, int(round(interval_length * output_points_per_year)) + 1,)
+
+        local_t_eval = np.linspace(t0, t1, n_output_points)
+
+        interval_solution = solve_ivp(
+            make_model(frozen_agentic_term),
+            (t0, t1),
+            z_current,
+            method="BDF",
+            t_eval=local_t_eval,
+        )
+
+        if not interval_solution.success:
+            raise RuntimeError("ODE integration failed: " + interval_solution.message)
+
+        interval_times = interval_solution.t
+        interval_states = interval_solution.y
+
+        # TODO: is this required? If so, why?
+        # Remove duplicated boundary points between intervals.
+        if interval_index > 0:
+            interval_times = interval_times[1:]
+            interval_states = interval_states[:, 1:]
+
+        all_times.append(interval_times)
+        all_states.append(interval_states)
+
+        if use_agentic_norm:
+            all_social_terms.append(np.full(interval_times.shape, frozen_agentic_term, dtype=float))
+
+        z_current = interval_solution.y[:, -1]
+        final_state = unpack_state(z_current)
+
+        # Agents update only after solve_ivp finishes.
+        if use_agentic_norm:
+            if t1 >= 216.0:
+                agents = agent.update_agents(
+                    agents=agents,
+                    temperature=final_state["T"],
+                    p=p,
+                    f_T=f_T,
+                    dt=interval_length,
+                    rng=rng,
+                )
+
+            agent_times.append(float(t1))
+            agent_shares.append(agent.mitigation_share(agents))
+            agent_social_terms.append(agent.calculate_agent_social_norm_term(agents, p))
+
+    # t_span = (0, simulation_time)
+
+    # sol = solve_ivp(
+    #     model,
+    #     t_span,
+    #     z0,
+    #     method="BDF",
+    #     t_eval=np.linspace(0, simulation_time, simulation_time * 100),
+    # )
+
+
+    # -------------------------------------------------------------
+    # Assemble simulation output
+    # -------------------------------------------------------------
+
+    simulation_times = np.concatenate(all_times)
+    simulation_states = np.concatenate(all_states, axis=1)
+    simulation = SimulationResult(simulation_times, *simulation_states)
+    if use_agentic_norm:
+        social_norm_history = np.concatenate(all_social_terms)
+    else:
+        social_norm_history = np.asarray(
+            [
+                get_social_norm_term(
+                    unpack_state(simulation_states[:, i]),
+                    None,
+                )
+                for i in range(simulation_states.shape[1])
+            ],
+            dtype=float,
+        )
+
+    result = {
+        "simulation": simulation,
+        "social_norm_term": social_norm_history,
     }
+
+    if use_agentic_norm:
+        result["agents"] = agents
+        result["agent_history"] = {
+            "t": np.asarray(agent_times, dtype=float),
+            "mitigation_share": np.asarray(agent_shares, dtype=float),
+            "social_norm_term": np.asarray(agent_social_terms, dtype=float)
+        }
+    return result
+    
+    # # create a list of all states at each time step by unpacking the solver state vector
+    # states = [
+    #     unpack_state(sol.y[:, i])
+    #     for i in range(sol.y.shape[1])
+    # ]
+    # social_norm_term = np.array([
+    #     get_social_norm_term(state)
+    #     for state in states
+    # ])
+
+    # return {
+    #     "simulation": SimulationResult(sol.t, *sol.y),
+    #     "social_norm_term": social_norm_term
+    # }
 

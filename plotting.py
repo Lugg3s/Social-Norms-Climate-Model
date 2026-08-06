@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from model_equations import *
+import shutil
+# from agent_model_equation_anara import *
 
 plt.rcParams.update({
     "font.size": 16,
@@ -32,9 +34,20 @@ def _get_run_output_dir():
     return _RUN_OUTPUT_DIR
 
 
+def _store_scenario_json():
+    """
+    Store the complete scenario.json file in the output directory for reproducibility.
+    """
+    output_dir = _get_run_output_dir()
+    scenario_file = Path("scenarios.json")
+    if scenario_file.exists():
+        destination_file = Path(output_dir / "scenario.json")
+        if not destination_file.exists():
+            shutil.copy(scenario_file, destination_file)
+
+
 def _is_dynamic_social_norm(scenario_params):
     return scenario_params.get("social_norm") == "dynamic social norm"
-
 
 
 def plot_emissions(scenarios=None):
@@ -98,6 +111,7 @@ def plot_temperature(scenarios=None, exclude_scenarios=None, results=None, show_
     fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
     plt.savefig(output_dir / "all_scenarios.png", dpi=300)
+    _store_scenario_json()
     plt.show()
 
 
@@ -148,6 +162,7 @@ def plot_temperature_sensitivity(
         fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
         output_dir = _get_run_output_dir()
         fig.savefig(output_dir / f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png", dpi=300)
+        _store_scenario_json()
         plt.show()
 
 
@@ -186,11 +201,23 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         return np.array([np.nan if value is None else value for value in series], dtype=float)
 
     if results is None:
-        model_equations = load_scenarios(include=scenarios, exclude=exclude_scenarios)
+        model_equations = load_scenarios(
+        include=scenarios,
+        exclude=exclude_scenarios,
+    )
         results = {}
         for scenario_name in model_equations:
             print(f"Simulating scenario: {scenario_name}")
-            results[scenario_name] = simulate(scenario_name, simulation_time=simulation_time)
+            results[scenario_name] = simulate(
+                scenario_name,
+                simulation_time=simulation_time,
+            )["simulation"]
+    # if results is None:
+    #     model_equations = load_scenarios(include=scenarios, exclude=exclude_scenarios)
+    #     results = {}
+    #     for scenario_name in model_equations:
+    #         print(f"Simulating scenario: {scenario_name}")
+    #         results[scenario_name] = simulate(scenario_name, simulation_time=simulation_time)
     elif scenarios or exclude_scenarios:
         selected_scenarios = load_scenarios(include=scenarios, exclude=exclude_scenarios)
         results = {name: result for name, result in results.items() if name in selected_scenarios}
@@ -208,6 +235,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
     fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
     plt.savefig(output_dir / "all_scenarios.png", dpi=300)
+    _store_scenario_json()
     plt.show()
 
 
