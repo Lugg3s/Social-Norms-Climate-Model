@@ -239,10 +239,15 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 # based on the paper by Rajah et al.
                 # x_p = current perceiption of x (aktuelle Wahrnehmung von x im Alltag)
                 # x_ref = reference value for x (Referenzwert für x, der als normal angesehen wird) (deutlich träger als x_p) (gesellschaftliche Norm) (etablierter Maßstab)
+                if abs(state["x_ref"]) < 1e-12:
+                    return 0.0
                 return (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])  # relative change in the social norm
             case "dynamic baseline":
                 # dynamic social norm factors the baseline norm
-                trend = (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])
+                if abs(state["x_ref"]) < 1e-12:
+                    trend = 0.0
+                else:
+                    trend = (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])
                 return (1 + trend) * p["delta"] * (2 * state["x"] - 1)
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")     

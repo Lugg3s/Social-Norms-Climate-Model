@@ -50,7 +50,7 @@ def _is_dynamic_social_norm(scenario_params):
     return scenario_params.get("social_norm") == "dynamic social norm"
 
 
-def plot_emissions(scenarios=None):
+def plot_emissions(include_scenarios=None, exclude_scenarios=None):
     pass
 
 
@@ -69,7 +69,7 @@ def _collect_legend_handles_labels(*axes):
     return handles, labels
 
 
-def plot_temperature(scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=400):
+def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=400):
     """Plot temperature and mitigation trajectories.
 
     If `results` is provided, it must map scenario names to simulation results
@@ -88,13 +88,13 @@ def plot_temperature(scenarios=None, exclude_scenarios=None, results=None, show_
     ax_x.set_ylim(0, 1)
 
     if results is None:
-        model_equations = load_scenarios(include=scenarios, exclude=exclude_scenarios)
+        model_equations = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
         results = {}
         for scenario_name in model_equations:
             print(f"Simulating scenario: {scenario_name}")
             results[scenario_name] = simulate(scenario_name, simulation_time=simulation_time)
-    elif scenarios or exclude_scenarios:
-        selected_scenarios = load_scenarios(include=scenarios, exclude=exclude_scenarios)
+    elif include_scenarios or exclude_scenarios:
+        selected_scenarios = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
         results = {name: result for name, result in results.items() if name in selected_scenarios}
 
     scenario_parameters = load_scenarios()
@@ -110,7 +110,7 @@ def plot_temperature(scenarios=None, exclude_scenarios=None, results=None, show_
     handles, labels = _collect_legend_handles_labels(ax, ax_x)
     fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
-    plt.savefig(output_dir / "all_scenarios.png", dpi=300)
+    plt.savefig(output_dir / "temperature_and_x.png", dpi=300)
     _store_scenario_json()
     plt.show()
 
@@ -118,7 +118,7 @@ def plot_temperature(scenarios=None, exclude_scenarios=None, results=None, show_
 def plot_temperature_sensitivity(
     parameter_name,
     parameter_values,
-    scenarios=None,
+    include_scenarios=None,
     exclude_scenarios=None,
     save_prefix="temperature_sensitivity",
     show_x_auxiliary=False,
@@ -130,7 +130,7 @@ def plot_temperature_sensitivity(
     axes and inset layout as `plot_temperature()` and overlays the trajectories
     produced by the different parameter values.
     """
-    scenarios_dict = load_scenarios(include=scenarios, exclude=exclude_scenarios)
+    scenarios_dict = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
 
     for scenario_name, scenario_params in scenarios_dict.items():
         fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
@@ -162,6 +162,69 @@ def plot_temperature_sensitivity(
         fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
         output_dir = _get_run_output_dir()
         fig.savefig(output_dir / f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png", dpi=300)
+        _store_scenario_json()
+        plt.show()
+
+
+def plot_temperature_sensitivity_2d(
+    x_parameter_name,
+    x_parameter_values,
+    y_parameter_name,
+    y_parameter_values,
+    include_scenarios=None,
+    exclude_scenarios=None,
+    save_prefix="temperature_sensitivity_2d",
+    simulation_time=400,
+    cmap="viridis",
+):
+    """Plot a 2D parameter sweep with max temperature anomaly as the color field.
+
+    A separate figure is created for each scenario. The first parameter maps to
+    the x-axis and the second parameter maps to the y-axis. Each cell in the
+    heatmap stores the maximum temperature anomaly over the full simulation.
+    """
+    scenarios_dict = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
+
+    x_values = list(x_parameter_values)
+    y_values = list(y_parameter_values)
+
+    for scenario_name, scenario_params in scenarios_dict.items():
+        temperature_grid = np.empty((len(y_values), len(x_values)), dtype=float)
+        amount_of_simulations = len(x_values) * len(y_values)
+        for y_index, y_value in enumerate(y_values):
+            for x_index, x_value in enumerate(x_values):
+                run_params = {
+                    **scenario_params,
+                    x_parameter_name: x_value,
+                    y_parameter_name: y_value,
+                }
+                print(f"Running simulation {y_index * len(x_values) + x_index + 1}/{amount_of_simulations} for scenario {scenario_name} with {x_parameter_name}={x_value}, {y_parameter_name}={y_value}")
+                result = simulate(run_params, simulation_time=simulation_time)["simulation"]
+                # temperature_grid[y_index, x_index] = np.max(result.T)
+                temperature_grid[y_index, x_index] = result.T[-1]
+
+
+        fig, ax = plt.subplots(figsize=(10, 7))
+        mesh = ax.pcolormesh(
+            x_values,
+            y_values,
+            temperature_grid,
+            shading="auto",
+            cmap=cmap,
+        )
+        ax.set_xlabel(x_parameter_name)
+        ax.set_ylabel(y_parameter_name)
+        ax.set_title(
+            f"{scenario_name}: temperature anomaly at last timestep over {x_parameter_name} and {y_parameter_name}"
+        )
+        colorbar = fig.colorbar(mesh, ax=ax)
+        colorbar.set_label("Maximum temperature anomaly")
+
+        output_dir = _get_run_output_dir()
+        fig.savefig(
+            output_dir / f"{save_prefix}_{scenario_name.replace(' ', '_').replace('/', '_')}.png",
+            dpi=300,
+        )
         _store_scenario_json()
         plt.show()
 
@@ -234,7 +297,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         
     fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
-    plt.savefig(output_dir / "all_scenarios.png", dpi=300)
+    plt.savefig(output_dir / "social_norm_value.png", dpi=300)
     _store_scenario_json()
     plt.show()
 
