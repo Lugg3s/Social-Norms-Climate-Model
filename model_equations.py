@@ -222,15 +222,15 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 return p["N"]
             case "Belief-based / approval":
                 return 2 * p["sanction_term"]  # sanction term
-            case "Obervation based / approval (only one behaviour is punished)":
-                # Obervation based / approval (in general) follows dynamics similar to Observation-based / imitation. however, here the agents pay-off is not determined by the observed majority, but by a distinct sanction term
+            case "Observation based / approval (punish only one behaviour)":
+                # Observation based / approval (in general) follows dynamics similar to Observation-based / imitation. however, here the agents pay-off is not determined by the observed majority, but by a distinct sanction term
                 # approach 1: replicator equation with cost/reward is only applied to one behaviour (an agent not following the norm expects to be punished, while agents following the norm are not affected)
                 #               equation was built by combining the model of sigdel et al. and bury et al. 
                 # approach 2: replicator equation with punisher agents, who punish non-mitigators and the sanction depends on how many punishers exist (parameter z in the review). 
                 #               In this case, the punishment is implemented by using a fixed proportion of cooperators as punishers and a fixed strength of the punishment. Combined they result in alpha * x.
                 # This should have some different dynamics shouldnt it?
                 return p["alpha"] * state["x"]     # one could add a factor for x at the end for sensitivity analysis, but it is not necessary for the dynamics to work
-            case "Obervation based / approval (relative to difference to mean behaviour)":
+            case "Observation based / approval (relative to mean)":
                 #  approach 3: agent based: Here, agents are rewarded if they, for example, fish less than the mean population and punished if they fish more
                 # TODO: in ODE konvertieren & implementieren
                 # social_norm_term = 

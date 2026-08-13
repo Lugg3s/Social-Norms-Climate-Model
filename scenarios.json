@@ -77,12 +77,12 @@
         "social_norm": "Belief-based / approval",
         "sanction_term": 0.01
     },
-    "Obervation based / approval (only one behaviour is punished)": {
-        "social_norm": "Obervation based / approval (only one behaviour is punished)",
+    "Observation based / approval (punish only one behaviour)": {
+        "social_norm": "Observation based / approval (punish only one behaviour)",
         "alpha": 1
     },
-    "Obervation based / approval (relative to difference to mean behaviour)": {
-        "social_norm": "Obervation based / approval (relative to difference to mean behaviour)"
+    "Observation based / approval (relative to mean)": {
+        "social_norm": "Observation based / approval (relative to mean)"
     },
 
 
