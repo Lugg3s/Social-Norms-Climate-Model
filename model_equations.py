@@ -109,7 +109,7 @@ def unpack_state(z):
     return dict(zip(STATE_NAMES, z))
 
 
-def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100):     # network_size
+def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100, simulate_only_x=False):     # network_size
     """Run the coupled climate-social model for given parameters and return
     time series for each state variable."""
     p = _resolve_extension(extension)
@@ -220,8 +220,8 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             case "Belief-based / intention motivation":
                 # here the norm is not based on behaviour, but eg as a static value (beckage)
                 return p["N"]
-            case "Belief-based / approval":
-                return 2 * p["sanction_term"]  # sanction term
+            # case "Belief-based / approval":
+            #     return 2 * p["sanction_term"]  # sanction term
             case "Observation based / approval (punish only one behaviour)":
                 # Observation based / approval (in general) follows dynamics similar to Observation-based / imitation. however, here the agents pay-off is not determined by the observed majority, but by a distinct sanction term
                 # approach 1: replicator equation with cost/reward is only applied to one behaviour (an agent not following the norm expects to be punished, while agents following the norm are not affected)
@@ -272,20 +272,6 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             return 0
         return (state["x"] - state["x_p"]) / p["tau_xp"]
 
-    def model(t, z):
-        """Pack state derivatives into array for ODE solver."""
-        state = unpack_state(z)
-        return np.array([
-            diff_C_at(t, state),
-            diff_C_o(t, state),
-            diff_C_v(t, state),
-            diff_C_so(t, state),
-            diff_T(t, state),
-            diff_x(t, state),
-            diff_x_p(t, state),
-            diff_x_ref(t, state),
-        ])
-
     def make_model(frozen_agentic_term_observation_intention):
         """
         Create a pure solve_ivp right-hand-side function.
@@ -296,12 +282,13 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
 
         def model(t, z):
             state = unpack_state(z)
+
             return np.array([
-                diff_C_at(t, state),
-                diff_C_o(t, state),
-                diff_C_v(t, state),
-                diff_C_so(t, state),
-                diff_T(t, state),
+                0 if simulate_only_x else diff_C_at(t, state),
+                0 if simulate_only_x else diff_C_o(t, state),
+                0 if simulate_only_x else diff_C_v(t, state),
+                0 if simulate_only_x else diff_C_so(t, state),
+                0 if simulate_only_x else diff_T(t, state),
                 diff_x(t, state, frozen_agentic_term_observation_intention),
                 diff_x_p(t, state),
                 diff_x_ref(t, state),

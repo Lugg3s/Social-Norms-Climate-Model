@@ -9,6 +9,7 @@ from datetime import datetime
 from itertools import product
 from pathlib import Path
 from typing import Any
+from matplotlib.offsetbox import AnchoredText
 
 import matplotlib
 
@@ -40,20 +41,13 @@ class ExperimentGroup:
 
 
 GLOBAL_SWEEP_VALUES = [0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3, 5]
-X0_SWEEP_VALUES = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85]
-MID_SWEEP_VALUES = [0.5, 1, 1.5]
-TAU_SWEEP_VALUES = [0.5, 1, 2, 4]
-BELIEF_SWEEP_VALUES = [0, 0.05, 0.1, 0.2, 0.5]
-APPROVAL_SWEEP_VALUES = [0.25, 0.5, 1, 2, 4]
-AGENT_THRESHOLD_VALUES = [0.001, 0.01, 0.05, 0.1]
-AGENT_OMEGA_VALUES = [0.005, 0.01, 0.05, 0.1]
-AGENT_SUSCEPTIBILITY_VALUES = [0.2, 0.5, 0.8, 1.0]
-AGENT_NETWORK_SIZE_VALUES = [20, 50, 100, 200]
+X0_SWEEP_VALUES = [0, 0.2 , 0.4, 0.6, 0.8, 1]
+TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 4, 5, 6, 7, 10]
 
 
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     ExperimentGroup(
-        name="global_norm_temperature",
+        name="social_factors",
         scenarios=[
             "baseline",
             "Dynamic social norm",
@@ -83,12 +77,10 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         ],
         sweep_parameters={
             "x0": X0_SWEEP_VALUES,
-            "social_norm_factor": MID_SWEEP_VALUES,
-            "temperature_factor": MID_SWEEP_VALUES,
         },
     ),
     ExperimentGroup(
-        name="observation_based_norm",
+        name="observation_based_norm",      # didnt run yet
         scenarios=["Observation-based / imitation"],
         sweep_parameters={
             "beta": [0.5, 1, 1.5, 2],
@@ -97,7 +89,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         },
     ),
     ExperimentGroup(
-        name="dynamic_norm_trend",
+        name="dynamic_norm_trend",          # interessanter Verlauf für dynamic baseline bei tau_ref = 4, tau_STref = 0.5, tau_xp = 4
         scenarios=["Dynamic social norm", "Dynamic baseline"],
         sweep_parameters={
             "tau_ref": TAU_SWEEP_VALUES,
@@ -105,32 +97,31 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
             "tau_xp": TAU_SWEEP_VALUES,
         },
     ),
-    ExperimentGroup(
-        name="belief_based",
-        scenarios=["Belief-based / intention motivation", "Belief-based / approval"],
-        sweep_parameters={
-            "N": BELIEF_SWEEP_VALUES,
-            "sanction_term": [0, 0.005, 0.01, 0.05, 0.1],
-        },
-    ),
-    ExperimentGroup(
-        name="approval_sensitivity",
-        scenarios=["Observation based / approval (punish only one behaviour)"],
-        sweep_parameters={
-            "alpha": APPROVAL_SWEEP_VALUES,
-        },
-    ),
-    ExperimentGroup(
-        name="agent_based_intention",
-        scenarios=["Observation-based / intention motivation (agents)"],
-        sweep_parameters={
-            "threshold": AGENT_THRESHOLD_VALUES,
-            "omega": AGENT_OMEGA_VALUES,
-            "agent_susceptibility": AGENT_SUSCEPTIBILITY_VALUES,
-            "network_size": AGENT_NETWORK_SIZE_VALUES,
-        },
-        n_agents=1000,
-    ),
+    # ExperimentGroup(
+    #     name="Belief-based / intention motivation",
+    #     scenarios=["Belief-based / intention motivation"],
+    #     sweep_parameters={
+    #         "N": [0, 0.05, 0.1, 0.2, 0.5],
+    #     },
+    # ),      
+    # ExperimentGroup(
+    #     name="approval_sensitivity",
+    #     scenarios=["Observation based / approval (punish only one behaviour)"],
+    #     sweep_parameters={
+    #         "alpha": [0.25, 0.5, 1, 2, 4],         # sobald alpha * x0 > 1 steigt x initial
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="agent_based_intention",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     sweep_parameters={
+    #         "threshold": [0.001, 0.01, 0.05, 0.1],
+    #         "omega": [0.005, 0.01, 0.05, 0.1],
+    #         "agent_susceptibility": [0.2, 0.5, 0.8, 1.0],
+    #         "network_size": [20, 50, 100, 200],
+    #     },
+    #     n_agents=1000,
+    # ),
 ]
 
 
@@ -273,7 +264,50 @@ def compute_run_metrics(result: dict[str, Any]) -> dict[str, Any]:
     return metrics
 
 
-def save_temperature_plot(frame: pd.DataFrame, run_dir: Path, run_label: str) -> None:
+def add_parameter_text_box(
+    ax: plt.Axes,
+    params: dict[str, Any],
+    parameter_names: list[str],
+    loc: str = "upper right",
+) -> None:
+    """Add selected simulation parameters as an anchored text box."""
+
+    lines = []
+
+    for parameter_name in parameter_names:
+        if parameter_name not in params:
+            continue
+
+        parameter_value = params[parameter_name]
+
+        if isinstance(parameter_value, float):
+            if math.isfinite(parameter_value):
+                value_text = f"{parameter_value:.4g}"
+            else:
+                value_text = str(parameter_value)
+        else:
+            value_text = str(parameter_value)
+
+        lines.append(f"{parameter_name} = {value_text}")
+
+    if not lines:
+        return
+
+    text = "\n".join(lines)
+
+    anchored_text = AnchoredText(
+        text,
+        loc=loc,
+        prop={"size": 9},
+        frameon=True,
+        borderpad=0.8,
+    )
+    anchored_text.patch.set_alpha(0.9)
+
+    ax.add_artist(anchored_text)
+
+
+def save_temperature_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict[str, Any], sweep_parameters: list[str]) -> None:
     fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
     fig.subplots_adjust(left=0.08, right=0.82, bottom=0.12, top=0.95, wspace=0.25)
 
@@ -298,11 +332,12 @@ def save_temperature_plot(frame: pd.DataFrame, run_dir: Path, run_label: str) ->
 
     fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     fig.suptitle(run_label, fontsize=12)
+    add_parameter_text_box(ax, params, sweep_parameters)
     fig.savefig(run_dir / "temperature_and_x.png", dpi=300)
     plt.close(fig)
 
 
-def save_social_norm_plot(frame: pd.DataFrame, run_dir: Path, run_label: str) -> None:
+def save_social_norm_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict[str, Any], sweep_parameters: list[str]) -> None:
     fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Social norm value", fontsize=16)
@@ -315,12 +350,13 @@ def save_social_norm_plot(frame: pd.DataFrame, run_dir: Path, run_label: str) ->
     ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
     ax.set_title(run_label, fontsize=12)
+    add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
     fig.savefig(run_dir / "social_norm.png", dpi=300)
     plt.close(fig)
 
 
-def save_auxiliary_plot(frame: pd.DataFrame, run_dir: Path, run_label: str) -> None:
+def save_auxiliary_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict[str, Any], sweep_parameters: list[str]) -> None:
     fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Auxiliary states", fontsize=16)
@@ -332,6 +368,7 @@ def save_auxiliary_plot(frame: pd.DataFrame, run_dir: Path, run_label: str) -> N
     ax.plot(frame["year"], frame["x_ref"], label="x_ref", linestyle=":")
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
     ax.set_title(run_label, fontsize=12)
+    add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
     fig.savefig(run_dir / "auxiliary_states.png", dpi=300)
     plt.close(fig)
@@ -343,6 +380,7 @@ def save_run_outputs(
     params: dict[str, Any],
     result: dict[str, Any],
     metrics: dict[str, Any],
+    sweep_parameters: list[str]
 ) -> None:
     ensure_directory(run_dir)
     frame = simulation_to_dataframe(result, params)
@@ -355,9 +393,11 @@ def save_run_outputs(
     }
     save_json(run_dir / "metadata.json", metadata)
 
-    save_temperature_plot(frame, run_dir, run_label)
-    save_social_norm_plot(frame, run_dir, run_label)
-    save_auxiliary_plot(frame, run_dir, run_label)
+    save_temperature_plot(frame, run_dir, run_label, params, sweep_parameters)
+    save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters)
+    # if frame["x_p"] or frame["x_ref"] is not changing within the simulation, skip the auxiliary plot to avoid cluttering the output with a flat line:
+    if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(frame["x_ref"] == frame["x_ref"].iloc[0]):
+        save_auxiliary_plot(frame, run_dir, run_label, params, sweep_parameters)
 
 
 def append_failure_record(run_dir: Path, run_label: str, error: Exception) -> None:
@@ -410,7 +450,7 @@ def run_single_combination(
             seed=group.seed,
         )
         metrics = compute_run_metrics(result)
-        save_run_outputs(run_dir, f"{group.name} | {scenario_name} | {run_name}", params, result, metrics)
+        save_run_outputs(run_dir, f"{group.name} | {scenario_name}", params, result, metrics, list(group.sweep_parameters.keys()))
         return {
             "status": "ok",
             "group": group.name,

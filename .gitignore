@@ -1,3 +1,4 @@
 /__pycache__
 .vscode/*
 plots/
+agent_model_equation_anara.py
