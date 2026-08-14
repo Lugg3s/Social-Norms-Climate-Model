@@ -41,8 +41,8 @@
         "x0": 0.65,
         "f_gtm": 8.3259e+13,
         
-        "social_norm_factor": 1,
-        "temperature_factor": 1,
+        "social_norm_factor": 2,
+        "temperature_factor": 0.1,
 
 
         "tp": 10,
@@ -76,6 +76,20 @@
     "Observation based / approval (punish only one behaviour)": {
         "social_norm": "Observation based / approval (punish only one behaviour)",
         "alpha": 1
+    },
+    "Static injunctive": {
+        "social_norm": "Static injunctive",
+        "c_inj": 1,
+        "x_target": 0.7 
+    },
+    "Descriptive, injunctive, dynamic": {
+        "social_norm": "Descriptive, injunctive, dynamic",
+        "c_inj": 1,
+        "x_target": 0.7,
+        "c_dyn": 0,
+        "tau_ref": 2,
+        "tau_STref": 1,
+        "tau_xp": 2
     },
 
 

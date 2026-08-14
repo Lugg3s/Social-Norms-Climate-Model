@@ -41,8 +41,8 @@ class ExperimentGroup:
 
 
 GLOBAL_SWEEP_VALUES = [0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3, 5]
-X0_SWEEP_VALUES = [0, 0.2 , 0.4, 0.6, 0.8, 1]
-TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 4, 5, 6, 7, 10]
+X0_SWEEP_VALUES = [0, 0.2 , 0.5, 0.8, 1]
+TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 
 
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
@@ -52,12 +52,13 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
             "baseline",
             "Dynamic social norm",
             "Dynamic baseline",
-            "Observation-based / imitation",
             "Observation-based / intention motivation (agents)",
             "Belief-based / intention motivation",
-            "Belief-based / approval",
+            # "Belief-based / approval",
             "Observation based / approval (punish only one behaviour)",
-            "Observation based / approval (relative to mean)",
+            # "Observation based / approval (relative to mean)",
+            "Static injunctive",
+            "Descriptive, injunctive, dynamic",
         ],
         sweep_parameters={
             "social_norm_factor": GLOBAL_SWEEP_VALUES,
@@ -70,22 +71,39 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
             "baseline",
             "Dynamic social norm",
             "Dynamic baseline",
-            "Observation-based / imitation",
             "Belief-based / intention motivation",
             "Belief-based / approval",
             "Observation based / approval (punish only one behaviour)",
+            "Static injunctive",
+            "Descriptive, injunctive, dynamic",
         ],
         sweep_parameters={
             "x0": X0_SWEEP_VALUES,
         },
     ),
     ExperimentGroup(
-        name="observation_based_norm",      # didnt run yet
-        scenarios=["Observation-based / imitation"],
+        name="Descriptive_injunctive_dynamic",
+        scenarios=[
+            "Descriptive, injunctive, dynamic"
+        ],
         sweep_parameters={
-            "beta": [0.5, 1, 1.5, 2],
-            "kappa": [0.01, 0.03, 0.05, 0.1, 0.2],
-            "delta": [0.5, 1, 1.5, 2],
+            "c_inj": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+        },
+    ),
+    ExperimentGroup(
+        name="Static_injunctive_sensitivity",
+        scenarios=[
+            "Static injunctive",
+            "Descriptive, injunctive, dynamic"
+        ],
+        sweep_parameters={
+            "x_target": [0.1, 0.5, 0.8],
+            "c_inj": np.round(np.arange(0, 10.1, 2), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 10.1, 2), 1).tolist(),
+            "tau_STref": [0.5, 4],
+            "tau_xp": [0.5, 4],
+            "tau_ref": [0.5, 4],
         },
     ),
     ExperimentGroup(
@@ -308,32 +326,34 @@ def add_parameter_text_box(
 
 
 def save_temperature_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict[str, Any], sweep_parameters: list[str]) -> None:
-    fig, (ax, ax_x) = plt.subplots(1, 2, figsize=(14, 6), sharex=True)
-    fig.subplots_adjust(left=0.08, right=0.82, bottom=0.12, top=0.95, wspace=0.25)
-
+    fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
     ax.set_ylim(top=max(5, float(np.nanmax(frame["T"])) + 0.25))
     ax.set_xlim(1900, float(frame["year"].iloc[-1]))
 
-    ax_x.set_xlabel("Time (year)", fontsize=16)
-    ax_x.set_ylabel("X", fontsize=16)
-    ax_x.set_xlim(1900, float(frame["year"].iloc[-1]))
-    ax_x.set_ylim(0, 1)
-
     ax.plot(frame["year"], frame["T"], label="Temperature")
-    ax_x.plot(frame["year"], frame["x"], label="x")
-
-    handles, labels = ax.get_legend_handles_labels()
-    if ax_x.get_legend_handles_labels()[0]:
-        x_handles, x_labels = ax_x.get_legend_handles_labels()
-        handles.extend(x_handles)
-        labels.extend(x_labels)
-
-    fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
-    fig.suptitle(run_label, fontsize=12)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    ax.set_title(run_label, fontsize=12)
     add_parameter_text_box(ax, params, sweep_parameters)
-    fig.savefig(run_dir / "temperature_and_x.png", dpi=300)
+    fig.tight_layout()
+    fig.savefig(run_dir / "temperature.png", dpi=300)
+    plt.close(fig)
+
+
+def save_x_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict[str, Any], sweep_parameters: list[str]) -> None:
+    fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
+    ax.set_xlabel("Time (year)", fontsize=16)
+    ax.set_ylabel("Fraction of mitigators (X)", fontsize=16)
+    ax.set_ylim(-1.1, 1.1)
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+
+    ax.plot(frame["year"], frame["x"], label="x")
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    ax.set_title(run_label, fontsize=12)
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    fig.savefig(run_dir / "x.png", dpi=300)
     plt.close(fig)
 
 
@@ -394,6 +414,7 @@ def save_run_outputs(
     save_json(run_dir / "metadata.json", metadata)
 
     save_temperature_plot(frame, run_dir, run_label, params, sweep_parameters)
+    save_x_plot(frame, run_dir, run_label, params, sweep_parameters)
     save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters)
     # if frame["x_p"] or frame["x_ref"] is not changing within the simulation, skip the auxiliary plot to avoid cluttering the output with a flat line:
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(frame["x_ref"] == frame["x_ref"].iloc[0]):
@@ -417,6 +438,8 @@ def run_single_combination(
     run_root: Path,
     scenario_name: str,
     overwrite: bool = False,
+    current_run: int | None = None,
+    total_runs: int | None = None,
 ) -> dict[str, Any]:
     params = {**base_params, **group.fixed_overrides, **sweep_values}
     run_name = create_run_name(scenario_name, sweep_values)
@@ -440,7 +463,10 @@ def run_single_combination(
             }
 
     try:
-        print(f"Running {group.name} | {scenario_name} | {run_name}")
+        if current_run is not None and total_runs is not None:
+            print(f"[{current_run}/{total_runs}] Running {group.name} | {scenario_name} | {run_name}")
+        else:
+            print(f"Running {group.name} | {scenario_name} | {run_name}")
         result = simulate(
             params,
             simulation_time=group.simulation_time,
@@ -474,6 +500,51 @@ def run_single_combination(
         }
 
 
+PHASE_ORDER = [
+    "Kollaps auf 0",
+    "volle S-Kurve auf 1",
+    "Zwischenzustand",
+    "gedämpft oszillierend",
+    "stark oszillierend",
+]
+
+PHASE_COLORS = {
+    "Kollaps auf 0": "#d62728",
+    "volle S-Kurve auf 1": "#ff7f0e",
+    "Zwischenzustand": "#2ca02c",
+    "gedämpft oszillierend": "#1f77b4",
+    "stark oszillierend": "#9467bd",
+}
+
+
+def classify_phase_from_metrics(final_x: float, max_x: float, min_x: float) -> str:
+    """Classify the qualitative regime of x(t) from summary statistics."""
+    try:
+        final_x = float(final_x)
+        max_x = float(max_x)
+        min_x = float(min_x)
+    except (TypeError, ValueError):
+        return "Zwischenzustand"
+
+    if not all(math.isfinite(value) for value in (final_x, max_x, min_x)):
+        return "Zwischenzustand"
+
+    if final_x < 0.15 and max_x < 0.35 and min_x < 0.2:
+        return "Kollaps auf 0"
+
+    if final_x > 0.85 and max_x > 0.8 and min_x > 0.7:
+        return "volle S-Kurve auf 1"
+
+    amplitude = max_x - min_x
+    if amplitude > 0.5 and (max_x > 0.7 or min_x < 0.3):
+        return "stark oszillierend"
+
+    if amplitude <= 0.35 and final_x > 0.45 and final_x < 0.9:
+        return "gedämpft oszillierend"
+
+    return "Zwischenzustand"
+
+
 def save_heatmap_for_two_parameters(
     summary_df: pd.DataFrame,
     group_dir: Path,
@@ -503,6 +574,60 @@ def save_heatmap_for_two_parameters(
     fig.colorbar(image, ax=ax, label=metric_name)
     fig.tight_layout()
     fig.savefig(group_dir / f"comparison_{metric_name}_heatmap.png", dpi=300)
+    plt.close(fig)
+
+
+def save_phase_map_for_two_parameters(
+    summary_df: pd.DataFrame,
+    group_dir: Path,
+    x_param: str,
+    y_param: str,
+) -> None:
+    required_columns = {"final_x", "max_x", "min_x"}
+    if not required_columns.issubset(summary_df.columns):
+        return
+
+    phase_df = summary_df.copy()
+    phase_df["phase"] = phase_df.apply(
+        lambda row: classify_phase_from_metrics(
+            row["final_x"],
+            row["max_x"],
+            row["min_x"],
+        ),
+        axis=1,
+    )
+
+    pivot = phase_df.pivot_table(
+        index=y_param,
+        columns=x_param,
+        values="phase",
+        aggfunc="first",
+    ).sort_index(axis=0).sort_index(axis=1)
+
+    if pivot.empty:
+        return
+
+    phase_to_idx = {label: idx for idx, label in enumerate(PHASE_ORDER)}
+    phase_array = np.vectorize(lambda label: phase_to_idx.get(str(label), phase_to_idx["Zwischenzustand"]))(pivot.to_numpy())
+
+    cmap = matplotlib.colors.ListedColormap([PHASE_COLORS[label] for label in PHASE_ORDER])
+    fig, ax = plt.subplots(figsize=(10, 7))
+    image = ax.imshow(phase_array, origin="lower", aspect="auto", cmap=cmap, vmin=0, vmax=len(PHASE_ORDER) - 1)
+
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels([format_value_for_slug(value) for value in pivot.columns], rotation=45, ha="right")
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels([format_value_for_slug(value) for value in pivot.index])
+    ax.set_xlabel(x_param)
+    ax.set_ylabel(y_param)
+    ax.set_title(f"Phase map over {x_param} and {y_param}")
+
+    cbar = fig.colorbar(image, ax=ax, ticks=list(range(len(PHASE_ORDER))))
+    cbar.ax.set_yticklabels(PHASE_ORDER)
+    cbar.set_label("Phase regime")
+
+    fig.tight_layout()
+    fig.savefig(group_dir / f"comparison_phase_map_{x_param}_vs_{y_param}.png", dpi=300)
     plt.close(fig)
 
 
@@ -556,6 +681,7 @@ def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group
         save_metric_vs_parameters(summary_df, group_dir, metric_name, sweep_parameters)
 
     if len(sweep_parameters) == 2:
+        save_phase_map_for_two_parameters(summary_df, group_dir, sweep_parameters[0], sweep_parameters[1])
         for metric_name in KEY_METRICS:
             if metric_name not in summary_df.columns:
                 continue
@@ -676,6 +802,15 @@ def run_groups(
     all_records: list[dict[str, Any]] = []
     all_group_summaries: list[pd.DataFrame] = []
 
+    # Calculate total number of runs for progress tracking
+    total_runs = 0
+    for group in groups:
+        scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
+        if scenarios_to_run:
+            sweep_combinations = build_sweep_combinations(group.sweep_parameters)
+            total_runs += len(scenarios_to_run) * len(sweep_combinations)
+
+    current_run = 0
     for group in groups:
         group_dir = ensure_directory(run_root / group.name)
         scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
@@ -699,6 +834,7 @@ def run_groups(
         for scenario_name in scenarios_to_run:
             base_params = available_scenarios[scenario_name]
             for sweep_values in sweep_combinations:
+                current_run += 1
                 record = run_single_combination(
                     base_params=base_params,
                     sweep_values=sweep_values,
@@ -706,6 +842,8 @@ def run_groups(
                     run_root=run_root,
                     scenario_name=scenario_name,
                     overwrite=overwrite,
+                    current_run=current_run,
+                    total_runs=total_runs,
                 )
                 group_records.append(record)
                 all_records.append(record)

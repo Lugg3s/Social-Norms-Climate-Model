@@ -249,6 +249,16 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 else:
                     trend = (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])
                 return (1 + trend) * p["delta"] * (2 * state["x"] - 1)
+            case "Static injunctive":
+                return p["c_inj"] * (p["x_target"] - state["x"])
+            case "Descriptive, injunctive, dynamic":
+                if abs(state["x_ref"]) < 1e-12:
+                    dynamic_term = 0.0
+                else:
+                    dynamic_term = p["c_dyn"] * (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])
+                descriptive_term = p["delta"] * (2 * state["x"] - 1)
+                injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
+                return descriptive_term + injunctive_term + dynamic_term
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")     
                
