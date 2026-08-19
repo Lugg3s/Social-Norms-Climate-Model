@@ -38,7 +38,7 @@
         "epsilon_max": 7,
         "s": 50,
         "r_0": 5,
-        "x0": 0.65,
+        "x0": 0.3,
         "f_gtm": 8.3259e+13,
         
         "social_norm_factor": 2,
@@ -86,10 +86,10 @@
         "social_norm": "Descriptive, injunctive, dynamic",
         "c_inj": 1,
         "x_target": 0.7,
-        "c_dyn": 0,
-        "tau_ref": 2,
+        "c_dyn": 1,
+        "tau_ref": 1,
         "tau_STref": 1,
-        "tau_xp": 2
+        "tau_xp": 1
     },
 
 

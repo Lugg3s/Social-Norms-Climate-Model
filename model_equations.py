@@ -271,16 +271,15 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             return 0
         return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + p["temperature_factor"] * f_T(state["T"]) + p["social_norm_factor"] * social_norm_term)
 
-
     def diff_x_ref(t, state):
-        if p["social_norm"] != "dynamic social norm" and p["social_norm"] != "dynamic baseline":
-            return 0
-        return (state["x_p"] - state["x_ref"]) / p["tau_ref"]
+        if "dynamic" in p["social_norm"].lower():
+            return (state["x_p"] - state["x_ref"]) / p["tau_ref"]
+        return 0
     
     def diff_x_p(t, state):
-        if p["social_norm"] != "dynamic social norm" and p["social_norm"] != "dynamic baseline":
-            return 0
-        return (state["x"] - state["x_p"]) / p["tau_xp"]
+        if "dynamic" in p["social_norm"].lower():
+            return (state["x"] - state["x_p"]) / p["tau_xp"]
+        return 0
 
     def make_model(frozen_agentic_term_observation_intention):
         """
