@@ -91,6 +91,20 @@
         "tau_STref": 1,
         "tau_xp": 1
     },
+    "Descriptive, injunctive, dynamic2": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 6,
+        "x_target": 0.7,
+        "c_dyn": 6,
+        "tau": 1,
+        "theta": 1
+    },
+    "dynamic social norm2": {
+        "social_norm": "dynamic social norm2",
+        "c_dyn": 1,
+        "tau": 1,
+        "theta": 1
+    },
 
 
 

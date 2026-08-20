@@ -93,7 +93,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
             "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
         },
     ),    
-    ExperimentGroup(
+        ExperimentGroup(
         name="Descriptive_injunctive_dynamic_tau2",
         scenarios=[
             "Descriptive, injunctive, dynamic"
@@ -123,6 +123,36 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
             "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
         },
     ),
+    ExperimentGroup(
+        name="Descriptive_injunctive_dynamic2",
+        scenarios=[
+            "Descriptive, injunctive, dynamic2"
+        ],
+        sweep_parameters={
+            "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+        },
+    ),    
+    ExperimentGroup(
+        name="Descriptive_injunctive_dynamic2_theta_tau",
+        scenarios=[
+            "Descriptive, injunctive, dynamic2"
+        ],
+        sweep_parameters={
+            "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+            "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+        },
+    ),    
+    ExperimentGroup(
+            name="dynamic_social_norm2_theta_tau",
+            scenarios=[
+                "Descriptive, injunctive, dynamic2"
+            ],
+            sweep_parameters={
+                "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+                "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+            },
+        ),     
     # ExperimentGroup(
     #     name="Static_injunctive_sensitivity",
     #     scenarios=[

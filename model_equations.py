@@ -115,6 +115,11 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     p = _resolve_extension(extension)
     print(f"Running {extension} with parameters: {p}")
     use_agentic_norm = p.get("ABM", False)
+    social_norm_mode = str(p.get("social_norm", ""))
+    is_delay_dynamic_mode = social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
+    tau_delay = float(p.get("tau", 0.0)) if is_delay_dynamic_mode else 0.0
+    theta_delay = float(p.get("theta", 0.0)) if is_delay_dynamic_mode else 0.0
+    delay_window = max(0.0, tau_delay) + max(0.0, theta_delay)
     rng = np.random.default_rng(seed)
     agents = None
     if use_agentic_norm:
@@ -209,7 +214,26 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         """Temperature-dependent benefit function for social dynamics."""
         return p["f_max"] / (1 + np.exp(-p["omega"] * (T - p["T_c"])))
 
-    def get_social_norm_term(state, frozen_agentic_term_observation_intention=None):
+    delay_history_times: list[float] = [0.0]
+    delay_history_x: list[float] = [float(p["x0"])]
+
+    def evaluate_delayed_x(query_time: float, current_time: float, current_x: float) -> float:
+        """Get x(query_time) from stored history, with linear interpolation fallback."""
+        if query_time <= delay_history_times[0]:
+            return delay_history_x[0]
+
+        last_known_time = delay_history_times[-1]
+        if query_time > last_known_time:
+            # During an active interval, interpolate between last stored state and current RHS state.
+            if current_time <= last_known_time:
+                return current_x
+            alpha = (query_time - last_known_time) / (current_time - last_known_time)
+            alpha = float(np.clip(alpha, 0.0, 1.0))
+            return delay_history_x[-1] + alpha * (current_x - delay_history_x[-1])
+
+        return float(np.interp(query_time, delay_history_times, delay_history_x))
+
+    def get_social_norm_term(state, t, frozen_agentic_term_observation_intention=None):
         match p["social_norm"]:
             case "Observation-based / imitation":
                 # Baseline from Bury
@@ -258,13 +282,30 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                     dynamic_term = p["c_dyn"] * (state["x_p"] - state["x_ref"]) / (state["x_ref"] * p["tau_STref"])
                 descriptive_term = p["delta"] * (2 * state["x"] - 1)
                 injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
-                return descriptive_term + injunctive_term + dynamic_term
+                return descriptive_term + injunctive_term + dynamic_term              
+            case "dynamic social norm2":
+                if p["theta"] <= 0:
+                    return 0.0
+                x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
+                x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
+                dynamic_term = (x_tau - x_tau_theta) / p["theta"]
+                return p["c_dyn"] * dynamic_term
+            case "Descriptive, injunctive, dynamic2":
+                if p["theta"] <= 0:
+                    dynamic_term = 0.0
+                else:
+                    x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
+                    x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
+                    dynamic_term = (x_tau - x_tau_theta) / p["theta"]
+                descriptive_term = p["delta"] * (2 * state["x"] - 1)
+                injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
+                return descriptive_term + injunctive_term + p["c_dyn"] * dynamic_term
             case _:
-                raise ValueError(f"Unknown social norm type: {p['social_norm']}")     
+                raise ValueError(f"Unknown social norm type: {p['social_norm']}")
                
 
     def diff_x(t, state, frozen_agentic_term_observation_intention=None):
-        social_norm_term = get_social_norm_term(state, frozen_agentic_term_observation_intention)
+        social_norm_term = get_social_norm_term(state, t, frozen_agentic_term_observation_intention)
         if t < 216:
             return 0
         if social_norm_term is None:
@@ -272,14 +313,14 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + p["temperature_factor"] * f_T(state["T"]) + p["social_norm_factor"] * social_norm_term)
 
     def diff_x_ref(t, state):
-        if "dynamic" in p["social_norm"].lower():
-            return (state["x_p"] - state["x_ref"]) / p["tau_ref"]
-        return 0
+        if "tau_ref" not in p:
+            return 0
+        return (state["x_p"] - state["x_ref"]) / p["tau_ref"]
     
     def diff_x_p(t, state):
-        if "dynamic" in p["social_norm"].lower():
-            return (state["x"] - state["x_p"]) / p["tau_xp"]
-        return 0
+        if "tau_xp" not in p:
+            return 0
+        return (state["x"] - state["x_p"]) / p["tau_xp"]
 
     def make_model(frozen_agentic_term_observation_intention):
         """
@@ -363,6 +404,20 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         all_times.append(interval_times)
         all_states.append(interval_states)
 
+        # Extend delay history after each solved interval.
+        delay_history_times.extend(interval_times.tolist())
+        delay_history_x.extend(interval_states[5, :].tolist())
+
+        # Keep only the time window needed for delayed interpolation.
+        if is_delay_dynamic_mode:
+            cutoff_time = float(interval_times[-1]) - delay_window - max(float(coupling_interval), 1.0)
+            if cutoff_time > delay_history_times[0]:
+                keep_from = int(np.searchsorted(delay_history_times, cutoff_time, side="left"))
+                keep_from = max(0, keep_from - 1)
+                if keep_from > 0:
+                    delay_history_times = delay_history_times[keep_from:]
+                    delay_history_x = delay_history_x[keep_from:]
+
         if use_agentic_norm:
             all_social_terms.append(np.full(interval_times.shape, frozen_agentic_term, dtype=float))
 
@@ -405,11 +460,27 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     simulation = SimulationResult(simulation_times, *simulation_states)
     if use_agentic_norm:
         social_norm_history = np.concatenate(all_social_terms)
+    elif social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}:
+        x_series = simulation_states[5, :].astype(float)
+        if theta_delay <= 0:
+            trend_series = np.zeros_like(x_series)
+        else:
+            x_tau = np.interp(simulation_times - tau_delay, simulation_times, x_series, left=x_series[0], right=x_series[-1])
+            x_tau_theta = np.interp(simulation_times - tau_delay - theta_delay, simulation_times, x_series, left=x_series[0], right=x_series[-1])
+            trend_series = (x_tau - x_tau_theta) / theta_delay
+
+        if social_norm_mode == "dynamic social norm2":
+            social_norm_history = float(p["c_dyn"]) * trend_series
+        else:
+            descriptive_term = float(p["delta"]) * (2.0 * x_series - 1.0)
+            injunctive_term = float(p["c_inj"]) * (float(p["x_target"]) - x_series)
+            social_norm_history = descriptive_term + injunctive_term + float(p["c_dyn"]) * trend_series
     else:
         social_norm_history = np.asarray(
             [
                 get_social_norm_term(
                     unpack_state(simulation_states[:, i]),
+                    float(simulation_times[i]),
                     None,
                 )
                 for i in range(simulation_states.shape[1])
