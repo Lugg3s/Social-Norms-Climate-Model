@@ -9,7 +9,6 @@ expressions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import sympy as sp
 
@@ -35,6 +34,12 @@ SUPPORTED_NORMS = (
 )
 
 ABM_NORMS = {"Observation-based / intention motivation"}
+DYNAMIC_ODE_NORMS = {
+    "dynamic social norm",
+    "dynamic baseline",
+    "Descriptive, injunctive, dynamic",
+}
+DELAY_NORMS = {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
 
 
 @dataclass(frozen=True)
@@ -62,10 +67,7 @@ class SocialNormAnalysis:
 
 
 def _symbols_for_parameters(parameter_names: set[str]) -> dict[str, sp.Symbol]:
-    return {
-        name: sp.Symbol(name, real=True)
-        for name in sorted(parameter_names)
-    }
+    return {name: sp.Symbol(name, real=True) for name in sorted(parameter_names)}
 
 
 def _parameter_names_for_norm(norm: str) -> set[str]:
@@ -116,38 +118,30 @@ def _social_norm_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
             + s["c_inj"] * (s["x_target"] - x)
             + dynamic
         )
-    if norm in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}:
-        # At a stationary solution x(t-delay) == x(t), so the finite-difference
-        # dynamic term is exactly zero. The delays therefore disappear from the
-        # equilibrium equations, while they still matter for stability of the
-        # delay differential equation.
-        if norm == "dynamic social norm2":
-            return sp.Integer(0)
+    if norm == "dynamic social norm2":
+        return sp.Integer(0)
+    if norm == "Descriptive, injunctive, dynamic2":
         return s["delta"] * (2 * x - 1) + s["c_inj"] * (s["x_target"] - x)
     raise ValueError(f"Unsupported social norm: {norm}")
 
 
 def _equilibrium_social_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
     term = _social_norm_term(norm, s)
-    if norm in {
-        "dynamic social norm",
-        "dynamic baseline",
-        "Descriptive, injunctive, dynamic",
-    }:
+    if norm in DYNAMIC_ODE_NORMS:
         term = sp.simplify(term.subs({x_p: x, x_ref: x}))
     return sp.simplify(term)
 
 
-def _bracket(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
-    return sp.simplify(-s["beta"] + _temperature_term(s) + s["social_norm_factor"] * _equilibrium_social_term(norm, s))
+def _bracket(norm: str, s: dict[str, sp.Symbol], equilibrium: bool = True) -> sp.Expr:
+    term = _equilibrium_social_term(norm, s) if equilibrium else _social_norm_term(norm, s)
+    return sp.simplify(
+        -s["beta"] + _temperature_term(s) + s["social_norm_factor"] * term
+    )
 
 
 def _classify_1d(value: sp.Expr, bracket: sp.Expr) -> str:
-    derivative = sp.simplify(x * (1 - x) * sp.diff(bracket, x))
-    # The derivative of x(1-x) * bracket at x=0/1 is determined by the
-    # bracket evaluated at the boundary. We retain a symbolic sign test,
-    # because no parameter values are substituted.
-    local = sp.simplify(derivative.subs(x, value))
+    g = x * (1 - x) * bracket
+    local = sp.simplify(sp.diff(g, x).subs(x, value))
     if local == 0:
         return "nonhyperbolic"
     return "stable if expression < 0; unstable if expression > 0"
@@ -166,51 +160,63 @@ def _equilibria_1d(bracket: sp.Expr) -> tuple[Equilibrium, ...]:
 
 
 def _equilibria_dynamic(norm: str, s: dict[str, sp.Symbol], bracket: sp.Expr) -> tuple[Equilibrium, ...]:
-    # At equilibrium x_p=x_ref=x. The full Jacobian is retained so stability
-    # is not inferred from the reduced scalar equation alone.
-    g = x * (1 - x) * bracket
-    if norm in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}:
-        # A delay equation requires a characteristic equation for stability;
-        # the equilibrium itself is still exactly determined by the reduced g.
+    reduced_equilibria = _equilibria_1d(bracket)
+    if norm in DELAY_NORMS:
         return tuple(
-            Equilibrium(v, "delay-system stability requires characteristic roots")
-            for v in _equilibria_1d(bracket)
+            Equilibrium(
+                eq.value,
+                "not classified symbolically: delay-system characteristic roots required",
+            )
+            for eq in reduced_equilibria
         )
 
-    tau_xp = s.get("tau_xp", sp.Symbol("tau_xp", real=True))
-    tau_ref = s.get("tau_ref", sp.Symbol("tau_ref", real=True))
+    full_bracket = _bracket(norm, s, equilibrium=False)
+    g = x * (1 - x) * full_bracket
+    tau_xp = s["tau_xp"]
+    tau_ref = s["tau_ref"]
     full = sp.Matrix([
         g,
         (x - x_p) / tau_xp,
         (x_p - x_ref) / tau_ref,
     ])
-    J = full.jacobian([x, x_p, x_ref])
+    jacobian = full.jacobian([x, x_p, x_ref])
+
     result = []
-    for eq in _equilibria_1d(bracket):
+    for eq in reduced_equilibria:
+        if eq.value == 0:
+            # The implemented numerical model explicitly special-cases x_ref=0
+            # in the dynamic norm term. Its local derivative is therefore not
+            # represented by the ordinary symbolic expression containing 1/x_ref.
+            result.append(Equilibrium(eq.value, "boundary stability depends on x_ref=0 special case"))
+            continue
         point = {x: eq.value, x_p: eq.value, x_ref: eq.value}
-        eigenvalues = tuple(sp.simplify(v) for v in J.subs(point).eigenvals().keys())
-        result.append(Equilibrium(eq.value, "stable if all eigenvalue real parts < 0; unstable if any > 0", eigenvalues))
+        eigenvalues = tuple(sp.simplify(v) for v in jacobian.subs(point).eigenvals().keys())
+        result.append(
+            Equilibrium(
+                eq.value,
+                "stable if all eigenvalue real parts < 0; unstable if any > 0",
+                eigenvalues,
+            )
+        )
     return tuple(result)
 
 
 def _bifurcation_conditions(bracket: sp.Expr, parameter: sp.Symbol) -> tuple[sp.Expr, ...]:
     """Return symbolic boundary and interior bifurcation conditions.
 
-    The bounded state x in [0, 1] means equilibria can exchange stability at
-    x=0 or x=1. Interior saddle-node candidates satisfy g=0 and dg/dx=0.
+    Because x is bounded to [0, 1], boundary equilibria can change stability
+    when the interior equilibrium reaches x=0 or x=1. Interior saddle-node
+    candidates satisfy g=0 and dg/dx=0 with 0 < x < 1.
     """
-    g = sp.simplify(x * (1 - x) * bracket)
     conditions: list[sp.Expr] = []
     for boundary in (sp.Integer(0), sp.Integer(1)):
         condition = sp.factor(bracket.subs(x, boundary))
         if condition != 0 and parameter in condition.free_symbols:
-            conditions.append(sp.Eq(condition, 0))
-    dg = sp.diff(g, x)
-    # Keep the equations symbolic rather than forcing a potentially enormous
-    # solve over the transcendental temperature term.
-    if sp.simplify(bracket.diff(x)) != 0:
-        conditions.append(sp.Eq(bracket, 0))
-        conditions.append(sp.Eq(sp.diff(bracket, x), 0))
+            solutions = sp.solve(sp.Eq(condition, 0), parameter)
+            conditions.extend(sp.Eq(parameter, value) for value in solutions)
+
+    if sp.simplify(sp.diff(bracket, x)) != 0:
+        conditions.extend((sp.Eq(bracket, 0), sp.Eq(sp.diff(bracket, x), 0)))
     return tuple(conditions)
 
 
@@ -238,15 +244,9 @@ def analyze_social_norm(norm: str, bifurcation_parameter: str = "beta") -> Socia
     names = _parameter_names_for_norm(norm)
     names.add(bifurcation_parameter)
     s = _symbols_for_parameters(names)
-    if bifurcation_parameter not in s:
-        raise ValueError(f"Unknown bifurcation parameter: {bifurcation_parameter}")
-
     bracket = _bracket(norm, s)
     term = _equilibrium_social_term(norm, s)
-    dynamic = norm in {
-        "dynamic social norm", "dynamic baseline", "Descriptive, injunctive, dynamic",
-        "dynamic social norm2", "Descriptive, injunctive, dynamic2",
-    }
+    dynamic = norm in DYNAMIC_ODE_NORMS or norm in DELAY_NORMS
     variables = (x, x_p, x_ref) if dynamic else (x,)
     equilibria = _equilibria_dynamic(norm, s, bracket) if dynamic else _equilibria_1d(bracket)
     bifurcations = _bifurcation_conditions(bracket, s[bifurcation_parameter])
