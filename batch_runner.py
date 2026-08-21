@@ -41,11 +41,9 @@ class ExperimentGroup:
     output_points_per_year: int = 100
     seed: int = 42
 
-
 GLOBAL_SWEEP_VALUES = [0, 0.5, 1, 2, 3, 5, 10]
 X0_SWEEP_VALUES = [0, 0.2, 0.5, 0.8, 1]
 TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
-
 
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
@@ -53,8 +51,8 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive_injunctive_dynamic2_tau5",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "c_inj": np.round(np.arange(5, 10.1, 1), 1).tolist(),
-            "c_dyn": np.round(np.arange(50, 60.1, 2), 1).tolist(),
+            "c_inj": np.round(np.arange(0, 101, 10), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 101, 10), 1).tolist(),
         },
         static_parameters={"tau": 5, "theta": 1},
     ),
@@ -62,11 +60,169 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive_injunctive_dynamic2_tau10",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "c_inj": np.round(np.arange(5, 10.1, 1), 1).tolist(),
-            "c_dyn": np.round(np.arange(50, 60.1, 2), 1).tolist(),
+            "tau": np.round(np.arange(0, 20, 2), 1).tolist(),
+            "theta": np.round(np.arange(0, 20, 2), 1).tolist(),
         },
-        static_parameters={"tau": 10, "theta": 1},
+        static_parameters={"c_inj": 6, "c_dyn": 60},
     ),
+    # ExperimentGroup(
+    #     name="social_factors",
+    #     scenarios=[
+    #         "baseline",
+    #         "Dynamic social norm",
+    #         "Dynamic baseline",
+    #         "Observation-based / intention motivation (agents)",
+    #         "Belief-based / intention motivation",
+    #         # "Belief-based / approval",
+    #         "Observation based / approval (punish only one behaviour)",
+    #         # "Observation based / approval (relative to mean)",
+    #         "Static injunctive",
+    #         "Descriptive, injunctive, dynamic",
+    #     ],
+    #     sweep_parameters={
+    #         "social_norm_factor": GLOBAL_SWEEP_VALUES,
+    #         "temperature_factor": GLOBAL_SWEEP_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="x0_sensitivity",
+    #     scenarios=[
+    #         "baseline",
+    #         "Dynamic social norm",
+    #         "Dynamic baseline",
+    #         "Belief-based / intention motivation",
+    #         "Belief-based / approval",
+    #         "Observation based / approval (punish only one behaviour)",
+    #         "Static injunctive",
+    #         "Descriptive, injunctive, dynamic",
+    #     ],
+    #     sweep_parameters={
+    #         "x0": X0_SWEEP_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),    
+    #     ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic_tau2",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     static_parameters={
+    #         "tau_ref": 2,
+    #         "tau_STref": 2,
+    #         "tau_xp": 2,
+    #     },
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic_tau5",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     static_parameters={
+    #         "tau_ref": 5,
+    #         "tau_STref": 5,
+    #         "tau_xp": 5,
+    #     },
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic2"
+    #     ],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),    
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2_theta_tau",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic2"
+    #     ],
+    #     sweep_parameters={
+    #         "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #         "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #     },
+    # ),    
+    # ExperimentGroup(
+    #         name="dynamic_social_norm2_theta_tau",
+    #         scenarios=[
+    #             "Descriptive, injunctive, dynamic2"
+    #         ],
+    #         sweep_parameters={
+    #             "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #             "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #         },
+    #     ),     
+    # ExperimentGroup(
+    #     name="Static_injunctive_sensitivity",
+    #     scenarios=[
+    #         "Static injunctive",
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     sweep_parameters={
+    #         "x_target": [0.1, 0.5, 0.8],
+    #         "c_inj": np.round(np.arange(0, 10.1, 2), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 2), 1).tolist(),
+    #         "tau_STref": [0.5, 4],
+    #         "tau_xp": [0.5, 4],
+    #         "tau_ref": [0.5, 4],
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_norm_trend",          # interessanter Verlauf für dynamic baseline bei tau_ref = 4, tau_STref = 0.5, tau_xp = 4
+    #     scenarios=["Dynamic social norm", "Dynamic baseline"],
+    #     sweep_parameters={
+    #         "tau_ref": TAU_SWEEP_VALUES,
+    #         "tau_STref": TAU_SWEEP_VALUES,
+    #         "tau_xp": TAU_SWEEP_VALUES,
+    #     },
+    # ),
+
+
+
+    # uninterresting
+    # ExperimentGroup(
+    #     name="Belief-based / intention motivation",
+    #     scenarios=["Belief-based / intention motivation"],
+    #     sweep_parameters={
+    #         "N": [0, 0.05, 0.1, 0.2, 0.5],
+    #     },
+    # ),      
+    # ExperimentGroup(
+    #     name="approval_sensitivity",
+    #     scenarios=["Observation based / approval (punish only one behaviour)"],
+    #     sweep_parameters={
+    #         "alpha": [0.25, 0.5, 1, 2, 4],         # sobald alpha * x0 > 1 steigt x initial
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="agent_based_intention",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     sweep_parameters={
+    #         "threshold": [0.001, 0.01, 0.05, 0.1],
+    #         "omega": [0.005, 0.01, 0.05, 0.1],
+    #         "agent_susceptibility": [0.2, 0.5, 0.8, 1.0],
+    #         "network_size": [20, 50, 100, 200],
+    #     },
+    #     n_agents=1000,
+    # ),
 ]
 
 
