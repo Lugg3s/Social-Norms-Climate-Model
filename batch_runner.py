@@ -13,8 +13,8 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
-import _batch_runner_impl as _impl
-from _batch_runner_impl import *  # noqa: F401,F403
+# import _batch_runner_impl as _impl
+# from _batch_runner_impl import *  # noqa: F401,F403
 from trajectory_classification import classify, count_extrema
 from model_equations import SimulationResult, load_scenarios, simulate
 
@@ -45,6 +45,36 @@ TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 
 
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
+
+    ExperimentGroup(
+        name="Descriptive_injunctive_dynamic2_tau5",
+        scenarios=[
+            "Descriptive, injunctive, dynamic2"
+        ],
+        sweep_parameters={
+            "c_inj": np.round(np.arange(5, 10.1, 1), 1).tolist(),
+            "c_dyn": np.round(np.arange(50, 60.1, 2), 1).tolist(),
+        },
+        static_parameters={
+            "tau": 5,
+            "theta": 1
+        }
+    ),
+    ExperimentGroup(
+        name="Descriptive_injunctive_dynamic2_tau10",
+        scenarios=[
+            "Descriptive, injunctive, dynamic2"
+        ],
+        sweep_parameters={
+            "c_inj": np.round(np.arange(5, 10.1, 1), 1).tolist(),
+            "c_dyn": np.round(np.arange(50, 60.1, 2), 1).tolist(),
+        },
+        static_parameters={
+            "tau": 10,
+            "theta": 1
+        }
+    ),
+
     # ExperimentGroup(
     #     name="social_factors",
     #     scenarios=[
@@ -80,76 +110,76 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #         "x0": X0_SWEEP_VALUES,
     #     },
     # ),
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic",
-        scenarios=[
-            "Descriptive, injunctive, dynamic"
-        ],
-        sweep_parameters={
-            "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-        },
-    ),    
-        ExperimentGroup(
-        name="Descriptive_injunctive_dynamic_tau2",
-        scenarios=[
-            "Descriptive, injunctive, dynamic"
-        ],
-        static_parameters={
-            "tau_ref": 2,
-            "tau_STref": 2,
-            "tau_xp": 2,
-        },
-        sweep_parameters={
-            "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-        },
-    ),
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic_tau5",
-        scenarios=[
-            "Descriptive, injunctive, dynamic"
-        ],
-        static_parameters={
-            "tau_ref": 5,
-            "tau_STref": 5,
-            "tau_xp": 5,
-        },
-        sweep_parameters={
-            "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-        },
-    ),
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2",
-        scenarios=[
-            "Descriptive, injunctive, dynamic2"
-        ],
-        sweep_parameters={
-            "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-        },
-    ),    
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_theta_tau",
-        scenarios=[
-            "Descriptive, injunctive, dynamic2"
-        ],
-        sweep_parameters={
-            "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
-            "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
-        },
-    ),    
-    ExperimentGroup(
-            name="dynamic_social_norm2_theta_tau",
-            scenarios=[
-                "Descriptive, injunctive, dynamic2"
-            ],
-            sweep_parameters={
-                "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
-                "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
-            },
-        ),     
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),    
+    #     ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic_tau2",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     static_parameters={
+    #         "tau_ref": 2,
+    #         "tau_STref": 2,
+    #         "tau_xp": 2,
+    #     },
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic_tau5",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     static_parameters={
+    #         "tau_ref": 5,
+    #         "tau_STref": 5,
+    #         "tau_xp": 5,
+    #     },
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic2"
+    #     ],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),    
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2_theta_tau",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic2"
+    #     ],
+    #     sweep_parameters={
+    #         "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #         "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #     },
+    # ),    
+    # ExperimentGroup(
+    #         name="dynamic_social_norm2_theta_tau",
+    #         scenarios=[
+    #             "Descriptive, injunctive, dynamic2"
+    #         ],
+    #         sweep_parameters={
+    #             "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #             "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #         },
+    #     ),     
     # ExperimentGroup(
     #     name="Static_injunctive_sensitivity",
     #     scenarios=[
