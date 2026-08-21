@@ -57,7 +57,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         static_parameters={"tau": 5, "theta": 1},
     ),
     ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_tau10",
+        name="Descriptive_injunctive_dynamic2_tau_theta",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
             "tau": np.round(np.arange(0, 20, 2), 1).tolist(),
