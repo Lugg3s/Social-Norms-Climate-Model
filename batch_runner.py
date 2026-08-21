@@ -25,7 +25,7 @@ from model_equations import SimulationResult, load_scenarios, simulate
 
 
 TIME_ZERO_YEAR = 1800
-DEFAULT_SIMULATION_TIME = 400
+DEFAULT_SIMULATION_TIME = 800
 DEFAULT_OUTPUT_ROOT = Path("plots")
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
@@ -53,8 +53,8 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive_injunctive_dynamic2_tau5",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "c_inj": np.round(np.arange(0, 101, 10), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 101, 10), 1).tolist(),
+            "c_inj": np.round(np.arange(0, 101, 1), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 101, 1), 1).tolist(),
         },
         static_parameters={"tau": 5, "theta": 1},
     ),
@@ -62,8 +62,8 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive_injunctive_dynamic2_tau10",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "tau": np.round(np.arange(0, 20, 2), 1).tolist(),
-            "theta": np.round(np.arange(0, 20, 2), 1).tolist(),
+            "tau": np.round(np.arange(0, 20, 1), 1).tolist(),
+            "theta": np.round(np.arange(0, 20, 1), 1).tolist(),
         },
         static_parameters={"c_inj": 6, "c_dyn": 60},
     ),
