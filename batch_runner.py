@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import traceback
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import product
@@ -23,7 +25,7 @@ from model_equations import SimulationResult, load_scenarios, simulate
 
 
 TIME_ZERO_YEAR = 1800
-DEFAULT_SIMULATION_TIME = 400
+DEFAULT_SIMULATION_TIME = 800
 DEFAULT_OUTPUT_ROOT = Path("plots")
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
@@ -51,8 +53,8 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive_injunctive_dynamic2_tau5",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "c_inj": np.round(np.arange(0, 101, 10), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 101, 10), 1).tolist(),
+            "c_inj": np.round(np.arange(0, 101, 1), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 101, 1), 1).tolist(),
         },
         static_parameters={"tau": 5, "theta": 1},
     ),
@@ -60,8 +62,8 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive_injunctive_dynamic2_tau_theta",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "tau": np.round(np.arange(0, 20, 2), 1).tolist(),
-            "theta": np.round(np.arange(0, 20, 2), 1).tolist(),
+            "tau": np.round(np.arange(0, 20, 1), 1).tolist(),
+            "theta": np.round(np.arange(0, 20, 1), 1).tolist(),
         },
         static_parameters={"c_inj": 6, "c_dyn": 60},
     ),
@@ -692,9 +694,14 @@ def run_single_combination(
             }
 
     try:
-        if current_run is not None and total_runs is not None:
+        if (
+            current_run is not None
+            and total_runs is not None
+            and current_run > 0
+            and total_runs > 0
+        ):
             print(f"[{current_run}/{total_runs}] Running {group.name} | {scenario_name} | {run_name}")
-        else:
+        elif current_run is None and total_runs is None:
             print(f"Running {group.name} | {scenario_name} | {run_name}")
 
         result = simulate(
@@ -1105,11 +1112,43 @@ def load_default_groups() -> list[ExperimentGroup]:
     return DEFAULT_EXPERIMENT_GROUPS
 
 
+def _resolve_worker_count(workers: int | None) -> int:
+    if workers is not None:
+        if workers < 1:
+            raise ValueError("workers must be at least 1")
+        return workers
+    return max(1, (os.cpu_count() or 1) - 1)
+
+
+def _run_parallel_job(job: tuple[Any, ...]) -> dict[str, Any]:
+    (
+        base_params,
+        sweep_values,
+        group,
+        run_root,
+        scenario_name,
+        overwrite,
+        save_outputs_per_run,
+    ) = job
+    return run_single_combination(
+        base_params=base_params,
+        sweep_values=sweep_values,
+        group=group,
+        run_root=run_root,
+        scenario_name=scenario_name,
+        overwrite=overwrite,
+        save_outputs_per_run=save_outputs_per_run,
+        current_run=-1,
+        total_runs=-1,
+    )
+
+
 def run_groups(
     selected_group_names: list[str] | None = None,
     output_root: Path = DEFAULT_OUTPUT_ROOT,
     overwrite: bool = False,
     save_outputs_per_run: bool = False,
+    workers: int | None = None,
 ) -> Path:
     run_root = make_output_root(output_root)
     available_scenarios = load_scenarios()
@@ -1118,12 +1157,15 @@ def run_groups(
         selected = set(selected_group_names)
         groups = [group for group in groups if group.name in selected]
 
+    worker_count = _resolve_worker_count(workers)
+
     save_json(
         run_root / "manifest.json",
         {
             "created_at": datetime.now().isoformat(),
             "selected_groups": [group.name for group in groups],
             "available_scenarios": list(available_scenarios.keys()),
+            "workers": worker_count,
             "groups": [
                 {
                     "name": group.name,
@@ -1142,49 +1184,91 @@ def run_groups(
         },
     )
 
-    total_runs = 0
-    for group in groups:
-        scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
-        total_runs += len(scenarios_to_run) * len(build_sweep_combinations(group.sweep_parameters))
+    jobs: list[tuple[Any, ...]] = []
+    group_scenarios: dict[str, list[str]] = {}
 
-    current_run = 0
-    all_records = []
-    all_group_summaries = []
     for group in groups:
         group_dir = ensure_directory(run_root / group.name)
         scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
+        group_scenarios[group.name] = scenarios_to_run
         missing_scenarios = [scenario for scenario in group.scenarios if scenario not in available_scenarios]
         if missing_scenarios:
             save_json(
                 group_dir / "missing_scenarios.json",
                 {"missing_scenarios": missing_scenarios, "available_scenarios": list(available_scenarios)},
             )
-        if not scenarios_to_run:
-            continue
 
-        group_records = []
         sweep_combinations = build_sweep_combinations(group.sweep_parameters)
         for scenario_name in scenarios_to_run:
             base_params = available_scenarios[scenario_name]
             for sweep_values in sweep_combinations:
-                current_run += 1
-                record = run_single_combination(
-                    base_params,
-                    sweep_values,
-                    group,
-                    run_root,
-                    scenario_name,
-                    overwrite,
-                    save_outputs_per_run,
-                    current_run,
-                    total_runs,
+                jobs.append(
+                    (
+                        base_params,
+                        sweep_values,
+                        group,
+                        run_root,
+                        scenario_name,
+                        overwrite,
+                        save_outputs_per_run,
+                    )
                 )
-                group_records.append(record)
+
+    total_runs = len(jobs)
+    all_records: list[dict[str, Any]] = []
+
+    if worker_count == 1:
+        for current_run, job in enumerate(jobs, start=1):
+            (
+                base_params,
+                sweep_values,
+                group,
+                job_run_root,
+                scenario_name,
+                job_overwrite,
+                job_save_outputs,
+            ) = job
+            record = run_single_combination(
+                base_params=base_params,
+                sweep_values=sweep_values,
+                group=group,
+                run_root=job_run_root,
+                scenario_name=scenario_name,
+                overwrite=job_overwrite,
+                save_outputs_per_run=job_save_outputs,
+                current_run=current_run,
+                total_runs=total_runs,
+            )
+            all_records.append(record)
+    else:
+        print(f"Running {total_runs} simulations with {worker_count} worker processes")
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            future_to_job = {executor.submit(_run_parallel_job, job): job for job in jobs}
+            for completed_runs, future in enumerate(as_completed(future_to_job), start=1):
+                record = future.result()
                 all_records.append(record)
+                print(
+                    f"[{completed_runs}/{total_runs}] Completed "
+                    f"{record.get('group')} | {record.get('scenario')} | {record.get('run_name')}"
+                )
+
+    all_group_summaries: list[pd.DataFrame] = []
+    for group in groups:
+        group_dir = ensure_directory(run_root / group.name)
+        group_records = [record for record in all_records if record.get("group") == group.name]
+        if not group_records:
+            continue
 
         group_summary = pd.DataFrame(group_records)
+        sort_columns = ["scenario"] + [
+            parameter_name
+            for parameter_name in group.sweep_parameters
+            if parameter_name in group_summary.columns
+        ]
+        group_summary = group_summary.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+
         save_group_comparison_plots(group_summary, group_dir, group)
-        for scenario_name in scenarios_to_run:
+        for scenario_name in group_scenarios[group.name]:
             save_approach_comparison_plot(group_summary, group_dir, scenario_name)
         all_group_summaries.append(group_summary)
 
@@ -1226,6 +1310,12 @@ def parse_args() -> argparse.Namespace:
         help="Save time series and plots for each individual run, in addition to summary metrics.",
         default=False,
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Number of parallel worker processes. Default: CPU count minus one. Use 1 for serial execution.",
+    )
     return parser.parse_args()
 
 
@@ -1236,6 +1326,7 @@ def main() -> None:
         output_root=args.output_root,
         overwrite=args.overwrite,
         save_outputs_per_run=args.save_outputs_per_run,
+        workers=args.workers,
     )
     print(f"Batch run completed: {run_root}")
 

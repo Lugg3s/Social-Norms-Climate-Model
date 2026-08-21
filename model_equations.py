@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 from pathlib import Path
 from collections import namedtuple
 
@@ -109,11 +110,14 @@ def unpack_state(z):
     return dict(zip(STATE_NAMES, z))
 
 
-def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100, simulate_only_x=False):     # network_size
+def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100, simulate_only_x=False, verbose=None):     # network_size
     """Run the coupled climate-social model for given parameters and return
     time series for each state variable."""
     p = _resolve_extension(extension)
-    print(f"Running {extension} with parameters: {p}")
+    if verbose is None:
+        verbose = multiprocessing.current_process().name == "MainProcess"
+    if verbose:
+        print(f"Running {extension} with parameters: {p}")
     use_agentic_norm = p.get("ABM", False)
     social_norm_mode = str(p.get("social_norm", ""))
     is_delay_dynamic_mode = social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
@@ -516,4 +520,3 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     #     "simulation": SimulationResult(sol.t, *sol.y),
     #     "social_norm_term": social_norm_term
     # }
-
