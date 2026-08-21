@@ -1274,10 +1274,8 @@ def run_groups(
                 )
         except KeyboardInterrupt:
             print("\nBatch run interrupted. Terminating worker processes...")
-            for future in future_to_job:
-                future.cancel()
             _terminate_executor_workers(executor)
-            executor.shutdown(wait=False, cancel_futures=True)
+            executor.shutdown(wait=True, cancel_futures=False)
             raise
         else:
             executor.shutdown(wait=True)
