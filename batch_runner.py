@@ -561,7 +561,7 @@ def save_x_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict
     fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Fraction of mitigators (X)", fontsize=16)
-    ax.set_ylim(-1.1, 1.1)
+    ax.set_ylim(-0.1, 1.1)
     ax.set_xlim(1900, float(frame["year"].iloc[-1]))
 
     ax.plot(frame["year"], frame["x"], label="x")

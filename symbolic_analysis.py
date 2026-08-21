@@ -144,7 +144,7 @@ def _classify_1d(value: sp.Expr, bracket: sp.Expr) -> str:
     local = sp.simplify(sp.diff(g, x).subs(x, value))
     if local == 0:
         return "nonhyperbolic"
-    return "stable if expression < 0; unstable if expression > 0"
+    return f"stable if {local} < 0; unstable if {local} > 0"
 
 
 def _equilibria_1d(bracket: sp.Expr) -> tuple[Equilibrium, ...]:

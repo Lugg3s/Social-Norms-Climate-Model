@@ -55,12 +55,6 @@
         "tau_STref": 1,
         "tau_xp": 2
     },
-    "Dynamic baseline": {
-        "social_norm": "dynamic baseline",
-        "tau_ref": 2,
-        "tau_STref": 1,
-        "tau_xp": 2
-    },
     "Observation-based / intention motivation (agents)": {
         "ABM": true,
         "social_norm": "Observation-based / intention motivation",
@@ -110,6 +104,12 @@
 
 
     "ignore":{
+        "Dynamic baseline": {
+            "social_norm": "dynamic baseline",
+            "tau_ref": 2,
+            "tau_STref": 1,
+            "tau_xp": 2
+        },
         "Observation based / approval (relative to mean)": {
             "comment": "not implemented yet",
             "social_norm": "Observation based / approval (relative to mean)"
