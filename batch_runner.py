@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import os
+import signal
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -1120,6 +1121,21 @@ def _resolve_worker_count(workers: int | None) -> int:
     return max(1, (os.cpu_count() or 1) - 1)
 
 
+def _ignore_sigint_in_worker() -> None:
+    """Let the main process handle Ctrl+C; workers are terminated explicitly."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def _terminate_executor_workers(executor: ProcessPoolExecutor) -> None:
+    """Immediately terminate running worker processes during an interrupted batch run."""
+    processes = list(getattr(executor, "_processes", {}).values())
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+    for process in processes:
+        process.join(timeout=1.0)
+
+
 def _run_parallel_job(job: tuple[Any, ...]) -> dict[str, Any]:
     (
         base_params,
@@ -1242,7 +1258,12 @@ def run_groups(
             all_records.append(record)
     else:
         print(f"Running {total_runs} simulations with {worker_count} worker processes")
-        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        executor = ProcessPoolExecutor(
+            max_workers=worker_count,
+            initializer=_ignore_sigint_in_worker,
+        )
+        future_to_job = {}
+        try:
             future_to_job = {executor.submit(_run_parallel_job, job): job for job in jobs}
             for completed_runs, future in enumerate(as_completed(future_to_job), start=1):
                 record = future.result()
@@ -1251,6 +1272,15 @@ def run_groups(
                     f"[{completed_runs}/{total_runs}] Completed "
                     f"{record.get('group')} | {record.get('scenario')} | {record.get('run_name')}"
                 )
+        except KeyboardInterrupt:
+            print("\nBatch run interrupted. Terminating worker processes...")
+            for future in future_to_job:
+                future.cancel()
+            _terminate_executor_workers(executor)
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+        else:
+            executor.shutdown(wait=True)
 
     all_group_summaries: list[pd.DataFrame] = []
     for group in groups:
@@ -1321,13 +1351,16 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    run_root = run_groups(
-        selected_group_names=args.groups if args.groups else None,
-        output_root=args.output_root,
-        overwrite=args.overwrite,
-        save_outputs_per_run=args.save_outputs_per_run,
-        workers=args.workers,
-    )
+    try:
+        run_root = run_groups(
+            selected_group_names=args.groups if args.groups else None,
+            output_root=args.output_root,
+            overwrite=args.overwrite,
+            save_outputs_per_run=args.save_outputs_per_run,
+            workers=args.workers,
+        )
+    except KeyboardInterrupt:
+        raise SystemExit(130)
     print(f"Batch run completed: {run_root}")
 
 
