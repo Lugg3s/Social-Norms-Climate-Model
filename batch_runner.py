@@ -694,7 +694,12 @@ def run_single_combination(
             }
 
     try:
-        if current_run is not None and total_runs is not None:
+        if (
+            current_run is not None
+            and total_runs is not None
+            and current_run > 0
+            and total_runs > 0
+        ):
             print(f"[{current_run}/{total_runs}] Running {group.name} | {scenario_name} | {run_name}")
         elif current_run is None and total_runs is None:
             print(f"Running {group.name} | {scenario_name} | {run_name}")
