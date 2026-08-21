@@ -1,21 +1,24 @@
-"""Batch-runner entry point with trajectory-based phase classification.
-
-The existing batch-runner implementation is kept in ``_batch_runner_impl.py``.
-Only the phase-map classification is replaced here so that regimes are
-classified directly from the tail of each saved x trajectory.
-"""
-
 from __future__ import annotations
 
+import argparse
+import json
+import math
+import traceback
+from dataclasses import dataclass, field
+from datetime import datetime
+from itertools import product
 from pathlib import Path
+from typing import Any
+from matplotlib.offsetbox import AnchoredText
 
 import matplotlib
+
+matplotlib.use("Agg")
+from matplotlib.animation import FFMpegWriter, FuncAnimation
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import _batch_runner_impl as _impl
-from _batch_runner_impl import *  # noqa: F401,F403
-from trajectory_classification import classify, count_extrema
 from model_equations import SimulationResult, load_scenarios, simulate
 
 
@@ -558,7 +561,7 @@ def save_x_plot(frame: pd.DataFrame, run_dir: Path, run_label: str, params: dict
     fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Fraction of mitigators (X)", fontsize=16)
-    ax.set_ylim(-0.1, 1.1)
+    ax.set_ylim(-1.1, 1.1)
     ax.set_xlim(1900, float(frame["year"].iloc[-1]))
 
     ax.plot(frame["year"], frame["x"], label="x")
@@ -757,7 +760,7 @@ PHASE_ORDER = [
     "Kollaps auf 0",
     "volle S-Kurve auf 1",
     "Zwischenzustand",
-    "gedaempft oszillierend",
+    "gedämpft oszillierend",
     "stark oszillierend",
 ]
 
@@ -765,26 +768,84 @@ PHASE_COLORS = {
     "Kollaps auf 0": "#d62728",
     "volle S-Kurve auf 1": "#ff7f0e",
     "Zwischenzustand": "#2ca02c",
-    "gedaempft oszillierend": "#1f77b4",
+    "gedämpft oszillierend": "#1f77b4",
     "stark oszillierend": "#9467bd",
 }
 
 
-def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str:
-    run_dir = record.get("run_dir")
-    if not isinstance(run_dir, str):
-        return "Zwischenzustand"
+def classify_phase_from_metrics(
+    final_x: float,
+    max_x: float,
+    min_x: float,
+    n_oscillations: float,
+    amplitude_initial: float,
+    amplitude_final: float,
+    amplitude_ratio: float,
+    damping_rate: float,
+) -> str:
+    """Classify the qualitative regime of x(t) from trajectory-aware summary statistics."""
 
-    time_series_path = Path(run_dir) / "time_series.csv"
-    if not time_series_path.exists():
-        return "Zwischenzustand"
+    has_repeated_oscillations = n_oscillations >= 2
+    has_relevant_amplitude = (
+        (math.isfinite(amplitude_initial) and amplitude_initial >= 0.02)
+        or (math.isfinite(amplitude_final) and amplitude_final >= 0.02)
+    )
 
-    frame = pd.read_csv(time_series_path, usecols=["x"])
-    trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
-    if trajectory.size == 0:
-        return "Zwischenzustand"
+    if has_repeated_oscillations and has_relevant_amplitude:
+        damping_threshold = 0.0005
+        if math.isfinite(damping_rate):
+            if damping_rate > damping_threshold:
+                return "gedämpft oszillierend"
+            if damping_rate < -damping_threshold:
+                return "stark oszillierend"
 
-    return classify(trajectory, tail_frac=tail_frac)
+        if math.isfinite(amplitude_ratio):
+            if amplitude_ratio < 0.75:
+                return "gedämpft oszillierend"
+            return "stark oszillierend"
+
+        return "stark oszillierend"
+
+    if final_x > 0.99:
+        return "volle S-Kurve auf 1"
+
+    if final_x < 0.01:
+        return "Kollaps auf 0"
+
+    # if final_x < 0.99 and final_x > 0.01:
+    return "Zwischenzustand"
+
+
+def save_heatmap_for_two_parameters(
+    summary_df: pd.DataFrame,
+    group_dir: Path,
+    metric_name: str,
+    x_param: str,
+    y_param: str,
+) -> None:
+    pivot = summary_df.pivot_table(
+        index=y_param,
+        columns=x_param,
+        values=metric_name,
+        aggfunc="mean",
+    ).sort_index(axis=0).sort_index(axis=1)
+
+    if pivot.empty:
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    image = ax.imshow(pivot.to_numpy(), origin="lower", aspect="auto")
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels([format_value_for_slug(value) for value in pivot.columns], rotation=45, ha="right")
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels([format_value_for_slug(value) for value in pivot.index])
+    ax.set_xlabel(x_param)
+    ax.set_ylabel(y_param)
+    ax.set_title(f"{metric_name} over {x_param} and {y_param}")
+    fig.colorbar(image, ax=ax, label=metric_name)
+    fig.tight_layout()
+    fig.savefig(group_dir / f"comparison_{metric_name}_heatmap.png", dpi=300)
+    plt.close(fig)
 
 
 def save_phase_map_for_two_parameters(
@@ -792,16 +853,32 @@ def save_phase_map_for_two_parameters(
     group_dir: Path,
     x_param: str,
     y_param: str,
-    tail_frac: float = 0.5,
 ) -> None:
-    """Save a phase map using direct classification of each x trajectory."""
-    required_columns = {"run_dir", x_param, y_param}
+    required_columns = {
+        "final_x",
+        "max_x",
+        "min_x",
+        "n_oscillations",
+        "amplitude_initial",
+        "amplitude_final",
+        "amplitude_ratio",
+        "damping_rate",
+    }
     if not required_columns.issubset(summary_df.columns):
         return
 
     phase_df = summary_df.copy()
     phase_df["phase"] = phase_df.apply(
-        lambda row: _classify_saved_run(row, tail_frac=tail_frac),
+        lambda row: classify_phase_from_metrics(
+            row["final_x"],
+            row["max_x"],
+            row["min_x"],
+            row["n_oscillations"],
+            row["amplitude_initial"],
+            row["amplitude_final"],
+            row["amplitude_ratio"],
+            row["damping_rate"],
+        ),
         axis=1,
     )
 
@@ -816,29 +893,16 @@ def save_phase_map_for_two_parameters(
         return
 
     phase_to_idx = {label: idx for idx, label in enumerate(PHASE_ORDER)}
-    phase_array = np.vectorize(
-        lambda label: phase_to_idx.get(str(label), phase_to_idx["Zwischenzustand"])
-    )(pivot.to_numpy())
+    phase_array = np.vectorize(lambda label: phase_to_idx.get(str(label), phase_to_idx["Zwischenzustand"]))(pivot.to_numpy())
 
     cmap = matplotlib.colors.ListedColormap([PHASE_COLORS[label] for label in PHASE_ORDER])
-    fig, ax = _impl.plt.subplots(figsize=(10, 7))
-    image = ax.imshow(
-        phase_array,
-        origin="lower",
-        aspect="auto",
-        cmap=cmap,
-        vmin=0,
-        vmax=len(PHASE_ORDER) - 1,
-    )
+    fig, ax = plt.subplots(figsize=(10, 7))
+    image = ax.imshow(phase_array, origin="lower", aspect="auto", cmap=cmap, vmin=0, vmax=len(PHASE_ORDER) - 1)
 
     ax.set_xticks(range(len(pivot.columns)))
-    ax.set_xticklabels(
-        [_impl.format_value_for_slug(value) for value in pivot.columns],
-        rotation=45,
-        ha="right",
-    )
+    ax.set_xticklabels([format_value_for_slug(value) for value in pivot.columns], rotation=45, ha="right")
     ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels([_impl.format_value_for_slug(value) for value in pivot.index])
+    ax.set_yticklabels([format_value_for_slug(value) for value in pivot.index])
     ax.set_xlabel(x_param)
     ax.set_ylabel(y_param)
     ax.set_title(f"Phase map over {x_param} and {y_param}")
@@ -849,13 +913,485 @@ def save_phase_map_for_two_parameters(
 
     fig.tight_layout()
     fig.savefig(group_dir / f"comparison_phase_map_{x_param}_vs_{y_param}.png", dpi=300)
-    _impl.plt.close(fig)
+    plt.close(fig)
 
 
-# The existing comparison pipeline resolves this function from the implementation
-# module at runtime, so replacing it here updates all existing batch workflows.
-_impl.save_phase_map_for_two_parameters = save_phase_map_for_two_parameters
+def save_metric_vs_parameters(summary_df: pd.DataFrame, group_dir: Path, metric_name: str, sweep_parameters: list[str]) -> None:
+    if not sweep_parameters:
+        return
+
+    fig, axes = plt.subplots(len(sweep_parameters), 1, figsize=(12, 4 * len(sweep_parameters)), squeeze=False)
+    axes = axes.flatten()
+
+    for axis, parameter_name in zip(axes, sweep_parameters):
+        numeric_values = pd.to_numeric(summary_df[parameter_name], errors="coerce")
+        axis.scatter(numeric_values, summary_df[metric_name], alpha=0.65)
+        axis.set_xlabel(parameter_name)
+        axis.set_ylabel(metric_name)
+        axis.set_title(f"{metric_name} vs {parameter_name}")
+        axis.grid(True, alpha=0.2)
+
+    fig.tight_layout()
+    fig.savefig(group_dir / f"comparison_{metric_name}_vs_parameters.png", dpi=300)
+    plt.close(fig)
+
+
+def save_correlation_heatmap(summary_df: pd.DataFrame, group_dir: Path) -> None:
+    numeric_df = summary_df.select_dtypes(include=[np.number]).copy()
+    if numeric_df.shape[1] < 2:
+        return
+
+    correlation = numeric_df.corr(numeric_only=True)
+    fig, ax = plt.subplots(figsize=(max(8, 0.65 * len(correlation.columns)), max(6, 0.65 * len(correlation.columns))))
+    image = ax.imshow(correlation.to_numpy(), vmin=-1, vmax=1, cmap="coolwarm")
+    ax.set_xticks(range(len(correlation.columns)))
+    ax.set_xticklabels(correlation.columns, rotation=45, ha="right")
+    ax.set_yticks(range(len(correlation.index)))
+    ax.set_yticklabels(correlation.index)
+    ax.set_title("Correlation heatmap")
+    fig.colorbar(image, ax=ax, label="Pearson correlation")
+    fig.tight_layout()
+    fig.savefig(group_dir / "comparison_correlation_heatmap.png", dpi=300)
+    plt.close(fig)
+
+
+def save_overlaid_time_series_plot(
+    summary_df: pd.DataFrame,
+    group_dir: Path,
+    metric_name: str,
+    output_name: str,
+    ylabel: str,
+    sweep_parameters: list[str],
+    y_limits: tuple[float, float] | None = None,
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    plotted_lines = 0
+    maximum_value = -np.inf
+    last_year = None
+
+    for _, record in summary_df.iterrows():
+        run_dir = record.get("run_dir")
+        if not isinstance(run_dir, str):
+            continue
+
+        time_series_path = Path(run_dir) / "time_series.csv"
+        if not time_series_path.exists():
+            continue
+
+        frame = pd.read_csv(time_series_path)
+        if metric_name not in frame.columns or "year" not in frame.columns:
+            continue
+
+        values = pd.to_numeric(frame[metric_name], errors="coerce")
+        if values.isna().all():
+            continue
+
+        label_parts = []
+        for parameter_name in sweep_parameters:
+            if parameter_name in record.index:
+                label_parts.append(f"{parameter_name}={format_value_for_slug(record[parameter_name])}")
+        label = ", ".join(label_parts) or str(record.get("scenario", "run"))
+
+        ax.plot(frame["year"], values, label=label)
+        plotted_lines += 1
+        maximum_value = max(maximum_value, float(values.max()))
+        last_year = float(frame["year"].iloc[-1])
+
+    if plotted_lines == 0:
+        plt.close(fig)
+        return
+
+    ax.set_xlabel("Time (year)", fontsize=16)
+    ax.set_ylabel(ylabel, fontsize=16)
+    ax.set_xlim(1900, last_year)
+    if y_limits is not None:
+        ax.set_ylim(*y_limits)
+    elif metric_name == "T":
+        ax.set_ylim(top=max(5, maximum_value + 0.25))
+    if metric_name == "social_norm_term":
+        ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
+    ax.set_title("All parameter combinations", fontsize=12)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    fig.tight_layout()
+    fig.savefig(group_dir / output_name, dpi=300)
+    plt.close(fig)
+
+
+def save_x_parameter_surface_animation(
+    summary_df: pd.DataFrame,
+    group_dir: Path,
+    x_param: str,
+    y_param: str,
+    scenario_name: str,
+    max_frames: int = 240,
+) -> None:
+    required_columns = {"run_dir", x_param, y_param, "scenario"}
+    if not required_columns.issubset(summary_df.columns):
+        return
+
+    scenario_df = summary_df[summary_df["scenario"] == scenario_name].copy()
+    if scenario_df.empty:
+        return
+
+    trajectories: dict[tuple[float, float], tuple[np.ndarray, np.ndarray]] = {}
+    for _, record in scenario_df.iterrows():
+        run_dir = record.get("run_dir")
+        if not isinstance(run_dir, str):
+            continue
+
+        time_series_path = Path(run_dir) / "time_series.csv"
+        if not time_series_path.exists():
+            continue
+
+        frame = pd.read_csv(time_series_path, usecols=["year", "x"])
+        if frame.empty:
+            continue
+
+        parameter_values = (float(record[x_param]), float(record[y_param]))
+        trajectories[parameter_values] = (
+            frame["year"].to_numpy(dtype=float),
+            frame["x"].to_numpy(dtype=float),
+        )
+
+    if not trajectories:
+        return
+
+    x_values = np.array(sorted({values[0] for values in trajectories}), dtype=float)
+    y_values = np.array(sorted({values[1] for values in trajectories}), dtype=float)
+    if len(x_values) < 2 or len(y_values) < 2:
+        return
+
+    first_years = {len(values[0]) for values in trajectories.values()}
+    if len(first_years) != 1:
+        return
+
+    reference_years = next(iter(trajectories.values()))[0]
+    surface = np.full((len(y_values), len(x_values), len(reference_years)), np.nan)
+    x_indices = {value: index for index, value in enumerate(x_values)}
+    y_indices = {value: index for index, value in enumerate(y_values)}
+    for (parameter_x, parameter_y), (_, trajectory) in trajectories.items():
+        surface[y_indices[parameter_y], x_indices[parameter_x], :] = trajectory
+
+    if np.isnan(surface).any():
+        return
+
+    frame_indices = np.unique(np.linspace(0, len(reference_years) - 1, min(max_frames, len(reference_years)), dtype=int))
+    X, Y = np.meshgrid(x_values, y_values)
+    safe_scenario_name = sanitize_name(scenario_name)
+    title_prefix = f"{scenario_name}: x over {x_param} and {y_param}"
+
+    def configure_axes(axis: plt.Axes, frame_index: int) -> None:
+        axis.set_xlabel(x_param)
+        axis.set_ylabel(y_param)
+        axis.set_zlabel("x")
+        axis.set_zlim(-1.1, 1.1)
+        axis.set_title(f"{title_prefix} | year {reference_years[frame_index]:.1f}")
+
+    final_fig = plt.figure(figsize=(11, 8))
+    final_axis = final_fig.add_subplot(111, projection="3d")
+    final_axis.plot_surface(X, Y, surface[:, :, -1], cmap="viridis", vmin=-1, vmax=1, edgecolor="none")
+    configure_axes(final_axis, len(reference_years) - 1)
+    final_fig.tight_layout()
+    final_fig.savefig(group_dir / f"x_surface_{safe_scenario_name}.png", dpi=300)
+    plt.close(final_fig)
+
+    animation_fig = plt.figure(figsize=(11, 8))
+    animation_axis = animation_fig.add_subplot(111, projection="3d")
+
+    def update(frame_index: int):
+        animation_axis.clear()
+        animation_axis.plot_surface(
+            X,
+            Y,
+            surface[:, :, frame_index],
+            cmap="viridis",
+            vmin=-1,
+            vmax=1,
+            edgecolor="none",
+        )
+        configure_axes(animation_axis, frame_index)
+        return animation_axis,
+
+    animation = FuncAnimation(animation_fig, update, frames=frame_indices, blit=False)
+    video_path = group_dir / f"x_surface_{safe_scenario_name}.mp4"
+    try:
+        animation.save(video_path, writer=FFMpegWriter(fps=12, bitrate=1800), dpi=120)
+    except (FileNotFoundError, RuntimeError) as error:
+        print(f"Could not create {video_path}: {error}")
+    finally:
+        plt.close(animation_fig)
+
+
+def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group: ExperimentGroup) -> None:
+    summary_df.to_csv(group_dir / "summary_metrics.csv", index=False)
+    sweep_parameters = list(group.sweep_parameters.keys())
+
+    save_correlation_heatmap(summary_df, group_dir)
+    for metric_name in KEY_METRICS:
+        if metric_name not in summary_df.columns:
+            continue
+        save_metric_vs_parameters(summary_df, group_dir, metric_name, sweep_parameters)
+
+    save_overlaid_time_series_plot(
+        summary_df,
+        group_dir,
+        "x",
+        "x.png",
+        "Fraction of mitigators (X)",
+        sweep_parameters,
+        y_limits=(-1.1, 1.1),
+    )
+    save_overlaid_time_series_plot(
+        summary_df,
+        group_dir,
+        "T",
+        "temperature.png",
+        "Temperature Anomaly (celsius)",
+        sweep_parameters,
+    )
+    save_overlaid_time_series_plot(
+        summary_df,
+        group_dir,
+        "social_norm_term",
+        "social_norm.png",
+        "Social norm value",
+        sweep_parameters,
+    )
+
+    if len(sweep_parameters) == 2:
+        for scenario_name in summary_df["scenario"].dropna().unique():
+            save_x_parameter_surface_animation(
+                summary_df,
+                group_dir,
+                sweep_parameters[0],
+                sweep_parameters[1],
+                scenario_name,
+            )
+        save_phase_map_for_two_parameters(summary_df, group_dir, sweep_parameters[0], sweep_parameters[1])
+        for metric_name in KEY_METRICS:
+            if metric_name not in summary_df.columns:
+                continue
+            save_heatmap_for_two_parameters(
+                summary_df,
+                group_dir,
+                metric_name,
+                sweep_parameters[0],
+                sweep_parameters[1],
+            )
+
+
+
+def save_approach_comparison_plot(summary_df: pd.DataFrame, group_dir: Path, scenario_name: str) -> None:
+    scenario_summary = summary_df[summary_df["scenario"] == scenario_name].copy()
+    if scenario_summary.empty:
+        return
+
+    metric_candidates = [
+        "max_temperature",
+        "final_temperature",
+        "final_x",
+        "final_social_norm",
+        "time_to_peak_temperature",
+    ]
+    available_metrics = [metric for metric in metric_candidates if metric in scenario_summary.columns]
+    if not available_metrics:
+        return
+
+    fig, axes = plt.subplots(len(available_metrics), 1, figsize=(12, 3.5 * len(available_metrics)), squeeze=False)
+    axes = axes.flatten()
+
+    for axis, metric_name in zip(axes, available_metrics):
+        values = pd.to_numeric(scenario_summary[metric_name], errors="coerce").dropna().to_numpy()
+        if values.size == 0:
+            continue
+        axis.boxplot(values, vert=True)
+        axis.set_ylabel(metric_name)
+        axis.set_xticks([1])
+        axis.set_xticklabels([sanitize_name(scenario_name)], rotation=15, ha="right")
+        axis.grid(True, axis="y", alpha=0.2)
+
+    fig.suptitle(f"{scenario_name}: summary across all parameter combinations", fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    output_name = f"approach_summary_{sanitize_name(scenario_name)}.png"
+    fig.savefig(group_dir / output_name, dpi=300)
+    plt.close(fig)
+
+
+def save_overall_comparison_plots(all_summaries: pd.DataFrame, run_root: Path) -> None:
+    if all_summaries.empty:
+        return
+
+    metric_candidates = ["max_temperature", "final_temperature", "final_x", "final_social_norm"]
+    available_metrics = [metric for metric in metric_candidates if metric in all_summaries.columns]
+    if not available_metrics:
+        return
+
+    fig, axes = plt.subplots(len(available_metrics), 1, figsize=(12, 4 * len(available_metrics)), squeeze=False)
+    axes = axes.flatten()
+    for axis, metric_name in zip(axes, available_metrics):
+        grouped = []
+        labels = []
+        for group_name, subset in all_summaries.groupby("group"):
+            values = pd.to_numeric(subset[metric_name], errors="coerce").dropna().to_numpy()
+            if values.size == 0:
+                continue
+            grouped.append(values)
+            labels.append(group_name)
+        if grouped:
+            axis.boxplot(grouped, labels=labels, vert=True)
+        axis.set_title(f"{metric_name} by group")
+        axis.tick_params(axis="x", rotation=25)
+        axis.grid(True, axis="y", alpha=0.2)
+
+    fig.tight_layout()
+    fig.savefig(run_root / "overall_metric_comparison.png", dpi=300)
+    plt.close(fig)
+
+
+def load_default_groups() -> list[ExperimentGroup]:
+    return DEFAULT_EXPERIMENT_GROUPS
+
+
+def run_groups(
+    selected_group_names: list[str] | None = None,
+    output_root: Path = DEFAULT_OUTPUT_ROOT,
+    overwrite: bool = False,
+    save_outputs_per_run: bool = False,
+) -> Path:
+    run_root = make_output_root(output_root)
+    available_scenarios = load_scenarios()
+
+    groups = load_default_groups()
+    if selected_group_names:
+        selected = set(selected_group_names)
+        groups = [group for group in groups if group.name in selected]
+
+    manifest = {
+        "created_at": datetime.now().isoformat(),
+        "selected_groups": [group.name for group in groups],
+        "available_scenarios": list(available_scenarios.keys()),
+        "groups": [
+            {
+                "name": group.name,
+                "scenarios": group.scenarios,
+                "sweep_parameters": group.sweep_parameters,
+                "static_parameters": group.static_parameters,
+                "fixed_overrides": group.fixed_overrides,
+                "simulation_time": group.simulation_time,
+                "n_agents": group.n_agents,
+                "coupling_interval": group.coupling_interval,
+                "output_points_per_year": group.output_points_per_year,
+                "seed": group.seed,
+            }
+            for group in groups
+        ],
+    }
+    save_json(run_root / "manifest.json", manifest)
+
+    all_records: list[dict[str, Any]] = []
+    all_group_summaries: list[pd.DataFrame] = []
+
+    # Calculate total number of runs for progress tracking
+    total_runs = 0
+    for group in groups:
+        scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
+        if scenarios_to_run:
+            sweep_combinations = build_sweep_combinations(group.sweep_parameters)
+            total_runs += len(scenarios_to_run) * len(sweep_combinations)
+
+    current_run = 0
+    for group in groups:
+        group_dir = ensure_directory(run_root / group.name)
+        scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
+
+        missing_scenarios = [scenario for scenario in group.scenarios if scenario not in available_scenarios]
+        if missing_scenarios:
+            save_json(
+                group_dir / "missing_scenarios.json",
+                {
+                    "missing_scenarios": missing_scenarios,
+                    "available_scenarios": list(available_scenarios.keys()),
+                },
+            )
+
+        if not scenarios_to_run:
+            continue
+
+        sweep_combinations = build_sweep_combinations(group.sweep_parameters)
+        group_records: list[dict[str, Any]] = []
+
+        for scenario_name in scenarios_to_run:
+            base_params = available_scenarios[scenario_name]
+            for sweep_values in sweep_combinations:
+                current_run += 1
+                record = run_single_combination(
+                    base_params=base_params,
+                    sweep_values=sweep_values,
+                    group=group,
+                    run_root=run_root,
+                    scenario_name=scenario_name,
+                    overwrite=overwrite,
+                    save_outputs_per_run=save_outputs_per_run,
+                    current_run=current_run,
+                    total_runs=total_runs,
+                )
+                group_records.append(record)
+                all_records.append(record)
+
+        group_summary = pd.DataFrame(group_records)
+        save_group_comparison_plots(group_summary, group_dir, group)
+        for scenario_name in scenarios_to_run:
+            save_approach_comparison_plot(group_summary, group_dir, scenario_name)
+        all_group_summaries.append(group_summary)
+
+    combined_summary = pd.concat(all_group_summaries, ignore_index=True) if all_group_summaries else pd.DataFrame()
+    if not combined_summary.empty:
+        combined_summary.to_csv(run_root / "all_runs_summary.csv", index=False)
+        save_overall_comparison_plots(combined_summary, run_root)
+
+    save_json(run_root / "run_index.json", {"records": all_records})
+    return run_root
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run parameter sweeps and save CSVs plus plots for each combination.")
+    parser.add_argument(
+        "--groups",
+        nargs="*",
+        default=None,
+        help="Optional list of experiment group names to run. If omitted, all default groups are selected.",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Base output directory for batch results.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Re-run combinations even if a completed run directory already exists.",
+    )
+    parser.add_argument(
+        "--save-outputs-per-run",
+        action="store_true",
+        help="Save time series and plots for each individual run, in addition to summary metrics.",
+        default=False,
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    selected_groups = args.groups if args.groups else None
+    run_root = run_groups(
+        selected_group_names=selected_groups,
+        output_root=args.output_root,
+        overwrite=args.overwrite,
+        save_outputs_per_run=args.save_outputs_per_run,
+    )
+    print(f"Batch run completed: {run_root}")
 
 
 if __name__ == "__main__":
-    _impl.main()
+    main()
