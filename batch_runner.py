@@ -51,22 +51,22 @@ TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_tau5",
+        name="Descriptive_injunctive_dynamic2_tau_theta",
+        scenarios=["Descriptive, injunctive, dynamic2", "dynamic social norm2"],
+        sweep_parameters={
+            "tau": np.round(np.arange(0, 50, 1), 1).tolist(),
+            "theta": np.round(np.arange(0, 50, 1), 1).tolist(),
+        },
+        static_parameters={"c_inj": 6, "c_dyn": 60},
+    ),
+    ExperimentGroup(
+        name="Descriptive_injunctive_dynamic2_cinj_cdyn",
         scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
             "c_inj": np.round(np.arange(0, 101, 1), 1).tolist(),
             "c_dyn": np.round(np.arange(0, 101, 1), 1).tolist(),
         },
         static_parameters={"tau": 5, "theta": 1},
-    ),
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_tau_theta",
-        scenarios=["Descriptive, injunctive, dynamic2"],
-        sweep_parameters={
-            "tau": np.round(np.arange(0, 20, 1), 1).tolist(),
-            "theta": np.round(np.arange(0, 20, 1), 1).tolist(),
-        },
-        static_parameters={"c_inj": 6, "c_dyn": 60},
     ),
     # ExperimentGroup(
     #     name="social_factors",
