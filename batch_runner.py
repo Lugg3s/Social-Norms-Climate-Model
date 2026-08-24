@@ -22,13 +22,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from model_equations import SimulationResult, load_scenarios, simulate
+from model_equations import SimulationResult, emission_rate, load_scenarios, simulate
 
 
 TIME_ZERO_YEAR = 1800
 DEFAULT_SIMULATION_TIME = 800
 DEFAULT_OUTPUT_ROOT = Path("plots")
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
+ELIMINATION_THRESHOLD = 0.95
 
 
 @dataclass(frozen=True)
@@ -250,6 +251,10 @@ KEY_METRICS = [
     "final_social_norm",
     "max_social_norm",
     "min_social_norm",
+    "threshold_reached",
+    "time_to_elimination",
+    "elimination_success",
+    "cumulative_emissions",
 ]
 
 
@@ -499,8 +504,64 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     }
 
 
-def _base_metrics(t_values, temperature, x_values, social_norm) -> dict[str, Any]:
+def _first_threshold_crossing_time(
+    t_values: np.ndarray,
+    x_values: np.ndarray,
+    threshold: float = ELIMINATION_THRESHOLD,
+) -> float:
+    above = np.flatnonzero(x_values >= threshold)
+    if above.size == 0:
+        return float("nan")
+    first_index = int(above[0])
+    if first_index == 0:
+        return float(t_values[0])
+
+    t0 = float(t_values[first_index - 1])
+    t1 = float(t_values[first_index])
+    x0 = float(x_values[first_index - 1])
+    x1 = float(x_values[first_index])
+    if abs(x1 - x0) < 1e-12:
+        return t1
+    fraction = float(np.clip((threshold - x0) / (x1 - x0), 0.0, 1.0))
+    return t0 + fraction * (t1 - t0)
+
+
+def _prescribed_emission_rate(t_values: np.ndarray, params: dict[str, Any]) -> np.ndarray:
+    rates = np.empty_like(t_values, dtype=float)
+    for index, time_value in enumerate(t_values):
+        t_int = int(time_value)
+        if t_int < 216:
+            rates[index] = emission_rate[t_int]
+        else:
+            rates[index] = (
+                ((t_int - 216) * params["epsilon_max"]) / (t_int - 216 + params["s"])
+            ) + emission_rate[216]
+    return rates
+
+
+def _base_metrics(
+    t_values,
+    temperature,
+    x_values,
+    social_norm,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    t_values = np.asarray(t_values, dtype=float)
+    temperature = np.asarray(temperature, dtype=float)
+    x_values = np.asarray(x_values, dtype=float)
+    social_norm = np.asarray(social_norm, dtype=float)
+
     max_temperature_index = int(np.nanargmax(temperature))
+    time_to_elimination = _first_threshold_crossing_time(t_values, x_values)
+    threshold_reached = bool(np.any(x_values >= ELIMINATION_THRESHOLD))
+    elimination_success = bool(x_values[-1] >= ELIMINATION_THRESHOLD)
+
+    cumulative_emissions = float("nan")
+    if params is not None and {"epsilon_max", "s"}.issubset(params):
+        prescribed_emissions = _prescribed_emission_rate(t_values, params)
+        effective_emissions = prescribed_emissions * (1.0 - x_values)
+        cumulative_emissions = float(np.trapz(effective_emissions, t_values))
+
     metrics = {
         "max_temperature": float(np.nanmax(temperature)),
         "final_temperature": float(temperature[-1]),
@@ -513,27 +574,38 @@ def _base_metrics(t_values, temperature, x_values, social_norm) -> dict[str, Any
         "final_social_norm": float(social_norm[-1]) if social_norm.size else float("nan"),
         "max_social_norm": float(np.nanmax(social_norm)) if social_norm.size else float("nan"),
         "min_social_norm": float(np.nanmin(social_norm)) if social_norm.size else float("nan"),
+        "threshold_reached": threshold_reached,
+        "time_to_elimination": time_to_elimination,
+        "elimination_success": elimination_success,
+        "cumulative_emissions": cumulative_emissions,
     }
-    metrics.update(_compute_oscillation_metrics(np.asarray(t_values), np.asarray(x_values)))
+    metrics.update(_compute_oscillation_metrics(t_values, x_values))
     return metrics
 
 
-def compute_run_metrics(result: dict[str, Any]) -> dict[str, Any]:
+def compute_run_metrics(result: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
     simulation = result["simulation"]
     return _base_metrics(
         np.asarray(simulation.t, dtype=float),
         np.asarray(simulation.T, dtype=float),
         np.asarray(simulation.x, dtype=float),
         np.asarray(result.get("social_norm_term", []), dtype=float),
+        params=params,
     )
 
 
 def compute_metrics_from_saved_time_series(frame: pd.DataFrame) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    for parameter_name in ("epsilon_max", "s"):
+        if parameter_name in frame.columns and not frame[parameter_name].empty:
+            params[parameter_name] = float(frame[parameter_name].iloc[0])
+
     return _base_metrics(
         pd.to_numeric(frame["t"], errors="coerce").to_numpy(dtype=float),
         pd.to_numeric(frame["T"], errors="coerce").to_numpy(dtype=float),
         pd.to_numeric(frame["x"], errors="coerce").to_numpy(dtype=float),
         pd.to_numeric(frame["social_norm_term"], errors="coerce").to_numpy(dtype=float),
+        params=params if params else None,
     )
 
 
@@ -713,7 +785,7 @@ def run_single_combination(
             output_points_per_year=group.output_points_per_year,
             seed=group.seed,
         )
-        metrics = compute_run_metrics(result)
+        metrics = compute_run_metrics(result, params)
         if save_outputs_per_run:
             save_run_outputs(
                 run_dir,
@@ -1109,6 +1181,74 @@ def save_overall_comparison_plots(all_summaries: pd.DataFrame, run_root: Path) -
     plt.close(fig)
 
 
+def _mean_std(series: pd.Series) -> tuple[float, float]:
+    numeric = pd.to_numeric(series, errors="coerce").dropna()
+    if numeric.empty:
+        return float("nan"), float("nan")
+    mean = float(numeric.mean())
+    std = float(numeric.std(ddof=1)) if len(numeric) > 1 else 0.0
+    return mean, std
+
+
+def build_scenario_comparison_table(all_runs: pd.DataFrame) -> pd.DataFrame:
+    """Summarize each social-norm scenario across all completed parameter combinations."""
+    if all_runs.empty or "scenario" not in all_runs.columns:
+        return pd.DataFrame()
+
+    usable = all_runs[all_runs["status"].isin(["ok", "skipped"])].copy()
+    if usable.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    for scenario_name, scenario_runs in usable.groupby("scenario", sort=False):
+        success = scenario_runs["elimination_success"].fillna(False).astype(bool)
+        threshold_reached = scenario_runs["threshold_reached"].fillna(False).astype(bool)
+        successful_runs = scenario_runs[success]
+
+        final_x_mean, final_x_std = _mean_std(scenario_runs["final_x"])
+        max_temperature_mean, max_temperature_std = _mean_std(scenario_runs["max_temperature"])
+        final_temperature_mean, final_temperature_std = _mean_std(scenario_runs["final_temperature"])
+        cumulative_emissions_mean, cumulative_emissions_std = _mean_std(
+            scenario_runs["cumulative_emissions"]
+        )
+        time_to_elimination_mean, time_to_elimination_std = _mean_std(
+            successful_runs["time_to_elimination"]
+        )
+
+        phase_counts: dict[str, int] = {phase: 0 for phase in PHASE_ORDER}
+        for _, record in scenario_runs.iterrows():
+            phase = _classify_saved_run(record)
+            phase_counts[phase] = phase_counts.get(phase, 0) + 1
+
+        row = {
+            "scenario": scenario_name,
+            "n_runs": int(len(scenario_runs)),
+            "elimination_threshold": ELIMINATION_THRESHOLD,
+            "elimination_success_rate": float(success.mean()),
+            "threshold_reached_rate": float(threshold_reached.mean()),
+            "time_to_elimination_mean_successful": time_to_elimination_mean,
+            "time_to_elimination_std_successful": time_to_elimination_std,
+            "final_x_mean": final_x_mean,
+            "final_x_std": final_x_std,
+            "cumulative_emissions_mean": cumulative_emissions_mean,
+            "cumulative_emissions_std": cumulative_emissions_std,
+            "max_temperature_mean": max_temperature_mean,
+            "max_temperature_std": max_temperature_std,
+            "final_temperature_mean": final_temperature_mean,
+            "final_temperature_std": final_temperature_std,
+        }
+        for phase in PHASE_ORDER:
+            row[f"phase_share_{sanitize_name(phase)}"] = phase_counts.get(phase, 0) / len(scenario_runs)
+        rows.append(row)
+
+    comparison = pd.DataFrame(rows)
+    return comparison.sort_values(
+        ["elimination_success_rate", "cumulative_emissions_mean", "max_temperature_mean"],
+        ascending=[False, True, True],
+        kind="stable",
+    ).reset_index(drop=True)
+
+
 def load_default_groups() -> list[ExperimentGroup]:
     return DEFAULT_EXPERIMENT_GROUPS
 
@@ -1182,6 +1322,7 @@ def run_groups(
             "selected_groups": [group.name for group in groups],
             "available_scenarios": list(available_scenarios.keys()),
             "workers": worker_count,
+            "elimination_threshold": ELIMINATION_THRESHOLD,
             "groups": [
                 {
                     "name": group.name,
@@ -1305,6 +1446,9 @@ def run_groups(
     )
     if not combined_summary.empty:
         combined_summary.to_csv(run_root / "all_runs_summary.csv", index=False)
+        scenario_comparison = build_scenario_comparison_table(combined_summary)
+        if not scenario_comparison.empty:
+            scenario_comparison.to_csv(run_root / "scenario_comparison.csv", index=False)
         save_overall_comparison_plots(combined_summary, run_root)
 
     save_json(run_root / "run_index.json", {"records": all_records})
