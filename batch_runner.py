@@ -74,17 +74,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
             "tau_xp": POSITIVE_TIME_VALUES,
         },
     ),
-    # Agents based erstmal weglassen
-    # ExperimentGroup(
-    #     name="observation_based_intention_agents",
-    #     scenarios=["Observation-based / intention motivation (agents)"],
-    #     sweep_parameters={
-    #         "threshold": [],
-    #         "omega": [],
-    #         "network_size": [],
-    #         "agent_susceptibility": [],
-    #     },
-    # ),
+
     ExperimentGroup(
         name="belief_based_intention",
         scenarios=["Belief-based / intention motivation"],
@@ -129,18 +119,17 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         scenarios=["dynamic social norm2"],
         sweep_parameters={"tau": DELAY_VALUES, "theta": THETA_VALUES},
     ),
+    # Agents based erstmal weglassen
     # ExperimentGroup(
-    #     name="Descriptive_injunctive_dynamic2_cinj_cdyn10",
-    #     scenarios=["Descriptive, injunctive, dynamic2"],
+    #     name="observation_based_intention_agents",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
     #     sweep_parameters={
-    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 2).tolist(),
-    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 2).tolist(),
+    #         "threshold": [],
+    #         "omega": [],
+    #         "network_size": [],
+    #         "agent_susceptibility": [],
     #     },
-    #     static_parameters={"tau": 5, "theta": 1},
     # ),
-
-
-
 
 
     # ExperimentGroup(
@@ -410,6 +399,16 @@ def format_value_for_slug(value: Any) -> str:
             return ("{:.4g}".format(value)).replace("-", "m").replace(".", "p")
         return str(value)
     return sanitize_name(value)
+
+
+def format_value_for_display(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        numeric_value = float(value)
+        if math.isfinite(numeric_value):
+            return f"{numeric_value:g}".replace(".", ",")
+    return str(value)
 
 
 def ensure_directory(path: Path) -> Path:
@@ -694,10 +693,7 @@ def add_parameter_text_box(
         if parameter_name not in params:
             continue
         value = params[parameter_name]
-        if isinstance(value, float) and math.isfinite(value):
-            value_text = f"{value:.4g}"
-        else:
-            value_text = str(value)
+        value_text = format_value_for_display(value)
         lines.append(f"{parameter_name} = {value_text}")
     if not lines:
         return
@@ -990,10 +986,10 @@ def save_phase_map_for_two_parameters(
         )
         ax.set_xticks(range(len(pivot.columns)))
         ax.set_xticklabels(
-            [format_value_for_slug(value) for value in pivot.columns], rotation=45, ha="right"
+            [format_value_for_display(value) for value in pivot.columns], rotation=45, ha="right"
         )
         ax.set_yticks(range(len(pivot.index)))
-        ax.set_yticklabels([format_value_for_slug(value) for value in pivot.index])
+        ax.set_yticklabels([format_value_for_display(value) for value in pivot.index])
         ax.set_xlabel(x_param)
         ax.set_ylabel(y_param)
         ax.set_title(f"{scenario_name}: phase map over {x_param} and {y_param}")
@@ -1010,17 +1006,24 @@ def save_phase_map_for_two_parameters(
 
 
 def save_heatmap_for_two_parameters(summary_df, group_dir, metric_name, x_param, y_param) -> None:
-    pivot = summary_df.pivot_table(
+    heatmap_data = summary_df[[x_param, y_param, metric_name]].copy()
+    for column in (x_param, y_param, metric_name):
+        heatmap_data[column] = pd.to_numeric(heatmap_data[column], errors="coerce")
+    heatmap_data = heatmap_data.dropna(subset=[x_param, y_param, metric_name])
+    if heatmap_data.empty:
+        return
+
+    pivot = heatmap_data.pivot_table(
         index=y_param, columns=x_param, values=metric_name, aggfunc="mean"
     ).sort_index(axis=0).sort_index(axis=1)
     if pivot.empty:
         return
     fig, ax = plt.subplots(figsize=(10, 7))
-    image = ax.imshow(pivot.to_numpy(), origin="lower", aspect="auto")
+    image = ax.imshow(pivot.to_numpy(dtype=float), origin="lower", aspect="auto")
     ax.set_xticks(range(len(pivot.columns)))
-    ax.set_xticklabels([format_value_for_slug(v) for v in pivot.columns], rotation=45, ha="right")
+    ax.set_xticklabels([format_value_for_display(v) for v in pivot.columns], rotation=45, ha="right")
     ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels([format_value_for_slug(v) for v in pivot.index])
+    ax.set_yticklabels([format_value_for_display(v) for v in pivot.index])
     ax.set_xlabel(x_param)
     ax.set_ylabel(y_param)
     ax.set_title(f"{metric_name} over {x_param} and {y_param}")
@@ -1098,7 +1101,7 @@ def save_overlaid_time_series_plot(
         if values.isna().all():
             continue
         label = ", ".join(
-            f"{p}={format_value_for_slug(record[p])}"
+            f"{p}={format_value_for_display(record[p])}"
             for p in sweep_parameters
             if p in record.index
         ) or str(record.get("scenario", "run"))
