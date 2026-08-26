@@ -49,8 +49,86 @@ GLOBAL_SWEEP_VALUES = [0, 0.5, 1, 2, 3, 5, 10]
 X0_SWEEP_VALUES = [0, 0.2, 0.5, 0.8, 1]
 TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 
+STRENGTH_VALUES = [0, 0.1, 0.3, 1, 3, 10, 30, 100]
+POSITIVE_TIME_VALUES = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
+DELAY_VALUES = [0, 0.5, 1, 2, 5, 10, 25, 50, 100]
+THETA_VALUES = [0, *POSITIVE_TIME_VALUES]
+TARGET_VALUES = [0, 0.1, 0.25, 0.5, 0.7, 0.9, 1]
+BELIEF_VALUES = [0, 0.1, 0.3, 0.5, 1, 2, 3]
+APPROVAL_VALUES = [0, 0.1, 0.25, 0.5, 1, 2, 3]
+
+
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
+    ExperimentGroup(
+        name="observation_based_imitation",
+        scenarios=["baseline"],
+        sweep_parameters={"delta": STRENGTH_VALUES},
+    ),
+    ExperimentGroup(
+        name="dynamic_social_norm",
+        scenarios=["Dynamic social norm"],
+        sweep_parameters={
+            "tau_ref": POSITIVE_TIME_VALUES,
+            "tau_STref": POSITIVE_TIME_VALUES,
+            "tau_xp": POSITIVE_TIME_VALUES,
+        },
+    ),
+    # Agents based erstmal weglassen
+    # ExperimentGroup(
+    #     name="observation_based_intention_agents",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     sweep_parameters={
+    #         "threshold": [],
+    #         "omega": [],
+    #         "network_size": [],
+    #         "agent_susceptibility": [],
+    #     },
+    # ),
+    ExperimentGroup(
+        name="belief_based_intention",
+        scenarios=["Belief-based / intention motivation"],
+        sweep_parameters={"N": BELIEF_VALUES},
+    ),
+    ExperimentGroup(
+        name="observation_based_approval_punish_one",
+        scenarios=["Observation based / approval (punish only one behaviour)"],
+        sweep_parameters={"alpha": APPROVAL_VALUES},
+    ),
+    ExperimentGroup(
+        name="static_injunctive",
+        scenarios=["Static injunctive"],
+        sweep_parameters={"c_inj": STRENGTH_VALUES, "x_target": TARGET_VALUES},
+    ),
+    ExperimentGroup(
+        name="descriptive_injunctive_dynamic",
+        scenarios=["Descriptive, injunctive, dynamic"],
+        sweep_parameters={
+            "c_inj": STRENGTH_VALUES,
+            "c_dyn": STRENGTH_VALUES,
+        },
+    ),
+    ExperimentGroup(
+        name="descriptive_injunctive_dynamic2",
+        scenarios=["Descriptive, injunctive, dynamic2"],
+        sweep_parameters={
+            "c_inj": STRENGTH_VALUES,
+            "c_dyn": STRENGTH_VALUES,
+        },
+    ),
+    ExperimentGroup(
+        name="injunctive_dynamic2",
+        scenarios=["Injunctive, dynamic2"],
+        sweep_parameters={
+            "tau": DELAY_VALUES,
+            "theta": THETA_VALUES,
+        },
+    ),
+    ExperimentGroup(
+        name="dynamic_social_norm2",
+        scenarios=["dynamic social norm2"],
+        sweep_parameters={"tau": DELAY_VALUES, "theta": THETA_VALUES},
+    ),
     # ExperimentGroup(
     #     name="Descriptive_injunctive_dynamic2_cinj_cdyn10",
     #     scenarios=["Descriptive, injunctive, dynamic2"],
@@ -60,42 +138,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     },
     #     static_parameters={"tau": 5, "theta": 1},
     # ),
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_tau_theta",
-        scenarios=["Descriptive, injunctive, dynamic2"],
-        sweep_parameters={
-            "tau": np.round(np.arange(0, 100.1, 50), 1).tolist(),
-            "theta": np.round(np.arange(0, 100.1, 50), 1).tolist(),
-        },
-        static_parameters={"c_inj": 6, "c_dyn": 60},
-    ),
-    ExperimentGroup(
-        name="dynamic2_tau_theta",
-        scenarios=["dynamic social norm2"],
-        sweep_parameters={
-            "tau": np.round(np.arange(0, 100.1, 50), 1).tolist(),
-            "theta": np.round(np.arange(0, 100.1, 50), 1).tolist(),
-        },
-        static_parameters={"c_inj": 6, "c_dyn": 60},
-    ),
-    ExperimentGroup(
-        name="injunctive_dynamic2_tau_theta",
-        scenarios=["Injunctive, dynamic2"],
-        sweep_parameters={
-            "tau": np.round(np.arange(0, 100.1, 50), 1).tolist(),
-            "theta": np.round(np.arange(0, 100.1, 50), 1).tolist(),
-        },
-        static_parameters={"c_inj": 6, "c_dyn": 60},
-    ),
-    # ExperimentGroup(
-    #     name="Descriptive_injunctive_dynamic2_cinj_cdyn",
-    #     scenarios=["Descriptive, injunctive, dynamic2"],
-    #     sweep_parameters={
-    #         "c_inj": np.round(np.arange(0, 201, 5), 2).tolist(),
-    #         "c_dyn": np.round(np.arange(0, 201, 5), 2).tolist(),
-    #     },
-    #     static_parameters={"tau": 5, "theta": 1},
-    # ),
+
 
 
 
@@ -821,7 +864,7 @@ def run_single_combination(
 ) -> dict[str, Any]:
     params = {**base_params, **group.fixed_overrides, **group.static_parameters, **sweep_values}
     run_name = create_run_name(scenario_name, sweep_values)
-    run_dir = run_root / group.name / sanitize_name(scenario_name) / run_name
+    run_dir = run_root / sanitize_name(group.name) / sanitize_name(scenario_name) / run_name
     ensure_directory(run_dir)
 
     time_series_path = run_dir / "time_series.csv"
@@ -1425,7 +1468,7 @@ def run_groups(
     group_scenarios: dict[str, list[str]] = {}
 
     for group in groups:
-        group_dir = ensure_directory(run_root / group.name)
+        group_dir = ensure_directory(run_root / sanitize_name(group.name))
         scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
         group_scenarios[group.name] = scenarios_to_run
         missing_scenarios = [scenario for scenario in group.scenarios if scenario not in available_scenarios]
@@ -1503,7 +1546,7 @@ def run_groups(
 
     all_group_summaries: list[pd.DataFrame] = []
     for group in groups:
-        group_dir = ensure_directory(run_root / group.name)
+        group_dir = ensure_directory(run_root / sanitize_name(group.name))
         group_records = [record for record in all_records if record.get("group") == group.name]
         if not group_records:
             continue
