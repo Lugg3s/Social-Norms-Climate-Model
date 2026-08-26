@@ -2,6 +2,7 @@
 
 1. Equilibria und kipppunkte im code berechnen und plotten/ausgeben
 	1. Auch die Formel für Equilibria bestimmen (um zu sehen von welchen Parametern diese abhängig sind)
+1. Bei der dynamischen Norm: Berechnen für welche Parameter die Oszillation am gröpten ist (heatmap mit parametern auf den achsen (heat = oszillationsstärke/amplitude/frequenz))
 1. Warum ist in Descriptive, injunctive, dynamic immer so ein Sprung in der social norm value?
 1. Tabelle erstellen zum Vergleichen der Runs (was Chati vorgeschlagen hat)
 1. dynamic social norm mit dynamic social norm2 vergleichen (und entsprechend auch Descriptive, injunctive, dynamic mit Descriptive, injunctive, dynamic2)

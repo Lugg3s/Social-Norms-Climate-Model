@@ -41,8 +41,8 @@
         "x0": 0.3,
         "f_gtm": 8.3259e+13,
         
-        "social_norm_factor": 2,
-        "temperature_factor": 0.1,
+        "social_norm_factor": 1,
+        "temperature_factor": 1,
 
 
         "tp": 10,
