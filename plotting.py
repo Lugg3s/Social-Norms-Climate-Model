@@ -18,6 +18,7 @@ plt.rcParams.update({
 
 
 _RUN_OUTPUT_DIR = None
+TIME_ZERO_YEAR = 1800
 
 
 def _get_run_output_dir():
@@ -74,7 +75,7 @@ def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=Non
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
     ax.set_ylim(top=5)
-    ax.set_xlim(1900, 1800 + simulation_time)
+    ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
 
     if results is None:
         model_equations = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
@@ -89,7 +90,7 @@ def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=Non
     scenario_parameters = load_scenarios()
 
     for scenario_name, result in results.items():
-        ax.plot(result.t + 1800, result.T, label=scenario_name)
+        ax.plot(result.t + TIME_ZERO_YEAR, result.T, label=scenario_name)
 
     # handles, labels = _collect_legend_handles_labels(ax, ax_x)
     # fig.legend(handles, labels, loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
@@ -112,7 +113,7 @@ def plot_x(include_scenarios=None, exclude_scenarios=None, results=None, show_x_
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Fraction of mitigators (X)", fontsize=16)
     ax.set_ylim(-1.1, 1.1)
-    ax.set_xlim(1900, 1800 + simulation_time)
+    ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
 
     if results is None:
         model_equations = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
@@ -133,11 +134,11 @@ def plot_x(include_scenarios=None, exclude_scenarios=None, results=None, show_x_
     scenario_parameters = load_scenarios()
 
     for scenario_name, result in results.items():
-        ax.plot(result.t + 1800, result.x, label=scenario_name)
+        ax.plot(result.t + TIME_ZERO_YEAR, result.x, label=scenario_name)
         if show_x_auxiliary and _is_dynamic_social_norm(scenario_parameters.get(scenario_name, {})):
-            ax.plot(result.t + 1800, result.x_p, linestyle="--", label=f"{scenario_name} x_p")
+            ax.plot(result.t + TIME_ZERO_YEAR, result.x_p, linestyle="--", label=f"{scenario_name} x_p")
         if show_x_auxiliary and _is_dynamic_social_norm(scenario_parameters.get(scenario_name, {})):
-            ax.plot(result.t + 1800, result.x_ref, linestyle=":", label=f"{scenario_name} x_ref")
+            ax.plot(result.t + TIME_ZERO_YEAR, result.x_ref, linestyle=":", label=f"{scenario_name} x_ref")
 
     fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
@@ -170,7 +171,7 @@ def plot_x_sensitivity(
         ax.set_xlabel("Time (year)", fontsize=16)
         ax.set_ylabel("Fraction of mitigators (X)", fontsize=16)
         ax.set_ylim(-1.1, 1.1)
-        ax.set_xlim(1900, 1800 + simulation_time)
+        ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
         ax.set_title(f"{scenario_name}: sensitivity over {parameter_name}")
 
         for parameter_value in parameter_values:
@@ -182,11 +183,11 @@ def plot_x_sensitivity(
                 simulate_only_x=simulate_only_x,
             )["simulation"]
             label = f"{parameter_name}={parameter_value}"
-            ax.plot(result.t + 1800, result.x, label=label)
+            ax.plot(result.t + TIME_ZERO_YEAR, result.x, label=label)
 
             if show_x_auxiliary and _is_dynamic_social_norm(run_params):
-                ax.plot(result.t + 1800, result.x_p, linestyle="--", label=f"{label} x_p")
-                ax.plot(result.t + 1800, result.x_ref, linestyle=":", label=f"{label} x_ref")
+                ax.plot(result.t + TIME_ZERO_YEAR, result.x_p, linestyle="--", label=f"{label} x_p")
+                ax.plot(result.t + TIME_ZERO_YEAR, result.x_ref, linestyle=":", label=f"{label} x_ref")
 
         fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
         output_dir = _get_run_output_dir()
@@ -221,7 +222,7 @@ def plot_temperature_sensitivity(
         ax.set_xlabel("Time (year)", fontsize=16)
         ax.set_ylabel("Temperature Anomaly (celsius)", fontsize=16)
         ax.set_ylim(top=5)
-        ax.set_xlim(1900, 1800 + simulation_time)
+        ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
         ax.set_title(f"{scenario_name}: sensitivity over {parameter_name}")
 
         for parameter_value in parameter_values:
@@ -233,7 +234,7 @@ def plot_temperature_sensitivity(
                 simulate_only_x=simulate_only_x,
             )["simulation"]
             label = f"{parameter_name}={parameter_value}"
-            ax.plot(result.t + 1800, result.T, label=label)
+            ax.plot(result.t + TIME_ZERO_YEAR, result.T, label=label)
 
         fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
         output_dir = _get_run_output_dir()
@@ -319,7 +320,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Social norm value", fontsize=16)
     ax.set_ylim(-1.1, 1.1)
-    ax.set_xlim(1900, 1800 + simulation_time)
+    ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
 
     def _extract_series(item):
         if isinstance(item, dict):
@@ -370,9 +371,9 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         time, series = _extract_series(result)
         series = _to_numeric_series(series)
         if time is None:
-            time = np.linspace(1800, 1800 + simulation_time, len(series))
+            time = np.linspace(TIME_ZERO_YEAR, TIME_ZERO_YEAR + simulation_time, len(series))
         else:
-            time = time + 1800
+            time = time + TIME_ZERO_YEAR
         if not np.all(np.isnan(series)):
             ax.plot(time, series, label=scenario_name)
         

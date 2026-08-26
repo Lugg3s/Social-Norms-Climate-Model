@@ -12,8 +12,10 @@ df = pd.read_csv("global.1751_2017.csv")
 second_column = df.iloc[:, 1]
 second_column_numeric = pd.to_numeric(second_column, errors="coerce").dropna()
 second_column_array = second_column_numeric.to_numpy()
-emission_rate = second_column_array[50:] / (10**3)
-
+emission_rate = second_column_array[49:] / (10**3)
+year_column_numeric = pd.to_numeric(df.iloc[:, 0], errors="coerce").dropna()
+year_array = year_column_numeric.to_numpy(dtype=int)
+simulation_years = year_array[49:]
 
 def _load_baseline_parameters():
     """Load the baseline parameter set from `scenarios.json`."""
@@ -120,7 +122,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         print(f"Running {extension} with parameters: {p}")
     use_agentic_norm = p.get("ABM", False)
     social_norm_mode = str(p.get("social_norm", ""))
-    is_delay_dynamic_mode = social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
+    is_delay_dynamic_mode = social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2", "Injunctive, dynamic2"}
     tau_delay = float(p.get("tau", 0.0)) if is_delay_dynamic_mode else 0.0
     theta_delay = float(p.get("theta", 0.0)) if is_delay_dynamic_mode else 0.0
     delay_window = max(0.0, tau_delay) + max(0.0, theta_delay)
@@ -137,9 +139,9 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     def epsilon(t):
         """Return the prescribed (or saturating) emission rate at timestep t."""
         t = int(t)
-        if t < 216:
+        if t < 217:
             return emission_rate[t]
-        return (((t - 216) * p["epsilon_max"]) / (t - 216 + p["s"])) + emission_rate[216]
+        return (((t - 217) * p["epsilon_max"]) / (t - 217 + p["s"])) + emission_rate[217]
 
     def P_co2(C_a):
         """Compute partial pressure of CO2 from atmospheric carbon `C_a`."""
@@ -304,13 +306,22 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 descriptive_term = p["delta"] * (2 * state["x"] - 1)
                 injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
                 return descriptive_term + injunctive_term + p["c_dyn"] * dynamic_term
+            case "Injunctive, dynamic2":
+                if p["theta"] <= 0:
+                    dynamic_term = 0.0
+                else:
+                    x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
+                    x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
+                    dynamic_term = (x_tau - x_tau_theta) / p["theta"]
+                injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
+                return injunctive_term + p["c_dyn"] * dynamic_term
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")
                
 
     def diff_x(t, state, frozen_agentic_term_observation_intention=None):
         social_norm_term = get_social_norm_term(state, t, frozen_agentic_term_observation_intention)
-        if t < 216:
+        if t < 217:
             return 0
         if social_norm_term is None:
             return 0
@@ -408,12 +419,10 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         all_times.append(interval_times)
         all_states.append(interval_states)
 
-        # Extend delay history after each solved interval.
-        delay_history_times.extend(interval_times.tolist())
-        delay_history_x.extend(interval_states[5, :].tolist())
-
-        # Keep only the time window needed for delayed interpolation.
         if is_delay_dynamic_mode:
+            # Extend and retain only the history needed for delayed interpolation.
+            delay_history_times.extend(interval_times.tolist())
+            delay_history_x.extend(interval_states[5, :].tolist())
             cutoff_time = float(interval_times[-1]) - delay_window - max(float(coupling_interval), 1.0)
             if cutoff_time > delay_history_times[0]:
                 keep_from = int(np.searchsorted(delay_history_times, cutoff_time, side="left"))
@@ -430,7 +439,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
 
         # Agents update only after solve_ivp finishes.
         if use_agentic_norm:
-            if t1 >= 216.0:
+            if t1 >= 217.0:
                 agents = agent.update_agents(
                     agents=agents,
                     temperature=final_state["T"],
@@ -464,7 +473,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     simulation = SimulationResult(simulation_times, *simulation_states)
     if use_agentic_norm:
         social_norm_history = np.concatenate(all_social_terms)
-    elif social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}:
+    elif social_norm_mode in {"dynamic social norm2", "Descriptive, injunctive, dynamic2", "Injunctive, dynamic2"}:
         x_series = simulation_states[5, :].astype(float)
         if theta_delay <= 0:
             trend_series = np.zeros_like(x_series)
@@ -473,12 +482,16 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             x_tau_theta = np.interp(simulation_times - tau_delay - theta_delay, simulation_times, x_series, left=x_series[0], right=x_series[-1])
             trend_series = (x_tau - x_tau_theta) / theta_delay
 
+        dynamic_term = float(p["c_dyn"]) * trend_series
         if social_norm_mode == "dynamic social norm2":
-            social_norm_history = float(p["c_dyn"]) * trend_series
+            social_norm_history = dynamic_term
+        elif social_norm_mode == "Injunctive, dynamic2":
+            injunctive_term = float(p["c_inj"]) * (float(p["x_target"]) - x_series)
+            social_norm_history = injunctive_term + dynamic_term
         else:
             descriptive_term = float(p["delta"]) * (2.0 * x_series - 1.0)
             injunctive_term = float(p["c_inj"]) * (float(p["x_target"]) - x_series)
-            social_norm_history = descriptive_term + injunctive_term + float(p["c_dyn"]) * trend_series
+            social_norm_history = descriptive_term + injunctive_term + dynamic_term
     else:
         social_norm_history = np.asarray(
             [

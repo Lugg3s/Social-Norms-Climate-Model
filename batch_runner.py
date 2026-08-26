@@ -26,7 +26,7 @@ from model_equations import SimulationResult, emission_rate, load_scenarios, sim
 
 
 TIME_ZERO_YEAR = 1800
-DEFAULT_SIMULATION_TIME = 800
+DEFAULT_SIMULATION_TIME = 1500
 DEFAULT_OUTPUT_ROOT = Path("plots")
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 ELIMINATION_THRESHOLD = 0.95
@@ -51,33 +51,54 @@ TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
-    ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_cinj_cdyn10",
-        scenarios=["Descriptive, injunctive, dynamic2"],
-        sweep_parameters={
-            "c_inj": np.round(np.arange(0, 10.1, 0.5), 2).tolist(),
-            "c_dyn": np.round(np.arange(0, 10.1, 0.5), 2).tolist(),
-        },
-        static_parameters={"tau": 5, "theta": 1},
-    ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2_cinj_cdyn10",
+    #     scenarios=["Descriptive, injunctive, dynamic2"],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 2).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 2).tolist(),
+    #     },
+    #     static_parameters={"tau": 5, "theta": 1},
+    # ),
     ExperimentGroup(
         name="Descriptive_injunctive_dynamic2_tau_theta",
-        scenarios=["Descriptive, injunctive, dynamic2", "dynamic social norm2"],
+        scenarios=["Descriptive, injunctive, dynamic2"],
         sweep_parameters={
-            "tau": np.round(np.arange(0, 100.1, 5), 1).tolist(),
-            "theta": np.round(np.arange(0, 100.1, 5), 1).tolist(),
+            "tau": np.round(np.arange(0, 100.1, 50), 1).tolist(),
+            "theta": np.round(np.arange(0, 100.1, 50), 1).tolist(),
         },
         static_parameters={"c_inj": 6, "c_dyn": 60},
     ),
     ExperimentGroup(
-        name="Descriptive_injunctive_dynamic2_cinj_cdyn",
-        scenarios=["Descriptive, injunctive, dynamic2"],
+        name="dynamic2_tau_theta",
+        scenarios=["dynamic social norm2"],
         sweep_parameters={
-            "c_inj": np.round(np.arange(0, 201, 5), 2).tolist(),
-            "c_dyn": np.round(np.arange(0, 201, 5), 2).tolist(),
+            "tau": np.round(np.arange(0, 100.1, 50), 1).tolist(),
+            "theta": np.round(np.arange(0, 100.1, 50), 1).tolist(),
         },
-        static_parameters={"tau": 5, "theta": 1},
+        static_parameters={"c_inj": 6, "c_dyn": 60},
     ),
+    ExperimentGroup(
+        name="injunctive_dynamic2_tau_theta",
+        scenarios=["Injunctive, dynamic2"],
+        sweep_parameters={
+            "tau": np.round(np.arange(0, 100.1, 50), 1).tolist(),
+            "theta": np.round(np.arange(0, 100.1, 50), 1).tolist(),
+        },
+        static_parameters={"c_inj": 6, "c_dyn": 60},
+    ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2_cinj_cdyn",
+    #     scenarios=["Descriptive, injunctive, dynamic2"],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 201, 5), 2).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 201, 5), 2).tolist(),
+    #     },
+    #     static_parameters={"tau": 5, "theta": 1},
+    # ),
+
+
+
 
     # ExperimentGroup(
     #     name="social_factors",
@@ -540,12 +561,12 @@ def _prescribed_emission_rate(t_values: np.ndarray, params: dict[str, Any]) -> n
     rates = np.empty_like(t_values, dtype=float)
     for index, time_value in enumerate(t_values):
         t_int = int(time_value)
-        if t_int < 216:
+        if t_int < 217:
             rates[index] = emission_rate[t_int]
         else:
             rates[index] = (
-                ((t_int - 216) * params["epsilon_max"]) / (t_int - 216 + params["s"])
-            ) + emission_rate[216]
+                ((t_int - 217) * params["epsilon_max"]) / (t_int - 217 + params["s"])
+            ) + emission_rate[217]
     return rates
 
 
@@ -674,6 +695,48 @@ def save_x_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
     plt.close(fig)
 
 
+def save_x_phase_space_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
+    t_values = pd.to_numeric(frame["t"], errors="coerce").to_numpy(dtype=float)
+    x_values = pd.to_numeric(frame["x"], errors="coerce").to_numpy(dtype=float)
+    valid = np.isfinite(t_values) & np.isfinite(x_values)
+    t_values = t_values[valid]
+    x_values = x_values[valid]
+    if t_values.size < 2 or np.any(np.diff(t_values) <= 0):
+        return
+
+    dx_dt = np.gradient(x_values, t_values)
+    years = TIME_ZERO_YEAR + t_values
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.plot(dx_dt, x_values, color="0.75", linewidth=0.8, zorder=1)
+
+    # Limit the colored markers for long simulations while retaining the full trajectory line.
+    marker_indices = np.linspace(0, t_values.size - 1, min(t_values.size, 5000), dtype=int)
+    trajectory = ax.scatter(
+        dx_dt[marker_indices],
+        x_values[marker_indices],
+        c=years[marker_indices],
+        cmap="viridis",
+        s=8,
+        linewidths=0,
+        zorder=2,
+    )
+    ax.scatter(dx_dt[0], x_values[0], color="green", marker="o", s=55, label="Start", zorder=3)
+    ax.scatter(dx_dt[-1], x_values[-1], color="red", marker="X", s=65, label="End", zorder=3)
+    ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
+    ax.set_xlabel("Rate of change dx/dt")
+    ax.set_ylabel("Fraction of mitigators x(t)")
+    ax.set_ylim(-0.1, 1.1)
+    ax.set_title(f"{run_label} | Phase space")
+    ax.legend(loc="lower right")
+    add_parameter_text_box(ax, params, sweep_parameters)
+    colorbar = fig.colorbar(trajectory, ax=ax)
+    colorbar.set_label("Time (year)")
+    fig.tight_layout()
+    fig.savefig(run_dir / "x_phase_space.png", dpi=300)
+    plt.close(fig)
+
+
 def save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
     series = frame["social_norm_term"].to_numpy(dtype=float)
@@ -716,10 +779,11 @@ def get_group_parameter_names(group: ExperimentGroup) -> list[str]:
 def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_parameters) -> None:
     ensure_directory(run_dir)
     frame = simulation_to_dataframe(result, params)
-    frame.to_csv(run_dir / "time_series.csv", index=False)
+    frame.to_csv(run_dir / "time_series.csv", index=False, sep=";")
     save_json(run_dir / "metadata.json", {"run_label": run_label, "parameters": params, "metrics": metrics})
     save_temperature_plot(frame, run_dir, run_label, params, sweep_parameters)
     save_x_plot(frame, run_dir, run_label, params, sweep_parameters)
+    save_x_phase_space_plot(frame, run_dir, run_label, params, sweep_parameters)
     save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters)
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
         frame["x_ref"] == frame["x_ref"].iloc[0]
@@ -729,7 +793,7 @@ def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_paramete
 
 def save_run_time_series_only(run_dir: Path, params: dict[str, Any], result: dict[str, Any]) -> None:
     ensure_directory(run_dir)
-    simulation_to_dataframe(result, params).to_csv(run_dir / "time_series.csv", index=False)
+    simulation_to_dataframe(result, params).to_csv(run_dir / "time_series.csv", index=False, sep=";")
 
 
 def append_failure_record(run_dir: Path, run_label: str, error: Exception) -> None:
@@ -762,7 +826,7 @@ def run_single_combination(
 
     time_series_path = run_dir / "time_series.csv"
     if time_series_path.exists() and not overwrite:
-        existing_frame = pd.read_csv(time_series_path)
+        existing_frame = pd.read_csv(time_series_path, sep=";")
         required_columns = {"t", "T", "x", "social_norm_term"}
         if required_columns.issubset(existing_frame.columns):
             existing_metrics = compute_metrics_from_saved_time_series(existing_frame)
@@ -838,7 +902,7 @@ def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str:
     time_series_path = Path(run_dir) / "time_series.csv"
     if not time_series_path.exists():
         return "Zwischenzustand"
-    frame = pd.read_csv(time_series_path, usecols=["x"])
+    frame = pd.read_csv(time_series_path, sep=";", usecols=["x"])
     trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
     return classify(trajectory, tail_frac=tail_frac)
 
@@ -850,7 +914,7 @@ def save_phase_map_for_two_parameters(
     y_param: str,
     tail_frac: float = 0.5,
 ) -> None:
-    required_columns = {"run_dir", x_param, y_param}
+    required_columns = {"run_dir", "scenario", x_param, y_param}
     if not required_columns.issubset(summary_df.columns):
         return
 
@@ -858,42 +922,48 @@ def save_phase_map_for_two_parameters(
     phase_df["phase"] = phase_df.apply(
         lambda row: _classify_saved_run(row, tail_frac=tail_frac), axis=1
     )
-    pivot = phase_df.pivot_table(
-        index=y_param, columns=x_param, values="phase", aggfunc="first"
-    ).sort_index(axis=0).sort_index(axis=1)
-    if pivot.empty:
-        return
-
     phase_to_idx = {label: idx for idx, label in enumerate(PHASE_ORDER)}
-    phase_array = np.vectorize(
-        lambda label: phase_to_idx.get(str(label), phase_to_idx["Zwischenzustand"])
-    )(pivot.to_numpy())
-
     cmap = matplotlib.colors.ListedColormap([PHASE_COLORS[label] for label in PHASE_ORDER])
-    fig, ax = plt.subplots(figsize=(10, 7))
-    image = ax.imshow(
-        phase_array,
-        origin="lower",
-        aspect="auto",
-        cmap=cmap,
-        vmin=0,
-        vmax=len(PHASE_ORDER) - 1,
-    )
-    ax.set_xticks(range(len(pivot.columns)))
-    ax.set_xticklabels(
-        [format_value_for_slug(value) for value in pivot.columns], rotation=45, ha="right"
-    )
-    ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels([format_value_for_slug(value) for value in pivot.index])
-    ax.set_xlabel(x_param)
-    ax.set_ylabel(y_param)
-    ax.set_title(f"Phase map over {x_param} and {y_param}")
-    cbar = fig.colorbar(image, ax=ax, ticks=list(range(len(PHASE_ORDER))))
-    cbar.ax.set_yticklabels(PHASE_ORDER)
-    cbar.set_label("Phase regime")
-    fig.tight_layout()
-    fig.savefig(group_dir / f"comparison_phase_map_{x_param}_vs_{y_param}.png", dpi=300)
-    plt.close(fig)
+
+    for scenario_name, scenario_phases in phase_df.groupby("scenario", sort=False):
+        pivot = scenario_phases.pivot_table(
+            index=y_param, columns=x_param, values="phase", aggfunc="first"
+        ).sort_index(axis=0).sort_index(axis=1)
+        if pivot.empty:
+            continue
+
+        phase_array = np.vectorize(
+            lambda label: phase_to_idx.get(str(label), phase_to_idx["Zwischenzustand"])
+        )(pivot.to_numpy())
+
+        fig, ax = plt.subplots(figsize=(10, 7))
+        image = ax.imshow(
+            phase_array,
+            origin="lower",
+            aspect="auto",
+            cmap=cmap,
+            vmin=0,
+            vmax=len(PHASE_ORDER) - 1,
+        )
+        ax.set_xticks(range(len(pivot.columns)))
+        ax.set_xticklabels(
+            [format_value_for_slug(value) for value in pivot.columns], rotation=45, ha="right"
+        )
+        ax.set_yticks(range(len(pivot.index)))
+        ax.set_yticklabels([format_value_for_slug(value) for value in pivot.index])
+        ax.set_xlabel(x_param)
+        ax.set_ylabel(y_param)
+        ax.set_title(f"{scenario_name}: phase map over {x_param} and {y_param}")
+        cbar = fig.colorbar(image, ax=ax, ticks=list(range(len(PHASE_ORDER))))
+        cbar.ax.set_yticklabels(PHASE_ORDER)
+        cbar.set_label("Phase regime")
+        fig.tight_layout()
+        safe_scenario = sanitize_name(scenario_name)
+        fig.savefig(
+            group_dir / f"comparison_phase_map_{safe_scenario}_{x_param}_vs_{y_param}.png",
+            dpi=300,
+        )
+        plt.close(fig)
 
 
 def save_heatmap_for_two_parameters(summary_df, group_dir, metric_name, x_param, y_param) -> None:
@@ -978,7 +1048,7 @@ def save_overlaid_time_series_plot(
         time_series_path = Path(run_dir) / "time_series.csv"
         if not time_series_path.exists():
             continue
-        frame = pd.read_csv(time_series_path)
+        frame = pd.read_csv(time_series_path, sep=";")
         if metric_name not in frame.columns or "year" not in frame.columns:
             continue
         values = pd.to_numeric(frame[metric_name], errors="coerce")
@@ -1031,7 +1101,7 @@ def save_x_parameter_surface_animation(
         time_series_path = Path(str(record.get("run_dir", ""))) / "time_series.csv"
         if not time_series_path.exists():
             continue
-        frame = pd.read_csv(time_series_path, usecols=["year", "x"])
+        frame = pd.read_csv(time_series_path, sep=";", usecols=["year", "x"])
         if frame.empty:
             continue
         trajectories[(float(record[x_param]), float(record[y_param]))] = (
@@ -1103,7 +1173,7 @@ def save_x_parameter_surface_animation(
 
 
 def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group: ExperimentGroup) -> None:
-    summary_df.to_csv(group_dir / "summary_metrics.csv", index=False)
+    summary_df.to_csv(group_dir / "summary_metrics.csv", index=False, sep=";")
     sweep_parameters = list(group.sweep_parameters.keys())
 
     save_correlation_heatmap(summary_df, group_dir)
@@ -1455,10 +1525,29 @@ def run_groups(
         pd.concat(all_group_summaries, ignore_index=True) if all_group_summaries else pd.DataFrame()
     )
     if not combined_summary.empty:
-        combined_summary.to_csv(run_root / "all_runs_summary.csv", index=False)
+        combined_summary.to_csv(run_root / "all_runs_summary.csv", index=False, sep=";")
         scenario_comparison = build_scenario_comparison_table(combined_summary)
         if not scenario_comparison.empty:
-            scenario_comparison.to_csv(run_root / "scenario_comparison.csv", index=False)
+            simulation_end_year = TIME_ZERO_YEAR + groups[0].simulation_time
+            scenario_comparison_output = (
+                scenario_comparison.drop(columns=["n_runs", "elimination_threshold"])
+                .rename(
+                    columns={
+                        "final_x_mean": f"x_mean_at_{simulation_end_year}",
+                        "final_x_std": f"x_std_at_{simulation_end_year}",
+                        "final_temperature_mean": f"temperature_mean_at_{simulation_end_year}",
+                        "final_temperature_std": f"temperature_std_at_{simulation_end_year}",
+                    }
+                )
+                .set_index("scenario")
+                .T
+            )
+            scenario_comparison_output.to_csv(
+                run_root / "scenario_comparison.csv",
+                index=True,
+                index_label="metric",
+                sep=";",
+            )
         save_overall_comparison_plots(combined_summary, run_root)
 
     save_json(run_root / "run_index.json", {"records": all_records})

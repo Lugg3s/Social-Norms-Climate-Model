@@ -42,11 +42,7 @@
         "f_gtm": 8.3259e+13,
         
         "social_norm_factor": 1,
-        "temperature_factor": 1,
-
-
-        "tp": 10,
-        "tf": 25
+        "temperature_factor": 1
     },
 
     "Dynamic social norm": {
@@ -87,6 +83,14 @@
     },
     "Descriptive, injunctive, dynamic2": {
         "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 6,
+        "x_target": 0.7,
+        "c_dyn": 6,
+        "tau": 1,
+        "theta": 1
+    },
+    "Injunctive, dynamic2": {
+        "social_norm": "Injunctive, dynamic2",
         "c_inj": 6,
         "x_target": 0.7,
         "c_dyn": 6,
