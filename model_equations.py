@@ -36,10 +36,10 @@ def load_scenarios(include=None, exclude=None):
     """Load parameter scenarios from `scenarios.json`.
 
     Args:
-        include: Scenario name or iterable of names to keep. If None, all
-            scenarios are included.
-        exclude: Scenario name or iterable of names to remove after include
-            filtering.
+        include: Iterable of scenario names to keep. If None, all scenarios are
+            included. Pass a one-element list/tuple/set for a single scenario.
+        exclude: Iterable of scenario names to remove after include filtering.
+            Pass a one-element list/tuple/set for a single scenario.
     """
     scenarios_path = Path(__file__).with_name("scenarios.json")
     with scenarios_path.open("r", encoding="utf-8") as file:
@@ -79,6 +79,12 @@ def _resolve_extension(extension):
         "extension must be None, a scenario name string, or a parameter dict"
     )
 
+
+def resolve_parameters(extension="baseline"):
+    """Return the complete baseline-merged parameter dictionary for a simulation."""
+    return dict(_resolve_extension(extension))
+
+
 def _make_time_breaks(simulation_time, coupling_interval):
     """
     Create outer-loop coupling times.
@@ -115,7 +121,7 @@ def unpack_state(z):
 def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100, simulate_only_x=False, verbose=None):     # network_size
     """Run the coupled climate-social model for given parameters and return
     time series for each state variable."""
-    p = _resolve_extension(extension)
+    p = resolve_parameters(extension)
     if verbose is None:
         verbose = multiprocessing.current_process().name == "MainProcess"
     if verbose:
@@ -353,7 +359,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 0 if simulate_only_x else diff_C_o(t, state),
                 0 if simulate_only_x else diff_C_v(t, state),
                 0 if simulate_only_x else diff_C_so(t, state),
-                0 if simulate_only_x else diff_T(t, state),
+                diff_T(t, state),
                 diff_x(t, state, frozen_agentic_term_observation_intention),
                 diff_x_p(t, state),
                 diff_x_ref(t, state),
@@ -402,10 +408,42 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             z_current,
             method="BDF",
             t_eval=local_t_eval,
+            rtol=1e-7,
+            atol=1e-9,
         )
 
         if not interval_solution.success:
             raise RuntimeError("ODE integration failed: " + interval_solution.message)
+
+        # x=0 and x=1 are invariant boundaries of the behavioural equation.
+        # BDF does not enforce state constraints, so retry a numerically invalid
+        # interval with stricter tolerances and a smaller maximum step.
+        x_interval = interval_solution.y[5, :]
+        x_tolerance = 1e-7
+        if np.nanmin(x_interval) < -x_tolerance or np.nanmax(x_interval) > 1.0 + x_tolerance:
+            interval_solution = solve_ivp(
+                make_model(frozen_agentic_term),
+                (t0, t1),
+                z_current,
+                method="BDF",
+                t_eval=local_t_eval,
+                rtol=1e-9,
+                atol=1e-11,
+                max_step=min(0.05, interval_length),
+            )
+            if not interval_solution.success:
+                raise RuntimeError("ODE integration failed: " + interval_solution.message)
+            x_interval = interval_solution.y[5, :]
+
+        if np.nanmin(x_interval) < -x_tolerance or np.nanmax(x_interval) > 1.0 + x_tolerance:
+            raise RuntimeError(
+                "Numerical integration left the valid mitigation interval "
+                f"[0, 1]: min_x={np.nanmin(x_interval):.6g}, "
+                f"max_x={np.nanmax(x_interval):.6g}, interval=({t0}, {t1})"
+            )
+
+        # Project only residual floating-point boundary errors after validation.
+        interval_solution.y[5, :] = np.clip(interval_solution.y[5, :], 0.0, 1.0)
 
         interval_times = interval_solution.t
         interval_states = interval_solution.y
@@ -508,6 +546,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     result = {
         "simulation": simulation,
         "social_norm_term": social_norm_history,
+        "parameters": dict(p),
     }
 
     if use_agentic_norm:
