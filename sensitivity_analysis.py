@@ -183,8 +183,6 @@ def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
 def _write_failed_sample(
     failure_path: Path | None,
     sample_index: int,
-    parameter_names: list[str],
-    sample: np.ndarray,
     error: BaseException,
 ) -> None:
     if failure_path is None:
@@ -192,7 +190,6 @@ def _write_failed_sample(
     failure_path.parent.mkdir(parents=True, exist_ok=True)
     row = {
         "sample_index": sample_index,
-        **dict(zip(parameter_names, sample)),
         "error_type": type(error).__name__,
         "error_message": str(error),
         "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
@@ -245,8 +242,6 @@ def run_samples(
                 _write_failed_sample(
                     failure_path,
                     sample_index,
-                    problem["names"],
-                    samples[sample_index],
                     error,
                 )
                 raise
@@ -271,8 +266,6 @@ def run_samples(
                 _write_failed_sample(
                     failure_path,
                     index,
-                    problem["names"],
-                    samples[index],
                     error,
                 )
                 _terminate_executor_workers(executor)
