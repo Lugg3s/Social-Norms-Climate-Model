@@ -2,3 +2,4 @@
 .vscode/*
 plots/
 agent_model_equation_anara.py
+sensitivity_results/
