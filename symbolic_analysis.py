@@ -56,6 +56,7 @@ class Equilibrium:
     value: sp.Expr
     stability: str
     eigenvalues: tuple[sp.Expr, ...] = ()
+    characteristic_polynomial: sp.Expr | None = None
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,7 @@ def _symbols_for_parameters(parameter_names: set[str]) -> dict[str, sp.Symbol]:
 
 
 def _parameter_names_for_norm(norm: str) -> set[str]:
-    common = {"beta", "temperature_factor", "f_max", "omega", "T_c", "social_norm_factor"}
+    common = {"beta", "kappa", "temperature_factor", "f_max", "omega", "T_c", "social_norm_factor"}
     by_norm = {
         "Observation-based / imitation": {"delta"},
         "Observation-based / intention motivation": set(),
@@ -200,7 +201,7 @@ def _equilibria_dynamic(norm: str, s: dict[str, sp.Symbol], bracket: sp.Expr) ->
         )
 
     full_bracket = _bracket(norm, s, equilibrium=False)
-    g = x * (1 - x) * full_bracket
+    g = s["kappa"] * x * (1 - x) * full_bracket
     tau_xp = s["tau_xp"]
     tau_ref = s["tau_ref"]
     full = sp.Matrix([
@@ -219,12 +220,18 @@ def _equilibria_dynamic(norm: str, s: dict[str, sp.Symbol], bracket: sp.Expr) ->
             result.append(Equilibrium(eq.value, "boundary stability depends on x_ref=0 special case"))
             continue
         point = {x: eq.value, x_p: eq.value, x_ref: eq.value}
-        eigenvalues = tuple(sp.simplify(v) for v in jacobian.subs(point).eigenvals().keys())
+        jacobian_at_equilibrium = jacobian.subs(point)
+
+        # Solving the fully symbolic cubic for its roots can become prohibitively
+        # expensive for the combined dynamic norm. The characteristic polynomial
+        # contains the same local-stability information and can be evaluated with
+        # Routh-Hurwitz conditions or after substituting parameter values.
+        characteristic_polynomial = jacobian_at_equilibrium.charpoly().as_expr()
         result.append(
             Equilibrium(
                 eq.value,
-                "stable if all eigenvalue real parts < 0; unstable if any > 0",
-                eigenvalues,
+                "stability follows from the roots of characteristic_polynomial",
+                characteristic_polynomial=characteristic_polynomial,
             )
         )
     return tuple(result)
