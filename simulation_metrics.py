@@ -15,18 +15,21 @@ def _empty_oscillation_metrics() -> dict[str, float]:
     return {
         "n_peaks": 0.0,
         "n_troughs": 0.0,
+        "n_prominent_half_cycles": 0.0,
         "n_oscillations": 0.0,
         "median_period": float("nan"),
+        "oscillation_amplitude": 0.0,
         "amplitude_initial": float("nan"),
         "amplitude_final": float("nan"),
         "amplitude_ratio": float("nan"),
         "damping_rate": float("nan"),
+        "damping_index": 0.0,
         "oscillation_score": 0.0,
     }
 
 
 def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> dict[str, float]:
-    """Keep detailed oscillation metrics for diagnostics; phase classification uses classify()."""
+    """Compute prominent peak/trough oscillation diagnostics for x(t)."""
     if t_values.size < 5 or x_values.size < 5:
         return _empty_oscillation_metrics()
 
@@ -56,69 +59,108 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     extrema_indices = extrema_indices[order]
     extrema_types = extrema_types[order]
 
-    segment_amplitudes: list[float] = []
-    segment_times: list[float] = []
+    x_span = float(np.nanmax(x_values) - np.nanmin(x_values))
+    min_prominent_amplitude = max(0.02, 0.05 * x_span)
+
+    # Each adjacent peak/trough pair is one half-cycle. Keeping the pair aligned
+    # with the extrema positions lets us distinguish half-cycles from complete
+    # peak-to-peak or trough-to-trough oscillations.
+    pair_amplitudes = np.full(max(0, extrema_indices.size - 1), np.nan, dtype=float)
+    pair_times = np.full(max(0, extrema_indices.size - 1), np.nan, dtype=float)
     for idx in range(extrema_indices.size - 1):
         if extrema_types[idx] == extrema_types[idx + 1]:
             continue
         left_idx = extrema_indices[idx]
         right_idx = extrema_indices[idx + 1]
-        segment_amplitudes.append(abs(float(x_values[right_idx] - x_values[left_idx])))
-        segment_times.append(float((t_values[left_idx] + t_values[right_idx]) / 2.0))
+        pair_amplitudes[idx] = abs(float(x_values[right_idx] - x_values[left_idx]))
+        pair_times[idx] = float((t_values[left_idx] + t_values[right_idx]) / 2.0)
 
-    if not segment_amplitudes:
-        metrics = _empty_oscillation_metrics()
-        metrics["n_peaks"] = float(peak_indices.size)
-        metrics["n_troughs"] = float(trough_indices.size)
-        return metrics
+    prominent_pair_mask = np.isfinite(pair_amplitudes) & (
+        pair_amplitudes >= min_prominent_amplitude
+    )
+    prominent_amplitudes = pair_amplitudes[prominent_pair_mask]
+    prominent_times = pair_times[prominent_pair_mask]
 
-    x_span = float(np.nanmax(x_values) - np.nanmin(x_values))
-    min_prominent_amplitude = max(0.02, 0.05 * x_span)
-    amplitudes = np.asarray(segment_amplitudes, dtype=float)
-    times = np.asarray(segment_times, dtype=float)
-    prominent_mask = amplitudes >= min_prominent_amplitude
-    prominent_amplitudes = amplitudes[prominent_mask]
-    prominent_times = times[prominent_mask]
+    # A complete oscillation requires two consecutive prominent half-cycles.
+    # Count peak-to-peak and trough-to-trough cycles separately and use the
+    # larger count so the same physical cycle is not counted twice.
+    peak_cycles = 0
+    trough_cycles = 0
+    prominent_periods: list[float] = []
+    for idx in range(extrema_indices.size - 2):
+        alternating = (
+            extrema_types[idx] != extrema_types[idx + 1]
+            and extrema_types[idx] == extrema_types[idx + 2]
+        )
+        if not alternating:
+            continue
+        if not (prominent_pair_mask[idx] and prominent_pair_mask[idx + 1]):
+            continue
 
-    periods: list[float] = []
-    if peak_indices.size >= 2:
-        periods.extend(np.diff(t_values[peak_indices]).astype(float).tolist())
-    if trough_indices.size >= 2:
-        periods.extend(np.diff(t_values[trough_indices]).astype(float).tolist())
+        period = float(t_values[extrema_indices[idx + 2]] - t_values[extrema_indices[idx]])
+        if period > 0:
+            prominent_periods.append(period)
+        if extrema_types[idx] > 0:
+            peak_cycles += 1
+        else:
+            trough_cycles += 1
 
-    median_period = float(np.median(periods)) if periods else float("nan")
+    n_oscillations = max(peak_cycles, trough_cycles)
+    median_period = (
+        float(np.median(prominent_periods)) if prominent_periods else float("nan")
+    )
+    oscillation_amplitude = (
+        float(np.median(prominent_amplitudes))
+        if prominent_amplitudes.size
+        else 0.0
+    )
+
     amplitude_initial = float("nan")
     amplitude_final = float("nan")
     amplitude_ratio = float("nan")
     damping_rate = float("nan")
+    damping_index = 0.0
 
     n_prominent = int(prominent_amplitudes.size)
     if n_prominent >= 2:
         split_index = max(1, n_prominent // 2)
         amplitude_initial = float(np.median(prominent_amplitudes[:split_index]))
         amplitude_final = float(np.median(prominent_amplitudes[split_index:]))
-        if amplitude_initial > 1e-9:
+        if amplitude_initial > 1e-12 and amplitude_final > 1e-12:
             amplitude_ratio = float(amplitude_final / amplitude_initial)
+            damping_index = float(np.log(amplitude_initial / amplitude_final))
 
     if n_prominent >= 3:
         log_amplitudes = np.log(np.maximum(prominent_amplitudes, 1e-12))
         slope, _ = np.polyfit(prominent_times, log_amplitudes, 1)
         damping_rate = float(-slope)
 
-    oscillation_score = (
-        float(n_prominent * np.nanmedian(prominent_amplitudes)) if n_prominent > 0 else 0.0
-    )
+    oscillation_score = float(n_oscillations * oscillation_amplitude)
     return {
         "n_peaks": float(peak_indices.size),
         "n_troughs": float(trough_indices.size),
-        "n_oscillations": float(n_prominent),
+        "n_prominent_half_cycles": float(n_prominent),
+        "n_oscillations": float(n_oscillations),
         "median_period": median_period,
+        "oscillation_amplitude": oscillation_amplitude,
         "amplitude_initial": amplitude_initial,
         "amplitude_final": amplitude_final,
         "amplitude_ratio": amplitude_ratio,
         "damping_rate": damping_rate,
+        "damping_index": damping_index,
         "oscillation_score": oscillation_score,
     }
+
+
+def compute_oscillation_metrics(
+    t_values: np.ndarray,
+    x_values: np.ndarray,
+) -> dict[str, float]:
+    """Public wrapper used by batch classification and sensitivity analysis."""
+    return _compute_oscillation_metrics(
+        np.asarray(t_values, dtype=float),
+        np.asarray(x_values, dtype=float),
+    )
 
 
 def _first_threshold_crossing_time(
@@ -202,12 +244,13 @@ def _base_metrics(
 
 def compute_run_metrics(result: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
     simulation = result["simulation"]
+    resolved_params = result.get("parameters", params)
     return _base_metrics(
         np.asarray(simulation.t, dtype=float),
         np.asarray(simulation.T, dtype=float),
         np.asarray(simulation.x, dtype=float),
         np.asarray(result.get("social_norm_term", []), dtype=float),
-        params=params,
+        params=resolved_params,
     )
 
 
