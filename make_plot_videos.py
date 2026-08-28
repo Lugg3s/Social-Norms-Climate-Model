@@ -25,7 +25,7 @@ def collect_images(root: Path, plot: str, scenario: str | None = None) -> List[P
     files = list(root.rglob(plot))
     if scenario:
         files = [p for p in files if scenario in p.parts]
-    return sorted(files, key=lambda p: p.stat().st_mtime)
+    return sorted(files, key=lambda p: natural_sort_key(str(p.relative_to(root))))
 
 
 def natural_sort_key(s: str):
@@ -36,9 +36,9 @@ def natural_sort_key(s: str):
     key = []
     for p in parts:
         if p.isdigit():
-            key.append(int(p))
+            key.append((0, int(p)))
         else:
-            key.append(p.lower())
+            key.append((1, p.lower()))
     return key
 
 
