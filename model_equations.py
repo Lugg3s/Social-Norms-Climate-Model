@@ -8,7 +8,8 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 import agent
 
-df = pd.read_csv("global.1751_2017.csv")
+emissions_path = Path(__file__).with_name("global.1751_2017.csv")
+df = pd.read_csv(emissions_path)
 second_column = df.iloc[:, 1]
 second_column_numeric = pd.to_numeric(second_column, errors="coerce").dropna()
 second_column_array = second_column_numeric.to_numpy()
