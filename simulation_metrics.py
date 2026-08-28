@@ -275,17 +275,24 @@ def compute_run_metrics(result: dict[str, Any], params: dict[str, Any]) -> dict[
     )
 
 
-def compute_metrics_from_saved_time_series(frame: pd.DataFrame) -> dict[str, Any]:
-    params: dict[str, Any] = {}
-    for parameter_name in ("epsilon_max", "s"):
-        if parameter_name in frame.columns and not frame[parameter_name].empty:
-            params[parameter_name] = float(frame[parameter_name].iloc[0])
+def compute_metrics_from_saved_time_series(
+    frame: pd.DataFrame,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    resolved_params = dict(params) if params is not None else {}
+
+    # Backward compatibility for older time-series files that repeated these
+    # parameters in every row. New runs store parameters once in parameters.json.
+    if not resolved_params:
+        for parameter_name in ("epsilon_max", "s"):
+            if parameter_name in frame.columns and not frame[parameter_name].empty:
+                resolved_params[parameter_name] = float(frame[parameter_name].iloc[0])
 
     return _base_metrics(
         pd.to_numeric(frame["t"], errors="coerce").to_numpy(dtype=float),
         pd.to_numeric(frame["T"], errors="coerce").to_numpy(dtype=float),
         pd.to_numeric(frame["x"], errors="coerce").to_numpy(dtype=float),
         pd.to_numeric(frame["social_norm_term"], errors="coerce").to_numpy(dtype=float),
-        params=params if params else None,
+        params=resolved_params if resolved_params else None,
     )
 
