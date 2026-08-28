@@ -338,7 +338,7 @@ PHASE_ORDER = [
     "volle S-Kurve auf 1",
     "Zwischenzustand",
     "gedaempft oszillierend",
-    "stark oszillierend",
+    "ungedämpft oszillierend",
 ]
 
 PHASE_COLORS = {
@@ -346,22 +346,11 @@ PHASE_COLORS = {
     "volle S-Kurve auf 1": "#ff7f0e",
     "Zwischenzustand": "#2ca02c",
     "gedaempft oszillierend": "#1f77b4",
-    "stark oszillierend": "#9467bd",
+    "ungedämpft oszillierend": "#9467bd",
 }
 
 
-def count_extrema(traj, tail_frac=0.5):
-    """Zaehlt lokale Extrema im letzten Teil der Trajektorie -> Oszillationsindikator."""
-    traj = np.asarray(traj, dtype=float)
-    tail = traj[int(len(traj) * tail_frac):]
-    if tail.size < 3:
-        return 0
-    diffs = np.diff(tail)
-    sign_changes = np.sum((diffs[:-1] * diffs[1:]) < 0)
-    return int(sign_changes)
-
-
-def classify(traj, tail_frac=0.5):
+def classify(traj):
     """Classify x(t) using prominent oscillations, amplitude decay, and final x."""
     traj = np.asarray(traj, dtype=float)
     traj = traj[np.isfinite(traj)]
@@ -386,7 +375,7 @@ def classify(traj, tail_frac=0.5):
         if clearly_damped:
             return "gedaempft oszillierend"
         if n_oscillations >= 2:
-            return "stark oszillierend"
+            return "ungedämpft oszillierend"
 
     final_x = traj[-1]
     if final_x < 0.05:
@@ -781,7 +770,7 @@ def run_single_combination(
         }
 
 
-def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str | None:
+def _classify_saved_run(record: pd.Series) -> str | None:
     if record.get("status") not in {"ok", "skipped"}:
         return None
     x_bounds_valid = record.get("x_bounds_valid")
@@ -797,7 +786,7 @@ def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str | None
     trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
     if trajectory.size == 0:
         return None
-    return classify(trajectory, tail_frac=tail_frac)
+    return classify(trajectory)
 
 
 def save_phase_map_for_two_parameters(
@@ -805,16 +794,13 @@ def save_phase_map_for_two_parameters(
     group_dir: Path,
     x_param: str,
     y_param: str,
-    tail_frac: float = 0.5,
 ) -> None:
     required_columns = {"run_dir", "scenario", x_param, y_param}
     if not required_columns.issubset(summary_df.columns):
         return
 
     phase_df = summary_df.copy()
-    phase_df["phase"] = phase_df.apply(
-        lambda row: _classify_saved_run(row, tail_frac=tail_frac), axis=1
-    )
+    phase_df["phase"] = phase_df.apply(_classify_saved_run, axis=1)
     phase_df = phase_df.dropna(subset=["phase"])
     if phase_df.empty:
         return
