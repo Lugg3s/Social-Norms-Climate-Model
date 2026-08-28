@@ -312,6 +312,7 @@ KEY_METRICS = [
     "n_peaks",
     "n_troughs",
     "n_prominent_half_cycles",
+    "n_prominent_extrema",
     "n_oscillations",
     "median_period",
     "oscillation_amplitude",
