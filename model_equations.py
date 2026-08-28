@@ -416,16 +416,35 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         if not interval_solution.success:
             raise RuntimeError("ODE integration failed: " + interval_solution.message)
 
-        # x=0 and x=1 are invariant boundaries of the behavioural equation.
-        # BDF does not enforce state constraints, so retry a numerically invalid
-        # interval with stricter tolerances and a smaller maximum step.
-        x_interval = interval_solution.y[5, :]
-        x_tolerance = 1e-7
-        if not np.all(np.isfinite(x_interval)):
-            raise RuntimeError(
-                f"Numerical integration produced non-finite x values in interval ({t0}, {t1})"
-            )
-        if np.nanmin(x_interval) < -x_tolerance or np.nanmax(x_interval) > 1.0 + x_tolerance:
+        # x, x_p and x_ref are fractions/reference fractions whose analytical
+        # dynamics preserve the interval [0, 1]. BDF does not enforce state
+        # constraints, so retry a numerically invalid interval with stricter
+        # tolerances and a smaller maximum step.
+        fraction_state_indices = {
+            "x": 5,
+            "x_p": 6,
+            "x_ref": 7,
+        }
+        fraction_tolerance = 1e-7
+
+        def invalid_fraction_states(solution):
+            invalid = {}
+            for state_name, state_index in fraction_state_indices.items():
+                values = solution.y[state_index, :]
+                if not np.all(np.isfinite(values)):
+                    invalid[state_name] = (float("nan"), float("nan"))
+                    continue
+                min_value = float(np.min(values))
+                max_value = float(np.max(values))
+                if (
+                    min_value < -fraction_tolerance
+                    or max_value > 1.0 + fraction_tolerance
+                ):
+                    invalid[state_name] = (min_value, max_value)
+            return invalid
+
+        invalid_states = invalid_fraction_states(interval_solution)
+        if invalid_states:
             interval_solution = solve_ivp(
                 make_model(frozen_agentic_term),
                 (t0, t1),
@@ -438,21 +457,25 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             )
             if not interval_solution.success:
                 raise RuntimeError("ODE integration failed: " + interval_solution.message)
-            x_interval = interval_solution.y[5, :]
-            if not np.all(np.isfinite(x_interval)):
-                raise RuntimeError(
-                    f"Numerical integration produced non-finite x values in interval ({t0}, {t1})"
-                )
+            invalid_states = invalid_fraction_states(interval_solution)
 
-        if np.nanmin(x_interval) < -x_tolerance or np.nanmax(x_interval) > 1.0 + x_tolerance:
+        if invalid_states:
+            state_summary = ", ".join(
+                f"{state_name}: min={bounds[0]:.6g}, max={bounds[1]:.6g}"
+                for state_name, bounds in invalid_states.items()
+            )
             raise RuntimeError(
-                "Numerical integration left the valid mitigation interval "
-                f"[0, 1]: min_x={np.nanmin(x_interval):.6g}, "
-                f"max_x={np.nanmax(x_interval):.6g}, interval=({t0}, {t1})"
+                "Numerical integration left the valid fraction interval [0, 1] "
+                f"in interval ({t0}, {t1}): {state_summary}"
             )
 
         # Project only residual floating-point boundary errors after validation.
-        interval_solution.y[5, :] = np.clip(interval_solution.y[5, :], 0.0, 1.0)
+        for state_index in fraction_state_indices.values():
+            interval_solution.y[state_index, :] = np.clip(
+                interval_solution.y[state_index, :],
+                0.0,
+                1.0,
+            )
 
         interval_times = interval_solution.t
         interval_states = interval_solution.y
