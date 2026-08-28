@@ -374,8 +374,7 @@ def classify(traj):
         )
         if clearly_damped:
             return "gedaempft oszillierend"
-        if n_oscillations >= 2:
-            return "ungedämpft oszillierend"
+        return "ungedämpft oszillierend"
 
     final_x = traj[-1]
     if final_x < 0.05:
@@ -438,6 +437,11 @@ def save_json(path: Path, payload: dict[str, Any]) -> None:
         json.dump(payload, handle, indent=2, ensure_ascii=True)
 
 
+def load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def create_run_name(scenario_name: str, sweep_values: dict[str, Any]) -> str:
     parts = [sanitize_name(scenario_name)]
     for parameter_name, parameter_value in sweep_values.items():
@@ -479,9 +483,6 @@ def simulation_to_dataframe(result: dict[str, Any], params: dict[str, Any]) -> p
             ),
         }
     )
-    resolved_params = result.get("parameters", params)
-    for key, value in resolved_params.items():
-        frame[key] = value
     return frame
 
 
@@ -652,22 +653,37 @@ def get_group_parameter_names(group: ExperimentGroup) -> list[str]:
 
 def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_parameters) -> None:
     ensure_directory(run_dir)
-    frame = simulation_to_dataframe(result, params)
+    resolved_params = dict(result.get("parameters", params))
+    frame = simulation_to_dataframe(result, resolved_params)
     frame.to_csv(run_dir / "time_series.csv", index=False, sep=";")
-    save_json(run_dir / "metadata.json", {"run_label": run_label, "parameters": params, "metrics": metrics})
-    save_temperature_plot(frame, run_dir, run_label, params, sweep_parameters)
-    save_x_plot(frame, run_dir, run_label, params, sweep_parameters)
-    save_x_phase_space_plot(frame, run_dir, run_label, params, sweep_parameters)
-    save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters)
+    save_json(run_dir / "parameters.json", resolved_params)
+    save_json(
+        run_dir / "metadata.json",
+        {
+            "run_label": run_label,
+            "parameters_file": "parameters.json",
+            "metrics": metrics,
+        },
+    )
+    save_temperature_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_x_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_x_phase_space_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_social_norm_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
         frame["x_ref"] == frame["x_ref"].iloc[0]
     ):
-        save_auxiliary_plot(frame, run_dir, run_label, params, sweep_parameters)
+        save_auxiliary_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
 
 
 def save_run_time_series_only(run_dir: Path, params: dict[str, Any], result: dict[str, Any]) -> None:
     ensure_directory(run_dir)
-    simulation_to_dataframe(result, params).to_csv(run_dir / "time_series.csv", index=False, sep=";")
+    resolved_params = dict(result.get("parameters", params))
+    simulation_to_dataframe(result, resolved_params).to_csv(
+        run_dir / "time_series.csv",
+        index=False,
+        sep=";",
+    )
+    save_json(run_dir / "parameters.json", resolved_params)
 
 
 def append_failure_record(run_dir: Path, run_label: str, error: Exception) -> None:
@@ -699,11 +715,16 @@ def run_single_combination(
     ensure_directory(run_dir)
 
     time_series_path = run_dir / "time_series.csv"
-    if time_series_path.exists() and not overwrite:
+    parameters_path = run_dir / "parameters.json"
+    if time_series_path.exists() and parameters_path.exists() and not overwrite:
         existing_frame = pd.read_csv(time_series_path, sep=";")
         required_columns = {"t", "T", "x", "social_norm_term"}
         if required_columns.issubset(existing_frame.columns):
-            existing_metrics = compute_metrics_from_saved_time_series(existing_frame)
+            saved_params = load_json(parameters_path)
+            existing_metrics = compute_metrics_from_saved_time_series(
+                existing_frame,
+                params=saved_params,
+            )
             if existing_metrics.get("x_bounds_valid", False):
                 return {
                     "status": "skipped",
