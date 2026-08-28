@@ -14,7 +14,6 @@ from batch_runner import (
     add_parameter_text_box,
     compute_run_metrics,
     ensure_directory,
-    load_default_groups,
     sanitize_name,
     save_auxiliary_plot,
     save_json,
@@ -24,7 +23,7 @@ from batch_runner import (
     save_x_plot,
     simulation_to_dataframe,
 )
-from model_equations import load_scenarios, simulate
+from model_equations import load_scenarios, resolve_parameters, simulate
 from symbolic_analysis import symbolic_social_norm_term
 import matplotlib.pyplot as plt
 
@@ -33,6 +32,18 @@ DEFAULT_INPUT = Path("interesting_parameter_sets.csv")
 DEFAULT_OUTPUT_ROOT = Path("plots")
 DEFAULT_SIMULATION_TIME = 800
 DEFAULT_METADATA_COLUMNS = {"social_norm", "classification", "comment", "reason"}
+
+CSV_SCENARIO_ALIASES = {
+    "observation_based_imitation": "baseline",
+    "belief_based_intention": "Belief-based / intention motivation",
+    "observation_based_approval_punish_one": "Observation based / approval (punish only one behaviour)",
+    "static_injunctive": "Static injunctive",
+    "dynamic_social_norm": "Dynamic social norm",
+    "descriptive_injunctive_dynamic": "Descriptive, injunctive, dynamic",
+    "dynamic_social_norm2": "dynamic social norm2",
+    "descriptive_injunctive_dynamic2": "Descriptive, injunctive, dynamic2",
+    "injunctive_dynamic2": "Injunctive, dynamic2",
+}
 
 
 def _display_figure_in_notebook(fig: plt.Figure) -> None:
@@ -260,21 +271,27 @@ def load_interesting_parameter_sets(path: Path | str = DEFAULT_INPUT) -> list[di
 
 
 def _resolve_scenario_name(name: str, scenarios: dict[str, dict[str, Any]]) -> str:
-    """Resolve exact scenario names as well as batch group names used in the CSV."""
+    """Resolve CSV labels directly to scenarios without depending on batch groups."""
     aliases: dict[str, str] = {}
-    for scenario_name in scenarios:
+    for scenario_name, scenario_params in scenarios.items():
         aliases[scenario_name.casefold()] = scenario_name
         aliases[sanitize_name(scenario_name).casefold()] = scenario_name
-    for group in load_default_groups():
-        if len(group.scenarios) == 1:
-            aliases[group.name.casefold()] = group.scenarios[0]
-            aliases[sanitize_name(group.name).casefold()] = group.scenarios[0]
+
+        social_norm_name = str(scenario_params.get("social_norm", "")).strip()
+        if social_norm_name:
+            aliases[social_norm_name.casefold()] = scenario_name
+            aliases[sanitize_name(social_norm_name).casefold()] = scenario_name
+
+    for alias, scenario_name in CSV_SCENARIO_ALIASES.items():
+        if scenario_name in scenarios:
+            aliases[alias.casefold()] = scenario_name
+            aliases[sanitize_name(alias).casefold()] = scenario_name
 
     lookup = name.casefold()
     if lookup not in aliases:
         lookup = sanitize_name(name).casefold()
     if lookup not in aliases:
-        raise KeyError(f"Unknown scenario or experiment group: {name}")
+        raise KeyError(f"Unknown scenario in interesting parameter CSV: {name}")
     return aliases[lookup]
 
 
@@ -300,7 +317,7 @@ def run_interesting_parameter_sets(
         scenario_name = _resolve_scenario_name(source_name, scenarios)
 
         overrides = dict(entry["parameters"])
-        params = {**scenarios[scenario_name], **overrides}
+        params = {**resolve_parameters(scenario_name), **overrides}
         parameter_names = list(overrides.keys())
         run_name = f"{entry_number:03d}_{sanitize_name(scenario_name)}"
         run_dir = ensure_directory(run_root / run_name) if run_root is not None else Path(".")
