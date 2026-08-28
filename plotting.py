@@ -258,11 +258,11 @@ def plot_temperature_sensitivity_2d(
     cmap="viridis",
     simulate_only_x=False,
 ):
-    """Plot a 2D parameter sweep with max temperature anomaly as the color field.
+    """Plot a 2D parameter sweep with final temperature anomaly as the color field.
 
     A separate figure is created for each scenario. The first parameter maps to
     the x-axis and the second parameter maps to the y-axis. Each cell in the
-    heatmap stores the maximum temperature anomaly over the full simulation.
+    heatmap stores the temperature anomaly at the final simulated timestep.
     """
     scenarios_dict = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
 
@@ -299,7 +299,7 @@ def plot_temperature_sensitivity_2d(
             f"{scenario_name}: temperature anomaly at last timestep over {x_parameter_name} and {y_parameter_name}"
         )
         colorbar = fig.colorbar(mesh, ax=ax)
-        colorbar.set_label("Maximum temperature anomaly")
+        colorbar.set_label("Final temperature anomaly")
 
         output_dir = _get_run_output_dir()
         fig.savefig(
