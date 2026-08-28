@@ -6,13 +6,11 @@
 1. Equations und model simulations in 2 Files aufteilen?
 1. Batch_runner logisch in mehrere Files aufteilen
 1. Plots entwickeln, bei denen man die Parameter direkt in dem Plot bearbeiten kann mit Slidern o.ä.
-1. Ich möchte einen Batch-Run machen bei dem ich Parameter verändere, die in allen Sozialen Normen vorkommen. Wie wähle ich für diesen Run die Parameter, die Normspezifisch sind?
-    1. Man könnte zb. für jede Norm mehrere Varianten simulieren. (eine Mit viel Oszillation, eine mit Zwischenzustand, eine mit wenig Oszilaation, eine mit KOnvergenz gegen 0 und eine mit Konvergenz gegen 1)
-        1. Aber auch dann wirkt das auf mich sehr schwammig.
-    1. TODO: Jedes Scenario einmal mit Standard-Baseline-Parametern laufen lassen und dann mit der Heatmap jeweils 1 Parameterkombination pro Klasse raussuchen.
-1. interesting_parameter_sets.csv befüllen
+
+###############################################################################################
 1. Chati hatte mal davon erzählt, dass man in einer sensitivitätsanalyse/monte carlo analyse bestimmen kann, welche Parameter das Endergebnis am stärksten verändern (maximal diverse Kurven erzeugen)
     1. Das sollte man pro Social-norm einmal laufen lassen und dann den batch runner mit den beiden Parametern laufen lassen, die die größte Veränderung aufweisen.
+###############################################################################################
 
 # Offene Fragen:
 1. Um Struktur in die Auswertung zu bekommen: Konkrete Fragestellungen formulieren
