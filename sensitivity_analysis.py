@@ -294,7 +294,7 @@ def run_samples(
 
 
 def run_zero_boundary_cases(
-    scenario_name: str,
+    base_params: dict[str, Any],
     problem: dict[str, Any],
     config: SensitivityConfig,
 ) -> pd.DataFrame:
@@ -307,15 +307,10 @@ def run_zero_boundary_cases(
     if not zero_boundary_parameters:
         return pd.DataFrame()
 
-    base_params = resolve_parameters(scenario_name)
     records: list[dict[str, Any]] = []
     for parameter_name in zero_boundary_parameters:
         params = dict(base_params)
         params[parameter_name] = 0.0
-        parameter_snapshot = {
-            f"parameter_{name}": params.get(name)
-            for name in problem["names"]
-        }
         try:
             result = simulate(
                 extension=params,
@@ -335,7 +330,6 @@ def run_zero_boundary_cases(
                     "status": "ok",
                     "boundary_parameter": parameter_name,
                     "boundary_value": 0.0,
-                    **parameter_snapshot,
                     **metrics,
                     **sensitivity_outputs,
                 }
@@ -346,7 +340,6 @@ def run_zero_boundary_cases(
                     "status": "failed",
                     "boundary_parameter": parameter_name,
                     "boundary_value": 0.0,
-                    **parameter_snapshot,
                     "error_type": type(error).__name__,
                     "error_message": str(error),
                 }
@@ -357,6 +350,7 @@ def run_zero_boundary_cases(
 def analyze_outputs(
     problem: dict[str, Any],
     outputs: pd.DataFrame,
+    seed: int,
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for output_name in SENSITIVITY_OUTPUTS:
@@ -383,6 +377,7 @@ def analyze_outputs(
             values,
             calc_second_order=False,
             print_to_console=False,
+            seed=seed,
         )
         for index, parameter_name in enumerate(problem["names"]):
             rows.append(
@@ -400,18 +395,18 @@ def analyze_outputs(
 
 def build_parameter_ranking(sobol_results: pd.DataFrame, score_mode: str) -> pd.DataFrame:
     st_table = sobol_results.pivot(index="parameter", columns="output", values="ST")
+    group_scores = pd.DataFrame(index=st_table.index)
+    for group_name, output_names in OUTPUT_GROUPS.items():
+        group_scores[group_name] = st_table[output_names].mean(axis=1)
 
     if score_mode == "simple_mean":
         overall_score = st_table[SENSITIVITY_OUTPUTS].mean(axis=1)
     elif score_mode == "grouped_mean":
-        group_scores = pd.DataFrame(index=st_table.index)
-        for group_name, output_names in OUTPUT_GROUPS.items():
-            group_scores[group_name] = st_table[output_names].mean(axis=1)
         overall_score = group_scores.mean(axis=1)
     else:
         raise ValueError("score_mode must be 'simple_mean' or 'grouped_mean'")
 
-    ranking = st_table.copy()
+    ranking = pd.concat([st_table, group_scores], axis=1)
     ranking["overall_score"] = overall_score
     ranking["max_ST"] = st_table[SENSITIVITY_OUTPUTS].max(axis=1)
     ranking["strongest_output"] = st_table[SENSITIVITY_OUTPUTS].idxmax(axis=1)
@@ -432,6 +427,7 @@ def run_sensitivity_analysis(
         raise ValueError("The agent-based scenario is excluded from this Sobol analysis for now.")
 
     problem = build_problem(scenario_name)
+    base_params = resolve_parameters(scenario_name)
     samples = sobol_sample.sample(
         problem,
         config.base_sample_size,
@@ -451,32 +447,39 @@ def run_sensitivity_analysis(
         "metadata.json",
         "failed_sample.csv",
         "zero_boundary_cases.csv",
+        "parameters.json",
     ):
         path = scenario_dir / filename
         if path.exists():
             path.unlink()
 
+    with (scenario_dir / "parameters.json").open("w", encoding="utf-8") as handle:
+        json.dump(base_params, handle, indent=2, ensure_ascii=False)
+
     sample_frame = pd.DataFrame(samples, columns=problem["names"])
+    sample_frame.insert(0, "sample_index", np.arange(len(sample_frame), dtype=int))
     sample_frame.to_csv(scenario_dir / "samples.csv", index=False)
 
-    boundary_cases = run_zero_boundary_cases(scenario_name, problem, config)
+    boundary_cases = run_zero_boundary_cases(base_params, problem, config)
     if not boundary_cases.empty:
         boundary_cases.to_csv(scenario_dir / "zero_boundary_cases.csv", index=False)
 
     outputs = run_samples(
-        scenarios[scenario_name],
+        base_params,
         problem,
         samples,
         config,
         failure_path=scenario_dir / "failed_sample.csv",
     )
-    simulation_outputs = pd.concat(
-        [sample_frame.reset_index(drop=True), outputs.reset_index(drop=True)],
-        axis=1,
+    simulation_outputs = outputs.reset_index(drop=True).copy()
+    simulation_outputs.insert(
+        0,
+        "sample_index",
+        np.arange(len(simulation_outputs), dtype=int),
     )
     simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False)
 
-    sobol_results = analyze_outputs(problem, outputs)
+    sobol_results = analyze_outputs(problem, outputs, seed=config.seed)
     sobol_results.insert(0, "scenario", scenario_name)
     sobol_results.to_csv(scenario_dir / "sobol_indices.csv", index=False)
 
@@ -496,6 +499,13 @@ def run_sensitivity_analysis(
         "coupling_interval": config.coupling_interval,
         "output_points_per_year": config.output_points_per_year,
         "score_mode": config.score_mode,
+        "parameters_file": "parameters.json",
+        "samples_file": "samples.csv",
+        "simulation_outputs_file": "simulation_outputs.csv",
+        "parameter_reconstruction_note": (
+            "Reconstruct each model input as parameters.json updated with the "
+            "sample-specific values from samples.csv for the same sample_index."
+        ),
         "elimination_censor_offset": ELIMINATION_CENSOR_OFFSET,
         "oscillation_window_years": OSCILLATION_WINDOW_YEARS,
         "zero_boundary_parameters": (
