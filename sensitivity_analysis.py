@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import signal
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +21,7 @@ from simulation_metrics import compute_run_metrics
 DEFAULT_SIMULATION_TIME = 1500
 DEFAULT_OUTPUT_ROOT = Path("sensitivity_results")
 DEFAULT_BASE_SAMPLE_SIZE = 256
+DEFAULT_OUTPUT_POINTS_PER_YEAR = 10
 ELIMINATION_CENSOR_OFFSET = 10_000.0
 OSCILLATION_WINDOW_YEARS = 500.0
 
@@ -87,7 +90,7 @@ SENSITIVITY_OUTPUTS = [
     "time_to_elimination_censored",
     "oscillation_amplitude",
     "oscillations_per_500_years",
-    "damping_rate_filled",
+    "damping_index",
 ]
 
 OUTPUT_GROUPS = {
@@ -96,7 +99,7 @@ OUTPUT_GROUPS = {
     "dynamics": [
         "oscillation_amplitude",
         "oscillations_per_500_years",
-        "damping_rate_filled",
+        "damping_index",
     ],
 }
 
@@ -108,9 +111,8 @@ class SensitivityConfig:
     workers: int = 1
     seed: int = 42
     coupling_interval: float = 1.0
-    output_points_per_year: int = 100
+    output_points_per_year: int = DEFAULT_OUTPUT_POINTS_PER_YEAR
     score_mode: str = "simple_mean"
-    calc_second_order: bool = False
 
 
 def build_problem(scenario_name: str) -> dict[str, Any]:
@@ -139,22 +141,22 @@ def _prepare_sensitivity_outputs(metrics: dict[str, Any], simulation_time: float
     if not np.isfinite(time_to_elimination):
         time_to_elimination = float(simulation_time) + ELIMINATION_CENSOR_OFFSET
 
-    amplitude = float(metrics["amplitude_final"])
-    if not np.isfinite(amplitude):
-        amplitude = 0.0
+    oscillation_amplitude = float(metrics["oscillation_amplitude"])
+    if not np.isfinite(oscillation_amplitude):
+        oscillation_amplitude = 0.0
 
-    damping_rate = float(metrics["damping_rate"])
-    if not np.isfinite(damping_rate):
-        damping_rate = 0.0
+    damping_index = float(metrics["damping_index"])
+    if not np.isfinite(damping_index):
+        damping_index = 0.0
 
     return {
         "final_x": float(metrics["final_x"]),
         "final_temperature": float(metrics["final_temperature"]),
         "cumulative_emissions": float(metrics["cumulative_emissions"]),
         "time_to_elimination_censored": time_to_elimination,
-        "oscillation_amplitude": amplitude,
+        "oscillation_amplitude": oscillation_amplitude,
         "oscillations_per_500_years": _oscillations_per_window(metrics, simulation_time),
-        "damping_rate_filled": damping_rate,
+        "damping_index": damping_index,
     }
 
 
@@ -171,7 +173,32 @@ def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
         verbose=False,
     )
     metrics = compute_run_metrics(result, params)
-    return _prepare_sensitivity_outputs(metrics, config.simulation_time)
+    sensitivity_outputs = _prepare_sensitivity_outputs(metrics, config.simulation_time)
+    return {**metrics, **sensitivity_outputs}
+
+
+def _resolve_worker_count(workers: int | None) -> int:
+    if workers is not None:
+        if workers < 1:
+            raise ValueError("workers must be at least 1")
+        return workers
+    return max(1, (os.cpu_count() or 1) - 1)
+
+
+def _ignore_sigint_in_worker() -> None:
+    """Let the main process handle Ctrl+C; workers are terminated explicitly."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def _terminate_executor_workers(executor: ProcessPoolExecutor) -> None:
+    """Immediately terminate running worker processes during an interrupted sensitivity run."""
+    processes = list(getattr(executor, "_processes", {}).values())
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+    for process in processes:
+        process.join(timeout=1.0)
+
 
 
 def run_samples(
@@ -187,25 +214,40 @@ def run_samples(
 
     if config.workers == 1:
         records = [_run_sample(job) for job in jobs]
-    else:
-        records: list[dict[str, float] | None] = [None] * len(jobs)
-        with ProcessPoolExecutor(max_workers=config.workers) as executor:
-            future_to_index = {
-                executor.submit(_run_sample, job): index
-                for index, job in enumerate(jobs)
-            }
-            for future in as_completed(future_to_index):
-                index = future_to_index[future]
-                records[index] = future.result()
-        records = [record for record in records if record is not None]
+        return pd.DataFrame(records)
 
-    return pd.DataFrame(records, columns=SENSITIVITY_OUTPUTS)
+    records: list[dict[str, Any] | None] = [None] * len(jobs)
+    executor = ProcessPoolExecutor(
+        max_workers=config.workers,
+        initializer=_ignore_sigint_in_worker,
+    )
+    future_to_index = {}
+    try:
+        future_to_index = {
+            executor.submit(_run_sample, job): index
+            for index, job in enumerate(jobs)
+        }
+        for completed_runs, future in enumerate(as_completed(future_to_index), start=1):
+            index = future_to_index[future]
+            records[index] = future.result()
+            if completed_runs % max(1, len(jobs) // 100) == 0 or completed_runs == len(jobs):
+                print(f"  [{completed_runs}/{len(jobs)}] sensitivity simulations completed")
+    except KeyboardInterrupt:
+        print("\nSensitivity run interrupted. Terminating worker processes...")
+        _terminate_executor_workers(executor)
+        executor.shutdown(wait=True, cancel_futures=False)
+        raise
+    else:
+        executor.shutdown(wait=True)
+
+    if any(record is None for record in records):
+        raise RuntimeError("At least one sensitivity simulation did not return a result.")
+    return pd.DataFrame(records)
 
 
 def analyze_outputs(
     problem: dict[str, Any],
     outputs: pd.DataFrame,
-    calc_second_order: bool,
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for output_name in SENSITIVITY_OUTPUTS:
@@ -213,10 +255,24 @@ def analyze_outputs(
         if not np.all(np.isfinite(values)):
             raise ValueError(f"Non-finite values in Sobol output: {output_name}")
 
+        if np.nanmax(values) - np.nanmin(values) <= 1e-12:
+            for parameter_name in problem["names"]:
+                rows.append(
+                    {
+                        "output": output_name,
+                        "parameter": parameter_name,
+                        "S1": 0.0,
+                        "S1_conf": 0.0,
+                        "ST": 0.0,
+                        "ST_conf": 0.0,
+                    }
+                )
+            continue
+
         result = sobol.analyze(
             problem,
             values,
-            calc_second_order=calc_second_order,
+            calc_second_order=False,
             print_to_console=False,
         )
         for index, parameter_name in enumerate(problem["names"]):
@@ -270,7 +326,7 @@ def run_sensitivity_analysis(
     samples = sobol_sample.sample(
         problem,
         config.base_sample_size,
-        calc_second_order=config.calc_second_order,
+        calc_second_order=False,
         seed=config.seed,
     )
 
@@ -281,9 +337,13 @@ def run_sensitivity_analysis(
     sample_frame.to_csv(scenario_dir / "samples.csv", index=False)
 
     outputs = run_samples(scenarios[scenario_name], problem, samples, config)
-    outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False)
+    simulation_outputs = pd.concat(
+        [sample_frame.reset_index(drop=True), outputs.reset_index(drop=True)],
+        axis=1,
+    )
+    simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False)
 
-    sobol_results = analyze_outputs(problem, outputs, config.calc_second_order)
+    sobol_results = analyze_outputs(problem, outputs)
     sobol_results.insert(0, "scenario", scenario_name)
     sobol_results.to_csv(scenario_dir / "sobol_indices.csv", index=False)
 
@@ -302,10 +362,12 @@ def run_sensitivity_analysis(
         "coupling_interval": config.coupling_interval,
         "output_points_per_year": config.output_points_per_year,
         "score_mode": config.score_mode,
-        "calc_second_order": config.calc_second_order,
         "elimination_censor_offset": ELIMINATION_CENSOR_OFFSET,
         "oscillation_window_years": OSCILLATION_WINDOW_YEARS,
         "outputs_for_ranking": SENSITIVITY_OUTPUTS,
+        "raw_metric_columns": [
+            column for column in outputs.columns if column not in SENSITIVITY_OUTPUTS
+        ],
         "output_groups": OUTPUT_GROUPS,
         "top_2_parameters": ranking.head(2)["parameter"].tolist(),
     }
@@ -325,7 +387,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--simulation-time", type=int, default=DEFAULT_SIMULATION_TIME)
     parser.add_argument("--base-sample-size", type=int, default=DEFAULT_BASE_SAMPLE_SIZE)
-    parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Parallel worker processes. Default: CPU count minus one; use 1 for serial execution.",
+    )
+    parser.add_argument(
+        "--output-points-per-year",
+        type=int,
+        default=DEFAULT_OUTPUT_POINTS_PER_YEAR,
+        help="Stored solver evaluation points per simulated year.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument(
@@ -334,26 +407,22 @@ def parse_args() -> argparse.Namespace:
         default="simple_mean",
         help="Rule used to combine output-specific total-order Sobol indices.",
     )
-    parser.add_argument(
-        "--second-order",
-        action="store_true",
-        help="Also use the larger second-order Sobol sampling design.",
-    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.workers < 1:
-        raise ValueError("workers must be at least 1")
+    worker_count = _resolve_worker_count(args.workers)
+    if args.output_points_per_year < 1:
+        raise ValueError("output-points-per-year must be at least 1")
 
     config = SensitivityConfig(
         simulation_time=args.simulation_time,
         base_sample_size=args.base_sample_size,
-        workers=args.workers,
+        workers=worker_count,
         seed=args.seed,
+        output_points_per_year=args.output_points_per_year,
         score_mode=args.score_mode,
-        calc_second_order=args.second_order,
     )
 
     overall_top_rows: list[pd.DataFrame] = []
