@@ -25,6 +25,7 @@ import pandas as pd
 from model_equations import SimulationResult, load_scenarios, simulate
 from simulation_metrics import (
     compute_metrics_from_saved_time_series,
+    compute_oscillation_metrics,
     compute_run_metrics,
 )
 
@@ -309,12 +310,15 @@ KEY_METRICS = [
     "min_x",
     "n_peaks",
     "n_troughs",
+    "n_prominent_half_cycles",
     "n_oscillations",
     "median_period",
+    "oscillation_amplitude",
     "amplitude_initial",
     "amplitude_final",
     "amplitude_ratio",
     "damping_rate",
+    "damping_index",
     "oscillation_score",
     "x_area",
     "final_social_norm",
@@ -356,17 +360,33 @@ def count_extrema(traj, tail_frac=0.5):
 
 
 def classify(traj, tail_frac=0.5):
-    """Classify x(t) directly from extrema in the trajectory tail and final x."""
+    """Classify x(t) using prominent oscillations, amplitude decay, and final x."""
     traj = np.asarray(traj, dtype=float)
+    traj = traj[np.isfinite(traj)]
     if traj.size == 0:
         return "Zwischenzustand"
 
-    e = count_extrema(traj, tail_frac)
+    # The oscillation detector already rejects small extrema through its
+    # prominence threshold. Using the full trajectory also preserves strongly
+    # damped oscillations that have disappeared by the final tail.
+    oscillation_metrics = compute_oscillation_metrics(
+        np.arange(traj.size, dtype=float),
+        traj,
+    )
+    n_oscillations = float(oscillation_metrics["n_oscillations"])
+    damping_index = float(oscillation_metrics["damping_index"])
+    amplitude_ratio = float(oscillation_metrics["amplitude_ratio"])
+
+    if n_oscillations >= 1:
+        clearly_damped = damping_index >= 0.15 or (
+            np.isfinite(amplitude_ratio) and amplitude_ratio <= 0.85
+        )
+        if clearly_damped:
+            return "gedaempft oszillierend"
+        if n_oscillations >= 2:
+            return "stark oszillierend"
+
     final_x = traj[-1]
-    if e >= 6:
-        return "stark oszillierend"
-    if e >= 2:
-        return "gedaempft oszillierend"
     if final_x < 0.05:
         return "Kollaps auf 0"
     if final_x > 0.95:
@@ -468,7 +488,8 @@ def simulation_to_dataframe(result: dict[str, Any], params: dict[str, Any]) -> p
             ),
         }
     )
-    for key, value in params.items():
+    resolved_params = result.get("parameters", params)
+    for key, value in resolved_params.items():
         frame[key] = value
     return frame
 
@@ -757,15 +778,19 @@ def run_single_combination(
         }
 
 
-def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str:
+def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str | None:
+    if record.get("status") not in {"ok", "skipped"}:
+        return None
     run_dir = record.get("run_dir")
     if not isinstance(run_dir, str):
-        return "Zwischenzustand"
+        return None
     time_series_path = Path(run_dir) / "time_series.csv"
     if not time_series_path.exists():
-        return "Zwischenzustand"
+        return None
     frame = pd.read_csv(time_series_path, sep=";", usecols=["x"])
     trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
+    if trajectory.size == 0:
+        return None
     return classify(trajectory, tail_frac=tail_frac)
 
 
@@ -784,8 +809,13 @@ def save_phase_map_for_two_parameters(
     phase_df["phase"] = phase_df.apply(
         lambda row: _classify_saved_run(row, tail_frac=tail_frac), axis=1
     )
+    phase_df = phase_df.dropna(subset=["phase"])
+    if phase_df.empty:
+        return
+
     phase_to_idx = {label: idx for idx, label in enumerate(PHASE_ORDER)}
     cmap = matplotlib.colors.ListedColormap([PHASE_COLORS[label] for label in PHASE_ORDER])
+    cmap.set_bad((0.0, 0.0, 0.0, 0.0))
 
     for scenario_name, scenario_phases in phase_df.groupby("scenario", sort=False):
         pivot = scenario_phases.pivot_table(
@@ -794,9 +824,13 @@ def save_phase_map_for_two_parameters(
         if pivot.empty:
             continue
 
-        phase_array = np.vectorize(
-            lambda label: phase_to_idx.get(str(label), phase_to_idx["Zwischenzustand"])
-        )(pivot.to_numpy())
+        phase_array = np.full(pivot.shape, np.nan, dtype=float)
+        for row_index in range(pivot.shape[0]):
+            for column_index in range(pivot.shape[1]):
+                label = pivot.iat[row_index, column_index]
+                if label in phase_to_idx:
+                    phase_array[row_index, column_index] = phase_to_idx[label]
+        phase_array = np.ma.masked_invalid(phase_array)
 
         fig, ax = plt.subplots(figsize=(10, 7))
         image = ax.imshow(
@@ -1202,7 +1236,8 @@ def build_scenario_comparison_table(all_runs: pd.DataFrame) -> pd.DataFrame:
         phase_counts: dict[str, int] = {phase: 0 for phase in PHASE_ORDER}
         for _, record in scenario_runs.iterrows():
             phase = _classify_saved_run(record)
-            phase_counts[phase] = phase_counts.get(phase, 0) + 1
+            if phase is not None:
+                phase_counts[phase] = phase_counts.get(phase, 0) + 1
 
         row = {
             "scenario": scenario_name,
