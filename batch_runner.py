@@ -308,6 +308,7 @@ KEY_METRICS = [
     "final_x",
     "max_x",
     "min_x",
+    "x_bounds_valid",
     "n_peaks",
     "n_troughs",
     "n_prominent_half_cycles",
@@ -713,15 +714,16 @@ def run_single_combination(
         required_columns = {"t", "T", "x", "social_norm_term"}
         if required_columns.issubset(existing_frame.columns):
             existing_metrics = compute_metrics_from_saved_time_series(existing_frame)
-            return {
-                "status": "skipped",
-                "group": group.name,
-                "scenario": scenario_name,
-                "run_name": run_name,
-                "run_dir": str(run_dir),
-                **sweep_values,
-                **existing_metrics,
-            }
+            if existing_metrics.get("x_bounds_valid", False):
+                return {
+                    "status": "skipped",
+                    "group": group.name,
+                    "scenario": scenario_name,
+                    "run_name": run_name,
+                    "run_dir": str(run_dir),
+                    **sweep_values,
+                    **existing_metrics,
+                }
 
     try:
         if (
@@ -780,6 +782,8 @@ def run_single_combination(
 
 def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str | None:
     if record.get("status") not in {"ok", "skipped"}:
+        return None
+    if record.get("x_bounds_valid") is False:
         return None
     run_dir = record.get("run_dir")
     if not isinstance(run_dir, str):
