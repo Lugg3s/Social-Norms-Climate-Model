@@ -93,7 +93,19 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
             prominent_extrema_mask[idx + 1] = True
     n_prominent_extrema = int(np.sum(prominent_extrema_mask))
     n_prominent_half_cycles = int(np.sum(prominent_pair_mask))
-    n_oscillations = n_prominent_half_cycles / 2.0
+
+    # Count only complete oscillations formed by consecutive prominent half-cycles.
+    # Isolated prominent half-cycles are retained as diagnostics but are not paired
+    # across a non-prominent interruption.
+    n_oscillations = 0
+    current_run_length = 0
+    for is_prominent in prominent_pair_mask:
+        if is_prominent:
+            current_run_length += 1
+        else:
+            n_oscillations += current_run_length // 2
+            current_run_length = 0
+    n_oscillations += current_run_length // 2
 
     prominent_periods: list[float] = []
     for idx in range(extrema_indices.size - 2):
