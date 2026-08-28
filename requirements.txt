@@ -2,4 +2,10 @@ numpy
 pandas
 scipy
 sympy
+matplotlib
+Pillow
+imageio
+imageio-ffmpeg
+IPython
+ipykernel
 SALib
