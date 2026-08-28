@@ -4,8 +4,10 @@ import argparse
 import json
 import os
 import signal
+import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,12 +16,13 @@ import pandas as pd
 from SALib.analyze import sobol
 from SALib.sample import sobol as sobol_sample
 
-from model_equations import load_scenarios, simulate
+from model_equations import load_scenarios, resolve_parameters, simulate
 from simulation_metrics import compute_run_metrics
 
 
 DEFAULT_SIMULATION_TIME = 1500
 DEFAULT_OUTPUT_ROOT = Path("sensitivity_results")
+DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
 DEFAULT_OUTPUT_POINTS_PER_YEAR = 24
 ELIMINATION_CENSOR_OFFSET = 10_000.0
@@ -177,6 +180,26 @@ def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
     return {**metrics, **sensitivity_outputs}
 
 
+def _write_failed_sample(
+    failure_path: Path | None,
+    sample_index: int,
+    parameter_names: list[str],
+    sample: np.ndarray,
+    error: BaseException,
+) -> None:
+    if failure_path is None:
+        return
+    failure_path.parent.mkdir(parents=True, exist_ok=True)
+    row = {
+        "sample_index": sample_index,
+        **dict(zip(parameter_names, sample)),
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+        "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+    }
+    pd.DataFrame([row]).to_csv(failure_path, index=False)
+
+
 def _resolve_worker_count(workers: int | None) -> int:
     if workers is not None:
         if workers < 1:
@@ -206,6 +229,7 @@ def run_samples(
     problem: dict[str, Any],
     samples: np.ndarray,
     config: SensitivityConfig,
+    failure_path: Path | None = None,
 ) -> pd.DataFrame:
     jobs = [
         (scenario_params, problem["names"], sample, config)
@@ -213,7 +237,19 @@ def run_samples(
     ]
 
     if config.workers == 1:
-        records = [_run_sample(job) for job in jobs]
+        records: list[dict[str, Any]] = []
+        for sample_index, job in enumerate(jobs):
+            try:
+                records.append(_run_sample(job))
+            except Exception as error:
+                _write_failed_sample(
+                    failure_path,
+                    sample_index,
+                    problem["names"],
+                    samples[sample_index],
+                    error,
+                )
+                raise
         return pd.DataFrame(records)
 
     records: list[dict[str, Any] | None] = [None] * len(jobs)
@@ -229,7 +265,19 @@ def run_samples(
         }
         for completed_runs, future in enumerate(as_completed(future_to_index), start=1):
             index = future_to_index[future]
-            records[index] = future.result()
+            try:
+                records[index] = future.result()
+            except Exception as error:
+                _write_failed_sample(
+                    failure_path,
+                    index,
+                    problem["names"],
+                    samples[index],
+                    error,
+                )
+                _terminate_executor_workers(executor)
+                executor.shutdown(wait=True, cancel_futures=False)
+                raise
             if completed_runs % max(1, len(jobs) // 100) == 0 or completed_runs == len(jobs):
                 print(f"  [{completed_runs}/{len(jobs)}] sensitivity simulations completed")
     except KeyboardInterrupt:
@@ -242,6 +290,67 @@ def run_samples(
 
     if any(record is None for record in records):
         raise RuntimeError("At least one sensitivity simulation did not return a result.")
+    return pd.DataFrame(records)
+
+
+def run_zero_boundary_cases(
+    scenario_name: str,
+    problem: dict[str, Any],
+    config: SensitivityConfig,
+) -> pd.DataFrame:
+    """Evaluate exact zero-boundary cases separately from the Sobol sample."""
+    zero_boundary_parameters = [
+        parameter_name
+        for parameter_name, bounds in zip(problem["names"], problem["bounds"])
+        if float(bounds[0]) == 0.0
+    ]
+    if not zero_boundary_parameters:
+        return pd.DataFrame()
+
+    base_params = resolve_parameters(scenario_name)
+    records: list[dict[str, Any]] = []
+    for parameter_name in zero_boundary_parameters:
+        params = dict(base_params)
+        params[parameter_name] = 0.0
+        parameter_snapshot = {
+            f"parameter_{name}": params.get(name)
+            for name in problem["names"]
+        }
+        try:
+            result = simulate(
+                extension=params,
+                simulation_time=config.simulation_time,
+                seed=config.seed,
+                coupling_interval=config.coupling_interval,
+                output_points_per_year=config.output_points_per_year,
+                verbose=False,
+            )
+            metrics = compute_run_metrics(result, params)
+            sensitivity_outputs = _prepare_sensitivity_outputs(
+                metrics,
+                config.simulation_time,
+            )
+            records.append(
+                {
+                    "status": "ok",
+                    "boundary_parameter": parameter_name,
+                    "boundary_value": 0.0,
+                    **parameter_snapshot,
+                    **metrics,
+                    **sensitivity_outputs,
+                }
+            )
+        except Exception as error:
+            records.append(
+                {
+                    "status": "failed",
+                    "boundary_parameter": parameter_name,
+                    "boundary_value": 0.0,
+                    **parameter_snapshot,
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                }
+            )
     return pd.DataFrame(records)
 
 
@@ -313,7 +422,7 @@ def build_parameter_ranking(sobol_results: pd.DataFrame, score_mode: str) -> pd.
 
 def run_sensitivity_analysis(
     scenario_name: str,
-    output_root: Path,
+    run_root: Path,
     config: SensitivityConfig,
 ) -> Path:
     scenarios = load_scenarios()
@@ -330,13 +439,37 @@ def run_sensitivity_analysis(
         seed=config.seed,
     )
 
-    scenario_dir = output_root / scenario_name.replace("/", "_").replace(" ", "_")
+    scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
     scenario_dir.mkdir(parents=True, exist_ok=True)
+
+    # Remove files from an incomplete prior attempt if this run directory is reused.
+    for filename in (
+        "samples.csv",
+        "simulation_outputs.csv",
+        "sobol_indices.csv",
+        "parameter_ranking.csv",
+        "metadata.json",
+        "failed_sample.csv",
+        "zero_boundary_cases.csv",
+    ):
+        path = scenario_dir / filename
+        if path.exists():
+            path.unlink()
 
     sample_frame = pd.DataFrame(samples, columns=problem["names"])
     sample_frame.to_csv(scenario_dir / "samples.csv", index=False)
 
-    outputs = run_samples(scenarios[scenario_name], problem, samples, config)
+    boundary_cases = run_zero_boundary_cases(scenario_name, problem, config)
+    if not boundary_cases.empty:
+        boundary_cases.to_csv(scenario_dir / "zero_boundary_cases.csv", index=False)
+
+    outputs = run_samples(
+        scenarios[scenario_name],
+        problem,
+        samples,
+        config,
+        failure_path=scenario_dir / "failed_sample.csv",
+    )
     simulation_outputs = pd.concat(
         [sample_frame.reset_index(drop=True), outputs.reset_index(drop=True)],
         axis=1,
@@ -357,6 +490,7 @@ def run_sensitivity_analysis(
         "simulation_time": config.simulation_time,
         "base_sample_size": config.base_sample_size,
         "number_of_model_runs": int(len(samples)),
+        "number_of_zero_boundary_runs": int(len(boundary_cases)),
         "workers": config.workers,
         "seed": config.seed,
         "coupling_interval": config.coupling_interval,
@@ -364,6 +498,15 @@ def run_sensitivity_analysis(
         "score_mode": config.score_mode,
         "elimination_censor_offset": ELIMINATION_CENSOR_OFFSET,
         "oscillation_window_years": OSCILLATION_WINDOW_YEARS,
+        "zero_boundary_parameters": (
+            boundary_cases["boundary_parameter"].tolist()
+            if not boundary_cases.empty
+            else []
+        ),
+        "zero_boundary_cases_note": (
+            "Exact zero-boundary cases are diagnostic runs and are not included "
+            "in the Sobol indices."
+        ),
         "outputs_for_ranking": SENSITIVITY_OUTPUTS,
         "raw_metric_columns": [
             column for column in outputs.columns if column not in SENSITIVITY_OUTPUTS
@@ -425,17 +568,20 @@ def main() -> None:
         score_mode=args.score_mode,
     )
 
+    timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
+    run_root = args.output_root / timestamp
+    run_root.mkdir(parents=True, exist_ok=False)
+
     overall_top_rows: list[pd.DataFrame] = []
     for scenario_name in args.scenarios:
-        scenario_dir = run_sensitivity_analysis(scenario_name, args.output_root, config)
+        scenario_dir = run_sensitivity_analysis(scenario_name, run_root, config)
         ranking = pd.read_csv(scenario_dir / "parameter_ranking.csv")
         overall_top_rows.append(ranking.head(2))
         print(f"Completed sensitivity analysis: {scenario_name} -> {scenario_dir}")
 
     if overall_top_rows:
-        args.output_root.mkdir(parents=True, exist_ok=True)
         pd.concat(overall_top_rows, ignore_index=True).to_csv(
-            args.output_root / "overall_top_parameters.csv",
+            run_root / "overall_top_parameters.csv",
             index=False,
         )
 
