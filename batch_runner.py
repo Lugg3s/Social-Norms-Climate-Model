@@ -783,7 +783,8 @@ def run_single_combination(
 def _classify_saved_run(record: pd.Series, tail_frac: float = 0.5) -> str | None:
     if record.get("status") not in {"ok", "skipped"}:
         return None
-    if record.get("x_bounds_valid") is False:
+    x_bounds_valid = record.get("x_bounds_valid")
+    if pd.notna(x_bounds_valid) and not bool(x_bounds_valid):
         return None
     run_dir = record.get("run_dir")
     if not isinstance(run_dir, str):
