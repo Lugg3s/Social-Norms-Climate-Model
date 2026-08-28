@@ -21,7 +21,7 @@ from simulation_metrics import compute_run_metrics
 
 
 DEFAULT_SIMULATION_TIME = 1500
-DEFAULT_OUTPUT_ROOT = Path("sensitivity_results")
+DEFAULT_OUTPUT_ROOT = Path("plots") / "sensitivity_results"
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
 DEFAULT_OUTPUT_POINTS_PER_YEAR = 24
