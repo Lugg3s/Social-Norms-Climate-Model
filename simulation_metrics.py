@@ -16,6 +16,7 @@ def _empty_oscillation_metrics() -> dict[str, float]:
         "n_peaks": 0.0,
         "n_troughs": 0.0,
         "n_prominent_half_cycles": 0.0,
+        "n_prominent_extrema": 0.0,
         "n_oscillations": 0.0,
         "median_period": float("nan"),
         "oscillation_amplitude": 0.0,
@@ -81,11 +82,19 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     prominent_amplitudes = pair_amplitudes[prominent_pair_mask]
     prominent_times = pair_times[prominent_pair_mask]
 
-    # A complete oscillation requires two consecutive prominent half-cycles.
-    # Count peak-to-peak and trough-to-trough cycles separately and use the
-    # larger count so the same physical cycle is not counted twice.
-    peak_cycles = 0
-    trough_cycles = 0
+    # Each full oscillation contains approximately one prominent maximum and
+    # one prominent minimum. Mark extrema that participate in at least one
+    # prominent peak/trough segment and divide their count by two. This avoids
+    # treating every peak-to-trough segment as a complete oscillation and also
+    # handles trajectories with only one observed cycle.
+    prominent_extrema_mask = np.zeros(extrema_indices.size, dtype=bool)
+    for idx, is_prominent in enumerate(prominent_pair_mask):
+        if is_prominent:
+            prominent_extrema_mask[idx] = True
+            prominent_extrema_mask[idx + 1] = True
+    n_prominent_extrema = int(np.sum(prominent_extrema_mask))
+    n_oscillations = n_prominent_extrema / 2.0
+
     prominent_periods: list[float] = []
     for idx in range(extrema_indices.size - 2):
         alternating = (
@@ -100,12 +109,6 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
         period = float(t_values[extrema_indices[idx + 2]] - t_values[extrema_indices[idx]])
         if period > 0:
             prominent_periods.append(period)
-        if extrema_types[idx] > 0:
-            peak_cycles += 1
-        else:
-            trough_cycles += 1
-
-    n_oscillations = max(peak_cycles, trough_cycles)
     median_period = (
         float(np.median(prominent_periods)) if prominent_periods else float("nan")
     )
@@ -140,6 +143,7 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
         "n_peaks": float(peak_indices.size),
         "n_troughs": float(trough_indices.size),
         "n_prominent_half_cycles": float(n_prominent),
+        "n_prominent_extrema": float(n_prominent_extrema),
         "n_oscillations": float(n_oscillations),
         "median_period": median_period,
         "oscillation_amplitude": oscillation_amplitude,
