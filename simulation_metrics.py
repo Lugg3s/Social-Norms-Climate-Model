@@ -214,6 +214,9 @@ def _base_metrics(
     time_to_elimination = _first_threshold_crossing_time(t_values, x_values)
     threshold_reached = bool(np.any(x_values >= ELIMINATION_THRESHOLD))
     elimination_success = bool(x_values[-1] >= ELIMINATION_THRESHOLD)
+    min_x = float(np.nanmin(x_values))
+    max_x = float(np.nanmax(x_values))
+    x_bounds_valid = bool(min_x >= -1e-7 and max_x <= 1.0 + 1e-7)
 
     cumulative_emissions = float("nan")
     if params is not None and {"epsilon_max", "s"}.issubset(params):
@@ -227,8 +230,9 @@ def _base_metrics(
         "temperature_area": float(np.trapz(temperature, t_values)),
         "time_to_peak_temperature": float(t_values[max_temperature_index]),
         "final_x": float(x_values[-1]),
-        "max_x": float(np.nanmax(x_values)),
-        "min_x": float(np.nanmin(x_values)),
+        "max_x": max_x,
+        "min_x": min_x,
+        "x_bounds_valid": x_bounds_valid,
         "x_area": float(np.trapz(x_values, t_values)),
         "final_social_norm": float(social_norm[-1]) if social_norm.size else float("nan"),
         "max_social_norm": float(np.nanmax(social_norm)) if social_norm.size else float("nan"),
