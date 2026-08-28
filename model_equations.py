@@ -420,6 +420,10 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         # interval with stricter tolerances and a smaller maximum step.
         x_interval = interval_solution.y[5, :]
         x_tolerance = 1e-7
+        if not np.all(np.isfinite(x_interval)):
+            raise RuntimeError(
+                f"Numerical integration produced non-finite x values in interval ({t0}, {t1})"
+            )
         if np.nanmin(x_interval) < -x_tolerance or np.nanmax(x_interval) > 1.0 + x_tolerance:
             interval_solution = solve_ivp(
                 make_model(frozen_agentic_term),
@@ -434,6 +438,10 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             if not interval_solution.success:
                 raise RuntimeError("ODE integration failed: " + interval_solution.message)
             x_interval = interval_solution.y[5, :]
+            if not np.all(np.isfinite(x_interval)):
+                raise RuntimeError(
+                    f"Numerical integration produced non-finite x values in interval ({t0}, {t1})"
+                )
 
         if np.nanmin(x_interval) < -x_tolerance or np.nanmax(x_interval) > 1.0 + x_tolerance:
             raise RuntimeError(
