@@ -104,3 +104,14 @@ The following points should be tested explicitly in simulation output:
 - whether dynamic norms generate overshoot or oscillatory behaviour absent from static formulations;
 - whether different norms produce substantially different climate outcomes despite similar `final_x`;
 - whether the descriptive `x = 0.5` threshold produces tipping or path dependence in the coupled model.
+
+
+
+
+
+
+
+
+
+
+- Wenn der social norm term klein ist, entsteht (fast?) immer durch die Temperaturfunktion gedämpfte Oszillation. Umso kleiner also Faktoren im social_norm_term sind, umso stärker ist die Oszillation (außer bei dynamischen Normen. Dort entstehen Oszillationen auch durch die Norm)

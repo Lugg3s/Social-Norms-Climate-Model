@@ -1,1 +1,32 @@
-social_norm,c_inj,c_dyn,tau,theta,classification,comment
+social_norm,c_inj,c_dyn,tau,theta,x_target,tau_ref,tau_STref,tau_xp,N,alpha,delta,beta,social_norm_factor,temperature_factor,classification,comment,reason
+belief based intention,,,,,,,,,0,,,1,1,1,,initialer Fall. Warum entstehen hier Oszillationen? Warum geht es wieder runter von 1? (Bei ca. Jahr 2400),"social_norm_term=0 -> kein incentive zu mitigieren. Oszillation entsteht auf Grund der Temperaturfunktion in X. Sobald die Temperatur zu gering ist, mitigieren weniger Akteure."
+belief based intention,,,,,,,,,3,,,1,1,1,,initial kein Fall. Keine Oszillation (Kurve fällt nicht mehr von x=1 ab),keine Oszillation: Bestrafung für aufhören zu mitigieren sind zu hoch (N)
+descriptive_injunctive_dynamic,0,100,,,0.7,1,1,1,,,,1,1,1,,social_norm.png verläuft konstant auf 0 mit wenigen extrem schnellen und teilweise großen Ausbrüchen,
+descriptive_injunctive_dynamic,0.1,100,,,0.7,1,1,1,,,,1,1,1,,"gleiches Verhalten, wie bei c_inj=0, außer, dass X ca. bei Jahr 3180 schlagartig auf 1 steigt.",
+descriptive_injunctive_dynamic,1,30,,,0.7,1,1,1,,,,1,1,1,,x sinkt unter 0? Das muss ein Fehler im Code sein.,
+descriptive_injunctive_dynamic,3,10,,,0.7,1,1,1,,,,1,1,1,gedämpfte Oszillation,klassische Oszillation,
+descriptive_injunctive_dynamic,10,1,,,0.7,1,1,1,,,,1,1,1,,starker Anstieg initial. Danach langsam x -> 1. klassisch x -> 1 ohne Oszillation,
+descriptive_injunctive_dynamic,10,100,,,0.7,1,1,1,,,,1,1,1,,"initial explosiver Anstieg auf x=1, dann schneller Abfall auf x=0 und ca. 2300 wieder explosiver Anstieg auf x=1",
+descriptive_injunctive_dynamic,30,100,,,0.7,1,1,1,,,,1,1,1,gedämpfte Oszillation,"In den ersten 200 Jahren Oszillation, danach konvergenz gegen ca. 0.9. Interessant: Temperatur steigt weiter, obwohl ca. x = 0.9. Phase space sieht wunderschön aus.",
+descriptive_injunctive_dynamic,100,0.1,,,0.7,1,1,1,,,,1,1,1,Zwischenzustand,x steigt explosiv auf x_target und bleibt dann da mit leichten Schwakungen,Grund für leichte Schwankungen: c_dyn != 0
+descriptive_injunctive_dynamic,1,1,,,0.7,1,1,1,,,,1,1,1,,"Bei ca. 3100 fällt x wieder von 1 runter. Grund ist vermutlich, dass die Temperatur so gering ist, dass es weniger incentive gibt zu mitigieren. Aber warum ist das dann nicht schon früher passiert? Temperatur war für 400 Jahre ungefähr konstant bei 1.2 ",
+descriptive_injunctive_dynamic,0.3,0.3,,,0.7,1,1,1,,,,1,1,1,Klassisch sigmoide Funktion,initial Abfall und dann klassisch Sigmoid auf 1,
+descriptive_injunctive_dynamic2,0.3,0.3,1,1,0.7,,,,,,,1,1,1,Klassisch sigmoide Funktion,initial Abfall und dann klassisch Sigmoid auf 1,
+descriptive_injunctive_dynamic2,1,1,1,1,0.7,,,,,,,1,1,1,,"Bei ca. 3100 fällt x wieder von 1 runter. Grund ist vermutlich, dass die Temperatur so gering ist,  dass es weniger incentive gibt zu mitigieren. Aber warum ist das dann nicht schon früher passiert? Temperatur war für 400 Jahre ungefähr konstant bei 1.2",,
+descriptive_injunctive_dynamic2,3,10,1,1,0.7,,,,,,,1,1,1,gedämpfte Oszillation,mit kleiner Amplitude,,
+descriptive_injunctive_dynamic2,3,100,1,1,0.7,,,,,,,1,1,1,Oszillation,Oszillation mit großer Amplitude. Sehr schöne Temperaturkurve und Phase space,
+descriptive_injunctive_dynamic2,10,1,1,1,0.7,,,,,,,1,1,1,,starker Anstieg initial. Danach langsam x -> 1. klassisch x -> 1 ohne Oszillation,
+descriptive_injunctive_dynamic2,10,100,1,1,0.7,,,,,,,1,1,1,gedämpfte Oszillation,mit größerer Frequenz,,
+descriptive_injunctive_dynamic2,100,0.1,1,1,0.7,,,,,,,1,1,1,Zwischenzustand,x steigt explosiv auf x_target und bleibt dann da mit leichten Schwakungen,,
+dynamic_social_norm,,,,,,10,0.25,0.25,,,,1,1,1,gedämpfte Oszillation,Fällt initial auf 0 und steigt dann irgendwann explosiv auf 1. Danach  gedämpfte Oszillationen. Die Struktur vom phase space verändert sich kaum wenn die tau's verändert werden,
+dynamic_social_norm,,,,,,25,1,1,,,,1,1,1,gedämpfte Oszillation,initial Sigmoider Anstieg auf 1. Irgendwann beginnt die gedämpfte Oszillation,,
+dynamic_social_norm,,,,,,50,0.25,0.25,,,,1,1,1,konvergiert gegen 1,keine Oszillation. Ein explosiver Anstieg von 0 auf 1. Danach keine Veränderung mehr. (Zumindest nicht bis 3200. Danach ?). Temperatur plot hat einen peak und danach konvergiert gegen einen Wert,,
+dynamic_social_norm2,,1,100,5,,,,,,,,1,1,1,gedämpfte Oszillation,Für alle tau/theta-Kombinationen der gleiche Verlauf mit minimalen Schwankungen,
+injunctive_dynamic2,6,6,100,5,0.7,,,,,,,1,1,1,konvergiert gegen 1,Für alle tau/theta-Kombinationen der gleiche Verlauf mit minimalen Schwankungen (Ohne initialen Verfall),
+observation_based_approval_punish_one,,,,,,,,,,0.5,,1,1,1,gedämpfte Oszillation,"gedämpfte Oszillation. Tritt auch für alpha = 0, 0.1, 0.25 auf",
+observation_based_approval_punish_one,,,,,,,,,,1,,1,1,1,konvergiert gegen 1,"Keine Oszillation. Tritt auch für alpha = 2, 3 auf",,
+observation_based_imitation,,,,,,,,,,,10,1,1,1,Kollaps auf 0,"Kein Abweichen von x=0. Tritt auch für delta = 30, 100 auf",
+observation_based_imitation,,,,,,,,,,,3,1,1,1,konvergiert gegen 1,"Zuerst Abfall auf 1/fast 1, danach Sigmoider Anstieg auf x=1. Tritt auch für delta = 1 auf",,
+observation_based_imitation,,,,,,,,,,,0.1,1,1,1,gedämpfte Oszillation,Tritt auch für delta = 0  0.3 auf,,
+static_injunctive,1,,,,0.5,,,,,,,1,1,1,gedämpfte Oszillation,"Tritt für beliebige x_target auf. umso kleiner c_inj, umso stärker die Oszillation",
+static_injunctive,10,,,,0.2,,,,,,,1,1,1,Zwischenzustand,"umso größer c_inj, umso stärker konvergiert x gegen x_target.",

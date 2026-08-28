@@ -53,83 +53,86 @@ STRENGTH_VALUES = [0, 0.1, 0.3, 1, 3, 10, 30, 100]
 POSITIVE_TIME_VALUES = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
 DELAY_VALUES = [0, 0.5, 1, 2, 5, 10, 25, 50, 100]
 THETA_VALUES = [0, *POSITIVE_TIME_VALUES]
-TARGET_VALUES = [0, 0.1, 0.25, 0.5, 0.7, 0.9, 1]
 BELIEF_VALUES = [0, 0.1, 0.3, 0.5, 1, 2, 3]
 APPROVAL_VALUES = [0, 0.1, 0.25, 0.5, 1, 2, 3]
 
 
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
+    # Agents based erstmal weglassen
     ExperimentGroup(
-        name="observation_based_imitation",
-        scenarios=["baseline"],
-        sweep_parameters={"delta": STRENGTH_VALUES},
-    ),
-    ExperimentGroup(
-        name="dynamic_social_norm",
-        scenarios=["Dynamic social norm"],
+        name="observation_based_intention_agents",
+        scenarios=["Observation-based / intention motivation (agents)"],
         sweep_parameters={
-            "tau_ref": POSITIVE_TIME_VALUES,
-            "tau_STref": POSITIVE_TIME_VALUES,
-            "tau_xp": POSITIVE_TIME_VALUES,
+            "network_size": [2, 5, 10, 20, 50, 100, 150, 200],
+            "agent_susceptibility": X0_SWEEP_VALUES,
         },
     ),
 
-    ExperimentGroup(
-        name="belief_based_intention",
-        scenarios=["Belief-based / intention motivation"],
-        sweep_parameters={"N": BELIEF_VALUES},
-    ),
-    ExperimentGroup(
-        name="observation_based_approval_punish_one",
-        scenarios=["Observation based / approval (punish only one behaviour)"],
-        sweep_parameters={"alpha": APPROVAL_VALUES},
-    ),
-    ExperimentGroup(
-        name="static_injunctive",
-        scenarios=["Static injunctive"],
-        sweep_parameters={"c_inj": STRENGTH_VALUES, "x_target": TARGET_VALUES},
-    ),
-    ExperimentGroup(
-        name="descriptive_injunctive_dynamic",
-        scenarios=["Descriptive, injunctive, dynamic"],
-        sweep_parameters={
-            "c_inj": STRENGTH_VALUES,
-            "c_dyn": STRENGTH_VALUES,
-        },
-    ),
-    ExperimentGroup(
-        name="descriptive_injunctive_dynamic2",
-        scenarios=["Descriptive, injunctive, dynamic2"],
-        sweep_parameters={
-            "c_inj": STRENGTH_VALUES,
-            "c_dyn": STRENGTH_VALUES,
-        },
-    ),
-    ExperimentGroup(
-        name="injunctive_dynamic2",
-        scenarios=["Injunctive, dynamic2"],
-        sweep_parameters={
-            "tau": DELAY_VALUES,
-            "theta": THETA_VALUES,
-        },
-    ),
-    ExperimentGroup(
-        name="dynamic_social_norm2",
-        scenarios=["dynamic social norm2"],
-        sweep_parameters={"tau": DELAY_VALUES, "theta": THETA_VALUES},
-    ),
-    # Agents based erstmal weglassen
+
     # ExperimentGroup(
-    #     name="observation_based_intention_agents",
-    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     name="observation_based_imitation",
+    #     scenarios=["baseline"],
+    #     sweep_parameters={"delta": STRENGTH_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_social_norm",
+    #     scenarios=["Dynamic social norm"],
     #     sweep_parameters={
-    #         "threshold": [],
-    #         "omega": [],
-    #         "network_size": [],
-    #         "agent_susceptibility": [],
+    #         "tau_ref": POSITIVE_TIME_VALUES,
+    #         "tau_STref": POSITIVE_TIME_VALUES,
+    #         "tau_xp": POSITIVE_TIME_VALUES,
     #     },
     # ),
+
+    # ExperimentGroup(
+    #     name="belief_based_intention",
+    #     scenarios=["Belief-based / intention motivation"],
+    #     sweep_parameters={"N": BELIEF_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="observation_based_approval_punish_one",
+    #     scenarios=["Observation based / approval (punish only one behaviour)"],
+    #     sweep_parameters={"alpha": APPROVAL_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="static_injunctive",
+    #     scenarios=["Static injunctive"],
+    #     sweep_parameters={"c_inj": STRENGTH_VALUES, "x_target": X0_SWEEP_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="descriptive_injunctive_dynamic",
+    #     scenarios=["Descriptive, injunctive, dynamic"],
+    #     sweep_parameters={
+    #         "c_inj": STRENGTH_VALUES,
+    #         "c_dyn": STRENGTH_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="descriptive_injunctive_dynamic2",
+    #     scenarios=["Descriptive, injunctive, dynamic2"],
+    #     sweep_parameters={
+    #         "c_inj": STRENGTH_VALUES,
+    #         "c_dyn": STRENGTH_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="injunctive_dynamic2",
+    #     scenarios=["Injunctive, dynamic2"],
+    #     sweep_parameters={
+    #         "tau": DELAY_VALUES,
+    #         "theta": THETA_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_social_norm2",
+    #     scenarios=["dynamic social norm2"],
+    #     sweep_parameters={"tau": DELAY_VALUES, "theta": THETA_VALUES},
+    # ),
+
+
+
+
 
 
     # ExperimentGroup(
@@ -284,7 +287,6 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     scenarios=["Observation-based / intention motivation (agents)"],
     #     sweep_parameters={
     #         "threshold": [0.001, 0.01, 0.05, 0.1],
-    #         "omega": [0.005, 0.01, 0.05, 0.1],
     #         "agent_susceptibility": [0.2, 0.5, 0.8, 1.0],
     #         "network_size": [20, 50, 100, 200],
     #     },
@@ -704,7 +706,28 @@ def add_parameter_text_box(
     ax.add_artist(anchored_text)
 
 
-def save_temperature_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
+def _finalize_run_plot(
+    fig: plt.Figure,
+    output_path: Path,
+    *,
+    store_file: bool,
+    show: bool,
+) -> None:
+    if store_file:
+        fig.savefig(output_path, dpi=300)
+    if show:
+        try:
+            from IPython.display import display
+
+            display(fig)
+        except ImportError:
+            plt.show()
+    plt.close(fig)
+
+
+def save_temperature_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.plot(frame["year"], frame["T"], label="Temperature")
     ax.set_xlabel("Time (year)")
@@ -715,11 +738,14 @@ def save_temperature_plot(frame, run_dir, run_label, params, sweep_parameters) -
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
-    fig.savefig(run_dir / "temperature.png", dpi=300)
-    plt.close(fig)
+    _finalize_run_plot(
+        fig, run_dir / "temperature.png", store_file=store_file, show=show
+    )
 
 
-def save_x_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
+def save_x_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.plot(frame["year"], frame["x"], label="x")
     ax.set_xlabel("Time (year)")
@@ -730,11 +756,12 @@ def save_x_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
-    fig.savefig(run_dir / "x.png", dpi=300)
-    plt.close(fig)
+    _finalize_run_plot(fig, run_dir / "x.png", store_file=store_file, show=show)
 
 
-def save_x_phase_space_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
+def save_x_phase_space_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
     t_values = pd.to_numeric(frame["t"], errors="coerce").to_numpy(dtype=float)
     x_values = pd.to_numeric(frame["x"], errors="coerce").to_numpy(dtype=float)
     valid = np.isfinite(t_values) & np.isfinite(x_values)
@@ -772,11 +799,14 @@ def save_x_phase_space_plot(frame, run_dir, run_label, params, sweep_parameters)
     colorbar = fig.colorbar(trajectory, ax=ax)
     colorbar.set_label("Time (year)")
     fig.tight_layout()
-    fig.savefig(run_dir / "x_phase_space.png", dpi=300)
-    plt.close(fig)
+    _finalize_run_plot(
+        fig, run_dir / "x_phase_space.png", store_file=store_file, show=show
+    )
 
 
-def save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
+def save_social_norm_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
     series = frame["social_norm_term"].to_numpy(dtype=float)
     if np.all(np.isnan(series)):
@@ -790,11 +820,14 @@ def save_social_norm_plot(frame, run_dir, run_label, params, sweep_parameters) -
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
-    fig.savefig(run_dir / "social_norm.png", dpi=300)
-    plt.close(fig)
+    _finalize_run_plot(
+        fig, run_dir / "social_norm.png", store_file=store_file, show=show
+    )
 
 
-def save_auxiliary_plot(frame, run_dir, run_label, params, sweep_parameters) -> None:
+def save_auxiliary_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.plot(frame["year"], frame["x"], label="x", linewidth=2)
     ax.plot(frame["year"], frame["x_p"], label="x_p", linestyle="--")
@@ -807,8 +840,9 @@ def save_auxiliary_plot(frame, run_dir, run_label, params, sweep_parameters) -> 
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
     add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
-    fig.savefig(run_dir / "auxiliary_states.png", dpi=300)
-    plt.close(fig)
+    _finalize_run_plot(
+        fig, run_dir / "auxiliary_states.png", store_file=store_file, show=show
+    )
 
 
 def get_group_parameter_names(group: ExperimentGroup) -> list[str]:
@@ -1307,6 +1341,41 @@ def save_overall_comparison_plots(all_summaries: pd.DataFrame, run_root: Path) -
     plt.close(fig)
 
 
+def save_scenario_comparison_bar_charts(
+    scenario_comparison: pd.DataFrame,
+    run_root: Path,
+) -> None:
+    """Save one horizontal bar chart for each scenario column in the comparison CSV."""
+    for scenario_name in scenario_comparison.columns:
+        values = pd.to_numeric(scenario_comparison[scenario_name], errors="coerce")
+        valid = values.notna()
+        if not valid.any():
+            continue
+
+        metric_names = scenario_comparison.index[valid].astype(str).tolist()
+        numeric_values = values[valid].to_numpy(dtype=float)
+        fig_height = max(6.0, 0.45 * len(metric_names))
+        fig, ax = plt.subplots(figsize=(12, fig_height))
+        bars = ax.barh(metric_names, numeric_values)
+        ax.bar_label(
+            bars,
+            labels=[format_value_for_display(value) for value in numeric_values],
+            padding=3,
+            fontsize=8,
+        )
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_xlabel("Value")
+        ax.set_title(f"Scenario comparison: {scenario_name}")
+        ax.grid(True, axis="x", alpha=0.2)
+        ax.invert_yaxis()
+        fig.tight_layout()
+        fig.savefig(
+            run_root / f"scenario_comparison_{sanitize_name(scenario_name)}.png",
+            dpi=300,
+        )
+        plt.close(fig)
+
+
 def _mean_std(series: pd.Series) -> tuple[float, float]:
     numeric = pd.to_numeric(series, errors="coerce").dropna()
     if numeric.empty:
@@ -1594,6 +1663,7 @@ def run_groups(
                 index_label="metric",
                 sep=";",
             )
+            save_scenario_comparison_bar_charts(scenario_comparison_output, run_root)
         save_overall_comparison_plots(combined_summary, run_root)
 
     save_json(run_root / "run_index.json", {"records": all_records})

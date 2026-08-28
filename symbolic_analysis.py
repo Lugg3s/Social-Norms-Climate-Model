@@ -19,6 +19,8 @@ T = sp.Symbol("T", real=True)
 x = sp.Symbol("x", real=True)
 x_p = sp.Symbol("x_p", real=True)
 x_ref = sp.Symbol("x_ref", real=True)
+x_tau = sp.Symbol("x_tau", real=True)
+x_tau_theta = sp.Symbol("x_tau_theta", real=True)
 
 SUPPORTED_NORMS = (
     "Observation-based / imitation",
@@ -31,6 +33,7 @@ SUPPORTED_NORMS = (
     "Descriptive, injunctive, dynamic",
     "dynamic social norm2",
     "Descriptive, injunctive, dynamic2",
+    "Injunctive, dynamic2",
 )
 
 ABM_NORMS = {"Observation-based / intention motivation"}
@@ -39,7 +42,11 @@ DYNAMIC_ODE_NORMS = {
     "dynamic baseline",
     "Descriptive, injunctive, dynamic",
 }
-DELAY_NORMS = {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
+DELAY_NORMS = {
+    "dynamic social norm2",
+    "Descriptive, injunctive, dynamic2",
+    "Injunctive, dynamic2",
+}
 
 
 @dataclass(frozen=True)
@@ -87,6 +94,7 @@ def _parameter_names_for_norm(norm: str) -> set[str]:
         "Descriptive, injunctive, dynamic2": {
             "delta", "c_inj", "x_target", "c_dyn", "tau", "theta"
         },
+        "Injunctive, dynamic2": {"c_inj", "x_target", "c_dyn", "tau", "theta"},
     }
     return common | by_norm.get(norm, set())
 
@@ -119,9 +127,18 @@ def _social_norm_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
             + dynamic
         )
     if norm == "dynamic social norm2":
-        return sp.Integer(0)
+        return s["c_dyn"] * (x_tau - x_tau_theta) / s["theta"]
     if norm == "Descriptive, injunctive, dynamic2":
-        return s["delta"] * (2 * x - 1) + s["c_inj"] * (s["x_target"] - x)
+        return (
+            s["delta"] * (2 * x - 1)
+            + s["c_inj"] * (s["x_target"] - x)
+            + s["c_dyn"] * (x_tau - x_tau_theta) / s["theta"]
+        )
+    if norm == "Injunctive, dynamic2":
+        return (
+            s["c_inj"] * (s["x_target"] - x)
+            + s["c_dyn"] * (x_tau - x_tau_theta) / s["theta"]
+        )
     raise ValueError(f"Unsupported social norm: {norm}")
 
 
@@ -129,7 +146,19 @@ def _equilibrium_social_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
     term = _social_norm_term(norm, s)
     if norm in DYNAMIC_ODE_NORMS:
         term = sp.simplify(term.subs({x_p: x, x_ref: x}))
+    if norm in DELAY_NORMS:
+        term = sp.simplify(term.subs({x_tau: x, x_tau_theta: x}))
     return sp.simplify(term)
+
+
+def symbolic_social_norm_term(norm: str) -> sp.Expr | None:
+    """Return the social-norm term with symbolic variables and parameters."""
+    if norm not in SUPPORTED_NORMS:
+        raise ValueError(f"Unsupported social norm: {norm}")
+    if norm in ABM_NORMS:
+        return None
+    symbols = _symbols_for_parameters(_parameter_names_for_norm(norm))
+    return _social_norm_term(norm, symbols)
 
 
 def _bracket(norm: str, s: dict[str, sp.Symbol], equilibrium: bool = True) -> sp.Expr:

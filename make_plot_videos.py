@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, Iterator, List
 
 from PIL import Image
 import imageio
@@ -42,27 +42,38 @@ def natural_sort_key(s: str):
     return key
 
 
-def normalize_frames(paths: Iterable[Path], background=(255, 255, 255, 255)) -> List[Image.Image]:
-    imgs = [Image.open(p).convert("RGBA") for p in paths]
-    if not imgs:
-        return []
-    max_w = max(i.width for i in imgs)
-    max_h = max(i.height for i in imgs)
-    frames: List[Image.Image] = []
-    for im in imgs:
-        canvas = Image.new("RGBA", (max_w, max_h), background)
-        x = (max_w - im.width) // 2
-        y = (max_h - im.height) // 2
-        canvas.paste(im, (x, y), im)
-        frames.append(canvas.convert("P", palette=Image.ADAPTIVE))
-    return frames
-
-
-def make_mp4(frames: List[Image.Image], out_path: Path, fps: float = 2.0) -> None:
-    if not frames:
-        print(f"No frames to save for {out_path}", file=sys.stderr)
+def normalize_frames(
+    paths: Iterable[Path],
+    background=(255, 255, 255),
+) -> Iterator[Image.Image]:
+    """Yield normalized RGB frames without retaining all source images in memory."""
+    path_list = list(paths)
+    if not path_list:
         return
 
+    dimensions = []
+    for path in path_list:
+        with Image.open(path) as source:
+            dimensions.append(source.size)
+
+    max_w = max(width for width, _ in dimensions)
+    max_h = max(height for _, height in dimensions)
+    # Avoid implicit FFmpeg resizing by using H.264-compatible dimensions.
+    max_w = ((max_w + 15) // 16) * 16
+    max_h = ((max_h + 15) // 16) * 16
+
+    for path in path_list:
+        with Image.open(path) as source:
+            image = source.convert("RGBA")
+        canvas = Image.new("RGB", (max_w, max_h), background)
+        x = (max_w - image.width) // 2
+        y = (max_h - image.height) // 2
+        canvas.paste(image, (x, y), image)
+        image.close()
+        yield canvas
+
+
+def make_mp4(frames: Iterable[Image.Image], out_path: Path, fps: float = 2.0) -> None:
     with imageio.get_writer(
         out_path,
         fps=fps,
@@ -70,7 +81,10 @@ def make_mp4(frames: List[Image.Image], out_path: Path, fps: float = 2.0) -> Non
         pixelformat="yuv420p",
     ) as writer:
         for frame in frames:
-            writer.append_data(np.asarray(frame.convert("RGB")))
+            try:
+                writer.append_data(np.asarray(frame))
+            finally:
+                frame.close()
 
 
 def make_gif(frames: List[Image.Image], out_path: Path, fps: float = 2.0) -> None:

@@ -54,8 +54,6 @@
     "Observation-based / intention motivation (agents)": {
         "ABM": true,
         "social_norm": "Observation-based / intention motivation",
-        "threshold": 0.01,
-        "omega": 0.01,
         "network_size": 50,
         "agent_susceptibility": 0.5
     },
