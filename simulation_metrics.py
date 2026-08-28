@@ -82,18 +82,18 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     prominent_amplitudes = pair_amplitudes[prominent_pair_mask]
     prominent_times = pair_times[prominent_pair_mask]
 
-    # Each full oscillation contains approximately one prominent maximum and
-    # one prominent minimum. Mark extrema that participate in at least one
-    # prominent peak/trough segment and divide their count by two. This avoids
-    # treating every peak-to-trough segment as a complete oscillation and also
-    # handles trajectories with only one observed cycle.
+    # Each prominent peak-to-trough or trough-to-peak segment is one half-cycle.
+    # Two prominent half-cycles correspond to one full oscillation. Fractional
+    # cycles are retained because they still contain frequency information near
+    # the boundaries of a finite simulation window.
     prominent_extrema_mask = np.zeros(extrema_indices.size, dtype=bool)
     for idx, is_prominent in enumerate(prominent_pair_mask):
         if is_prominent:
             prominent_extrema_mask[idx] = True
             prominent_extrema_mask[idx + 1] = True
     n_prominent_extrema = int(np.sum(prominent_extrema_mask))
-    n_oscillations = n_prominent_extrema / 2.0
+    n_prominent_half_cycles = int(np.sum(prominent_pair_mask))
+    n_oscillations = n_prominent_half_cycles / 2.0
 
     prominent_periods: list[float] = []
     for idx in range(extrema_indices.size - 2):
@@ -112,8 +112,9 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     median_period = (
         float(np.median(prominent_periods)) if prominent_periods else float("nan")
     )
+    # Peak-to-trough distance is twice the conventional oscillation amplitude.
     oscillation_amplitude = (
-        float(np.median(prominent_amplitudes))
+        0.5 * float(np.median(prominent_amplitudes))
         if prominent_amplitudes.size
         else 0.0
     )
@@ -127,8 +128,8 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     n_prominent = int(prominent_amplitudes.size)
     if n_prominent >= 2:
         split_index = max(1, n_prominent // 2)
-        amplitude_initial = float(np.median(prominent_amplitudes[:split_index]))
-        amplitude_final = float(np.median(prominent_amplitudes[split_index:]))
+        amplitude_initial = 0.5 * float(np.median(prominent_amplitudes[:split_index]))
+        amplitude_final = 0.5 * float(np.median(prominent_amplitudes[split_index:]))
         if amplitude_initial > 1e-12 and amplitude_final > 1e-12:
             amplitude_ratio = float(amplitude_final / amplitude_initial)
             damping_index = float(np.log(amplitude_initial / amplitude_final))
@@ -142,7 +143,7 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
     return {
         "n_peaks": float(peak_indices.size),
         "n_troughs": float(trough_indices.size),
-        "n_prominent_half_cycles": float(n_prominent),
+        "n_prominent_half_cycles": float(n_prominent_half_cycles),
         "n_prominent_extrema": float(n_prominent_extrema),
         "n_oscillations": float(n_oscillations),
         "median_period": median_period,
