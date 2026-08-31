@@ -9,6 +9,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from time import monotonic
 from typing import Any
 
 import numpy as np
@@ -194,7 +195,7 @@ def _write_failed_sample(
         "error_message": str(error),
         "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
     }
-    pd.DataFrame([row]).to_csv(failure_path, index=False)
+    pd.DataFrame([row]).to_csv(failure_path, index=False, sep=";")
 
 
 def _resolve_worker_count(workers: int | None) -> int:
@@ -220,6 +221,26 @@ def _terminate_executor_workers(executor: ProcessPoolExecutor) -> None:
         process.join(timeout=1.0)
 
 
+def _log_sample_progress(completed: int, total: int, started_at: float) -> None:
+    """Print progress, elapsed time, and an estimated remaining duration."""
+    if total <= 0:
+        return
+    log_interval = max(1, total // 20)
+    if completed != 1 and completed % log_interval != 0 and completed != total:
+        return
+
+    elapsed = monotonic() - started_at
+    rate = completed / elapsed if elapsed > 0 else 0.0
+    remaining = (total - completed) / rate if rate > 0 else float("nan")
+    percentage = 100.0 * completed / total
+    eta_text = f"{remaining / 60:.1f} min remaining" if np.isfinite(remaining) else "ETA unavailable"
+    print(
+        f"  Simulations: {completed}/{total} ({percentage:.1f}%) | "
+        f"elapsed {elapsed / 60:.1f} min | {eta_text}",
+        flush=True,
+    )
+
+
 
 def run_samples(
     scenario_params: dict[str, Any],
@@ -232,6 +253,7 @@ def run_samples(
         (scenario_params, problem["names"], sample, config)
         for sample in samples
     ]
+    started_at = monotonic()
 
     if config.workers == 1:
         records: list[dict[str, Any]] = []
@@ -245,6 +267,7 @@ def run_samples(
                     error,
                 )
                 raise
+            _log_sample_progress(sample_index + 1, len(jobs), started_at)
         return pd.DataFrame(records)
 
     records: list[dict[str, Any] | None] = [None] * len(jobs)
@@ -271,8 +294,7 @@ def run_samples(
                 _terminate_executor_workers(executor)
                 executor.shutdown(wait=True, cancel_futures=False)
                 raise
-            if completed_runs % max(1, len(jobs) // 100) == 0 or completed_runs == len(jobs):
-                print(f"  [{completed_runs}/{len(jobs)}] sensitivity simulations completed")
+            _log_sample_progress(completed_runs, len(jobs), started_at)
     except KeyboardInterrupt:
         print("\nSensitivity run interrupted. Terminating worker processes...")
         _terminate_executor_workers(executor)
@@ -301,7 +323,12 @@ def run_zero_boundary_cases(
         return pd.DataFrame()
 
     records: list[dict[str, Any]] = []
-    for parameter_name in zero_boundary_parameters:
+    for boundary_index, parameter_name in enumerate(zero_boundary_parameters, start=1):
+        print(
+            f"  Boundary check {boundary_index}/{len(zero_boundary_parameters)}: "
+            f"{parameter_name}=0",
+            flush=True,
+        )
         params = dict(base_params)
         params[parameter_name] = 0.0
         try:
@@ -427,6 +454,11 @@ def run_sensitivity_analysis(
         calc_second_order=False,
         seed=config.seed,
     )
+    print(
+        f"  Sobol sample generated: {len(samples)} model runs for "
+        f"{problem['num_vars']} parameters",
+        flush=True,
+    )
 
     scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
     scenario_dir.mkdir(parents=True, exist_ok=True)
@@ -451,11 +483,12 @@ def run_sensitivity_analysis(
 
     sample_frame = pd.DataFrame(samples, columns=problem["names"])
     sample_frame.insert(0, "sample_index", np.arange(len(sample_frame), dtype=int))
-    sample_frame.to_csv(scenario_dir / "samples.csv", index=False)
+    sample_frame.to_csv(scenario_dir / "samples.csv", index=False, sep=";")
 
     boundary_cases = run_zero_boundary_cases(base_params, problem, config)
+    print(f"  Zero-boundary checks completed: {len(boundary_cases)}", flush=True)
     if not boundary_cases.empty:
-        boundary_cases.to_csv(scenario_dir / "zero_boundary_cases.csv", index=False)
+        boundary_cases.to_csv(scenario_dir / "zero_boundary_cases.csv", index=False, sep=";")
 
     outputs = run_samples(
         base_params,
@@ -464,21 +497,22 @@ def run_sensitivity_analysis(
         config,
         failure_path=scenario_dir / "failed_sample.csv",
     )
+    print("  Calculating Sobol indices and parameter ranking...", flush=True)
     simulation_outputs = outputs.reset_index(drop=True).copy()
     simulation_outputs.insert(
         0,
         "sample_index",
         np.arange(len(simulation_outputs), dtype=int),
     )
-    simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False)
+    simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False, sep=";")
 
     sobol_results = analyze_outputs(problem, outputs, seed=config.seed)
     sobol_results.insert(0, "scenario", scenario_name)
-    sobol_results.to_csv(scenario_dir / "sobol_indices.csv", index=False)
+    sobol_results.to_csv(scenario_dir / "sobol_indices.csv", index=False, sep=";")
 
     ranking = build_parameter_ranking(sobol_results, config.score_mode)
     ranking.insert(0, "scenario", scenario_name)
-    ranking.to_csv(scenario_dir / "parameter_ranking.csv", index=False)
+    ranking.to_csv(scenario_dir / "parameter_ranking.csv", index=False, sep=";")
 
     metadata = {
         "scenario": scenario_name,
@@ -528,8 +562,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--scenarios",
         nargs="+",
-        default=list(NORM_SPECIFIC_PARAMETER_BOUNDS),
-        help="Scenario names to analyze. Default: all configured non-agent scenarios.",
+        default=None,
+        help=(
+            "Scenario names to analyze. If omitted, all Sobol-compatible social-norm "
+            "scenarios from scenarios.json are used."
+        ),
     )
     parser.add_argument("--simulation-time", type=int, default=DEFAULT_SIMULATION_TIME)
     parser.add_argument("--base-sample-size", type=int, default=DEFAULT_BASE_SAMPLE_SIZE)
@@ -558,6 +595,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    available_scenarios = load_scenarios()
+    scenario_names = args.scenarios
+    if scenario_names is None:
+        scenario_names = [
+            scenario_name
+            for scenario_name in available_scenarios
+            if scenario_name in NORM_SPECIFIC_PARAMETER_BOUNDS
+        ]
+
     worker_count = _resolve_worker_count(args.workers)
     if args.output_points_per_year < 1:
         raise ValueError("output-points-per-year must be at least 1")
@@ -576,17 +622,38 @@ def main() -> None:
     run_root.mkdir(parents=True, exist_ok=False)
 
     overall_top_rows: list[pd.DataFrame] = []
-    for scenario_name in args.scenarios:
+    total_scenarios = len(scenario_names)
+    print(
+        f"Starting sensitivity analysis for {total_scenarios} scenarios with "
+        f"{config.workers} worker process(es). Output: {run_root}",
+        flush=True,
+    )
+    overall_started_at = monotonic()
+    for scenario_index, scenario_name in enumerate(scenario_names, start=1):
+        scenario_started_at = monotonic()
+        print(
+            f"[{scenario_index}/{total_scenarios}] Starting scenario: {scenario_name}",
+            flush=True,
+        )
         scenario_dir = run_sensitivity_analysis(scenario_name, run_root, config)
-        ranking = pd.read_csv(scenario_dir / "parameter_ranking.csv")
+        ranking = pd.read_csv(scenario_dir / "parameter_ranking.csv", sep=";")
         overall_top_rows.append(ranking.head(2))
-        print(f"Completed sensitivity analysis: {scenario_name} -> {scenario_dir}")
+        print(
+            f"[{scenario_index}/{total_scenarios}] Completed scenario: {scenario_name} "
+            f"in {(monotonic() - scenario_started_at) / 60:.1f} min -> {scenario_dir}",
+            flush=True,
+        )
 
     if overall_top_rows:
         pd.concat(overall_top_rows, ignore_index=True).to_csv(
             run_root / "overall_top_parameters.csv",
             index=False,
+            sep=";",
         )
+    print(
+        f"Sensitivity analysis completed in {(monotonic() - overall_started_at) / 60:.1f} min.",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

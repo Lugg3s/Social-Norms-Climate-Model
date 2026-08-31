@@ -5,11 +5,15 @@
 1. dynamic social norm mit dynamic social norm2 vergleichen (und entsprechend auch Descriptive, injunctive, dynamic mit Descriptive, injunctive, dynamic2)
 1. Equations und model simulations in 2 Files aufteilen?
 1. Batch_runner logisch in mehrere Files aufteilen
-1. Plots entwickeln, bei denen man die Parameter direkt in dem Plot bearbeiten kann mit Slidern o.ä.
+1. Plots entwickeln, bei denen man die Parameter direkt in dem Plot bearbeiten kann mit Slidern o..
+1. Solver prüfen, um artifakte zu eliminieren
+
+1. latin hyper cube sampling vergleichen mit meiner aktuellen Sensitivitätsanalyse (sobol indices)
+1. regression trees?
+
 
 ###############################################################################################
-1. Chati hatte mal davon erzählt, dass man in einer sensitivitätsanalyse/monte carlo analyse bestimmen kann, welche Parameter das Endergebnis am stärksten verändern (maximal diverse Kurven erzeugen)
-    1. Das sollte man pro Social-norm einmal laufen lassen und dann den batch runner mit den beiden Parametern laufen lassen, die die größte Veränderung aufweisen.
+1. Sensitivitätsanalyse laufen lassen
 ###############################################################################################
 
 # Offene Fragen:
@@ -19,9 +23,8 @@ Bspw. bei x0=0.9
 1. Nachschauen, ob die Logik von Observation-based / intention motivation (agents) der aus dem Paper entspricht
 1. Agent.py ToDo Kommentare
 1. Warum ist in Descriptive, injunctive, dynamic immer so ein Sprung in der social norm value?
-1. Warum gibt es bei größterem Zeithorizont fast überall Oszillationen? (außer bei static_injunctive)
 1. Welchen Wert muss x haben, damit die Temperatur fällt?
-
+1. falls sensitivitätsanalyse nicht funktioniert wegen Solver, im Team nochmal fragen
 
 
 
