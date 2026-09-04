@@ -10,7 +10,7 @@
 
 1. latin hyper cube sampling vergleichen mit meiner aktuellen Sensitivitätsanalyse (sobol indices)
 1. regression trees?
-
+1. unabhängig von Runs einmal T plotten, um zu sehen ab wann T x positiv/negativ beeinflusst.
 
 ###############################################################################################
 1. Sensitivitätsanalyse laufen lassen
