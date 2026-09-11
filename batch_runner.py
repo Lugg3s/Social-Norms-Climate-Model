@@ -64,15 +64,25 @@ APPROVAL_VALUES = [0, 0.1, 0.25, 0.5, 1, 2, 3]
 
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
-    # Agents based erstmal weglassen
     ExperimentGroup(
-        name="observation_based_intention_agents",
-        scenarios=["Observation-based / intention motivation (agents)"],
+        name="Descriptive, injunctive, dynamic2 (chaos)",
+        scenarios=["Descriptive, injunctive, dynamic2 (chaos candidate)"],
         sweep_parameters={
-            "network_size": [2, 5, 10, 20, 50, 100, 150, 200],
-            "agent_susceptibility": X0_SWEEP_VALUES,
+            "c_inj": np.round(np.arange(0, 40, 1), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 40, 1), 1).tolist(),
         },
     ),
+
+
+    # Agents based
+    # ExperimentGroup(
+    #     name="observation_based_intention_agents",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     sweep_parameters={
+    #         "network_size": [2, 5, 10, 20, 50, 100, 150, 200],
+    #         "agent_susceptibility": X0_SWEEP_VALUES,
+    #     },
+    # ),
 
 
     # ExperimentGroup(
@@ -481,6 +491,14 @@ def simulation_to_dataframe(result: dict[str, Any], params: dict[str, Any]) -> p
                 result.get("social_norm_term", np.full_like(simulation.t, np.nan, dtype=float)),
                 dtype=float,
             ),
+            "f_T": np.asarray(
+                result.get(
+                    "f_T",
+                    params["f_max"]
+                    / (1 + np.exp(-params["omega"] * (simulation.T - params["T_c"]))),
+                ),
+                dtype=float,
+            ),
         }
     )
     return frame
@@ -627,6 +645,21 @@ def save_social_norm_plot(
     )
 
 
+def save_f_T_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(frame["year"], frame["f_T"], label="f_T")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Temperature benefit f_T")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    _finalize_run_plot(fig, run_dir / "f_T.png", store_file=store_file, show=show)
+
+
 def save_auxiliary_plot(
     frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
 ) -> None:
@@ -669,6 +702,7 @@ def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_paramete
     save_x_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     save_x_phase_space_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     save_social_norm_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_f_T_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
         frame["x_ref"] == frame["x_ref"].iloc[0]
     ):
@@ -718,7 +752,7 @@ def run_single_combination(
     parameters_path = run_dir / "parameters.json"
     if time_series_path.exists() and parameters_path.exists() and not overwrite:
         existing_frame = pd.read_csv(time_series_path, sep=";")
-        required_columns = {"t", "T", "x", "social_norm_term"}
+        required_columns = {"t", "T", "x", "social_norm_term", "f_T"}
         if required_columns.issubset(existing_frame.columns):
             saved_params = load_json(parameters_path)
             existing_metrics = compute_metrics_from_saved_time_series(
@@ -1105,6 +1139,9 @@ def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group
     )
     save_overlaid_time_series_plot(
         summary_df, group_dir, "social_norm_term", "social_norm.png", "Social norm value", sweep_parameters
+    )
+    save_overlaid_time_series_plot(
+        summary_df, group_dir, "f_T", "f_T.png", "Temperature benefit f_T", sweep_parameters
     )
 
     if len(sweep_parameters) == 2:

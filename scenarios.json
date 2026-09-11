@@ -79,6 +79,16 @@
         "tau_STref": 1,
         "tau_xp": 1
     },
+    "Descriptive, injunctive, dynamic (transient oscillations)": {
+        "social_norm": "Descriptive, injunctive, dynamic",
+        "c_inj": 3.717788197800025,
+        "c_dyn": 0.9720691684494003,
+        "tau_xp": 6.275058172356088,
+        "tau_ref": 22.103135311990886,
+        "tau_STref": 1.0,
+        "kappa": 0.22495125981026398,
+        "x_target": 0.7084647736869595
+    },
     "Descriptive, injunctive, dynamic2": {
         "social_norm": "Descriptive, injunctive, dynamic2",
         "c_inj": 6,
@@ -86,6 +96,23 @@
         "c_dyn": 6,
         "tau": 1,
         "theta": 1
+    },
+    "Descriptive, injunctive, dynamic2 (custom)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "tau": 11.57254,
+        "theta": 5.00081,
+        "c_dyn": 3,
+        "c_inj": 2,
+        "x_target": 0.7
+    },
+    "Descriptive, injunctive, dynamic2 (chaos candidate)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 9.683160497336068,
+        "c_dyn": 23.60635052690566,
+        "tau": 49.20895162814507,
+        "theta": 2.111013193897135,
+        "kappa": 0.7581846076889143,
+        "x_target": 0.375687046498698
     },
     "Injunctive, dynamic2": {
         "social_norm": "Injunctive, dynamic2",

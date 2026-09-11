@@ -578,6 +578,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     result = {
         "simulation": simulation,
         "social_norm_term": social_norm_history,
+        "f_T": np.asarray(f_T(simulation.T), dtype=float),
         "parameters": dict(p),
     }
 

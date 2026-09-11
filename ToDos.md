@@ -11,10 +11,25 @@
 1. latin hyper cube sampling vergleichen mit meiner aktuellen Sensitivitätsanalyse (sobol indices)
 1. regression trees?
 1. unabhängig von Runs einmal T plotten, um zu sehen ab wann T x positiv/negativ beeinflusst.
-
+1. für plots in der Masterarbeit könnte ich auch f(T) und social_norm_value in einem plot plotten.
 ###############################################################################################
 1. Sensitivitätsanalyse laufen lassen
 ###############################################################################################
+1. Bifurcation-style plots: systematically sweep a key parameter (e.g., norm strength delta) and track whether the system undergoes a sharp transition. Different norm types may have different critical thresholds for tipping from a high-emission to a low-emission equilibrium.
+1. feature-branch wieder in main mergen
+
+#Feedback aus Routine Meeting
+	- Warum sind die dynamischen Normen nicht chaotisch?
+		- Hannah konnte das beobachten, als sie f(T) konstant hatte
+        - ich konnte Hannahs ergebnisse auch nachbauen (zwar mit etwas anderen Parameterwerten, aber der plot sieht ähnlich aus). Das war aber in dem Modell mit konstantem f(T).
+        - in meinem Modell konnte ich bisher noch kein irreguläres/chaotisches verhalten finden
+
+	- Zeitschritt vom solver gleichsetzen mit Theta und schauen ob oszillationen noch auftreten (insbesondere auf Folie 34)
+    
+	- Mit Parametern die aktuelle Entwicklung reverse engineeren (also von 1800 zb laufen lasssen)
+		○ Und dann schauen, welche Normen die aktuelle Entwicklung besonders gut darstellen
+Oder das nutzen, um Parameter zu kalibrieren und dann diese Parameterkombinationen miteinander vergleichen (auch für t>2026)
+
 
 # Offene Fragen:
 1. Um Struktur in die Auswertung zu bekommen: Konkrete Fragestellungen formulieren
@@ -23,9 +38,11 @@ Bspw. bei x0=0.9
 1. Nachschauen, ob die Logik von Observation-based / intention motivation (agents) der aus dem Paper entspricht
 1. Agent.py ToDo Kommentare
 1. Warum ist in Descriptive, injunctive, dynamic immer so ein Sprung in der social norm value?
+    1. vermutlich wegen dem solver?
 1. Welchen Wert muss x haben, damit die Temperatur fällt?
 1. falls sensitivitätsanalyse nicht funktioniert wegen Solver, im Team nochmal fragen
-
+1. Warum ist social_norm_term = N belief based? Beliefbased heißt doch, dass da auch eine Wertung drin steckt. Wo ist die? N ist laut Beckage konstant
+1. Gibt es bestimmte Verhaltensmuster, die nur bei bestimmten Normen auftreten?
 
 
 # Parameterkombinationen

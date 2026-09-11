@@ -17,6 +17,7 @@ from batch_runner import (
     sanitize_name,
     save_auxiliary_plot,
     save_json,
+    save_f_T_plot,
     save_social_norm_plot,
     save_temperature_plot,
     save_x_phase_space_plot,
@@ -167,6 +168,19 @@ def _display_social_norm_plot(frame, run_label, params, parameter_names) -> None
     _display_figure_in_notebook(fig)
 
 
+def _display_f_T_plot(frame, run_label, params, parameter_names) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(frame["year"], frame["f_T"], label="f_T")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Temperature benefit f_T")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    add_parameter_text_box(ax, params, parameter_names)
+    fig.tight_layout()
+    _display_figure_in_notebook(fig)
+
+
 def _display_auxiliary_plot(frame, run_label, params, parameter_names) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.plot(frame["year"], frame["x"], label="x", linewidth=2)
@@ -188,6 +202,7 @@ def _display_all_run_plots(frame, run_label, params, parameter_names) -> None:
     _display_x_plot(frame, run_label, params, parameter_names)
     _display_x_phase_space_plot(frame, run_label, params, parameter_names)
     _display_social_norm_plot(frame, run_label, params, parameter_names)
+    _display_f_T_plot(frame, run_label, params, parameter_names)
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
         frame["x_ref"] == frame["x_ref"].iloc[0]
     ):
@@ -340,6 +355,7 @@ def run_interesting_parameter_sets(
             save_x_plot(frame, run_dir, run_label, params, parameter_names)
             save_x_phase_space_plot(frame, run_dir, run_label, params, parameter_names)
             save_social_norm_plot(frame, run_dir, run_label, params, parameter_names)
+            save_f_T_plot(frame, run_dir, run_label, params, parameter_names)
             if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
                 frame["x_ref"] == frame["x_ref"].iloc[0]
             ):

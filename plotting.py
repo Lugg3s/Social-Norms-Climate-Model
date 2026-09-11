@@ -311,35 +311,48 @@ def plot_temperature_sensitivity_2d(
 
 
 def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=400, simulate_only_x=False):
-    """Plot temperature and mitigation trajectories.
+    """Plot social-norm and temperature-benefit trajectories.
 
     If `results` is provided, it must map scenario names to simulation results
     and no simulations are run inside this function.
     """
-    fig, ax = plt.subplots(1, 1, figsize=(14, 6), sharex=True)
+    fig, ax = plt.subplots(1, 1, figsize=(14, 6))
+    f_T_fig, f_T_ax = plt.subplots(1, 1, figsize=(14, 6))
     ax.set_xlabel("Time (year)", fontsize=16)
     ax.set_ylabel("Social norm value", fontsize=16)
     ax.set_ylim(-1.1, 1.1)
     ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
+    f_T_ax.set_xlabel("Time (year)", fontsize=16)
+    f_T_ax.set_ylabel("Temperature benefit f_T", fontsize=16)
+    f_T_ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
 
-    def _extract_series(item):
+    def _extract_series(item, key):
         if isinstance(item, dict):
-            if "social_norm_term" in item:
-                series = item["social_norm_term"]
+            if key in item:
+                series = item[key]
             elif "simulation" in item and hasattr(item["simulation"], "t"):
-                series = item["simulation"].x
+                if key == "f_T":
+                    params = item.get("parameters")
+                    if params is None:
+                        return item["simulation"].t, None
+                    temperature = item["simulation"].T
+                    series = params["f_max"] / (
+                        1 + np.exp(-params["omega"] * (temperature - params["T_c"]))
+                    )
+                else:
+                    series = None
             else:
-                series = item
+                series = None
 
             time = None
             if "simulation" in item and hasattr(item["simulation"], "t"):
                 time = item["simulation"].t
             return time, series
 
-        if hasattr(item, "t") and hasattr(item, "x"):
-            return item.t, item.x
+        if hasattr(item, "t"):
+            return item.t, None
 
-        return None, item
+        return None, None
 
     def _to_numeric_series(series):
         return np.array([np.nan if value is None else value for value in series], dtype=float)
@@ -356,7 +369,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
                 scenario_name,
                 simulation_time=simulation_time,
                 simulate_only_x=simulate_only_x
-            )["simulation"]
+            )
     # if results is None:
     #     model_equations = load_scenarios(include=scenarios, exclude=exclude_scenarios)
     #     results = {}
@@ -368,7 +381,9 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         results = {name: result for name, result in results.items() if name in selected_scenarios}
 
     for scenario_name, result in results.items():
-        time, series = _extract_series(result)
+        time, series = _extract_series(result, "social_norm_term")
+        if series is None:
+            continue
         series = _to_numeric_series(series)
         if time is None:
             time = np.linspace(TIME_ZERO_YEAR, TIME_ZERO_YEAR + simulation_time, len(series))
@@ -376,10 +391,25 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
             time = time + TIME_ZERO_YEAR
         if not np.all(np.isnan(series)):
             ax.plot(time, series, label=scenario_name)
+
+        _, f_T_series = _extract_series(result, "f_T")
+        if f_T_series is None:
+            simulation = result.get("simulation") if isinstance(result, dict) else result
+            if hasattr(simulation, "T"):
+                params = resolve_parameters(scenario_name)
+                f_T_series = params["f_max"] / (
+                    1 + np.exp(-params["omega"] * (simulation.T - params["T_c"]))
+                )
+        if f_T_series is not None:
+            f_T_series = _to_numeric_series(f_T_series)
+            if not np.all(np.isnan(f_T_series)):
+                f_T_ax.plot(time, f_T_series, label=scenario_name)
         
     fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
+    f_T_fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
     output_dir = _get_run_output_dir()
-    plt.savefig(output_dir / "social_norm_value.png", dpi=300)
+    fig.savefig(output_dir / "social_norm_value.png", dpi=300)
+    f_T_fig.savefig(output_dir / "f_T_value.png", dpi=300)
     _store_scenario_json()
     plt.show()
 
