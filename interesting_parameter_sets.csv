@@ -20,7 +20,10 @@ Sieht so aus, als würde sich die Wellenlänge immer ungefährt verdoppeln
 descriptive_injunctive_dynamic2,10,1,1,1,0.7,,,,,,,,1,1,1,,starker Anstieg initial. Danach langsam x -> 1. klassisch x -> 1 ohne Oszillation,,
 descriptive_injunctive_dynamic2,10,100,1,1,0.7,,,,,,,,1,1,1,gedämpfte Oszillation,mit größerer Frequenz,,,
 descriptive_injunctive_dynamic2,100,0.1,1,1,0.7,,,,,,,,1,1,1,Zwischenzustand,x steigt explosiv auf x_target und bleibt dann da mit leichten Schwakungen,,,
-descriptive_injunctive_dynamic2,9.683160497336068,23.60635052690566,49.20895162814507,2.111013193897135,0.375687046498698,0.7581846076889143,,,,,,,,,,Oszillation,Wilde Oszillation. (aber schon noch mit Muster),,,
+descriptive_injunctive_dynamic2,9.683160497336068,23.60635052690566,49.20895162814507,2.111013193897135,0.375687046498698,0.7581846076889143,,,,,,,1,1,1,Oszillation,Wilde Oszillation. (aber schon noch mit Muster),,,
+descriptive_injunctive_dynamic2,4,12,49.20895162814507,2.111013193897135,0.375687046498698,0.7581846076889143,,,,,,,1,1,1,Chaotische Oszillation,,,,
+descriptive_injunctive_dynamic2,10,16,49.20895162814507,2.111013193897135,0.375687046498698,0.7581846076889143,,,,,,,1,1,1,Oszillation (Muster erkennbar),"Der initiale Fall wird nach ca tau Jahren (hier ca. 40) wieder abgebildet.-> ist also nur sichtbar, wenn der Sprung um 2017 vorhanden ist. Abstand zwischen
+Oszillationen wird immer kleiner. Die Amplitude wird immer größer.","",,
 dynamic_social_norm,,,,,,,10,0.25,0.25,,,,1,1,1,,"Fällt initial auf 0 und steigt dann irgendwann explosiv auf 1. ",,
 dynamic_social_norm,,,,,,,25,1,1,,,,1,1,1,gedämpfte Oszillation,initial Sigmoider Anstieg auf 1. Irgendwann beginnt die gedämpfte Oszillation,,,
 dynamic_social_norm,,,,,,,50,0.25,0.25,,,,1,1,1,konvergiert gegen 1,keine Oszillation. Ein explosiver Anstieg von 0 auf 1. Danach keine Veränderung mehr. (Zumindest nicht bis 3200. Danach ?). Temperatur plot hat einen peak und danach konvergiert gegen einen Wert,,,

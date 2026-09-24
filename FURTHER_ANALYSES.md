@@ -1,3 +1,24 @@
+# Beobachtungen in den plots
+![alt text](image-1.png)
+- Der initiale Fall wird nach ca tau Jahren (hier ca. 40) wieder abgebildet
+    - ist also nur sichtbar, wenn der Sprung um 2017 vorhanden ist.
+	- Abstand zwischen Oszillationen wird immer kleiner
+-   Die Amplitude wird immer größer.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Further Analyses and Research Questions
 
 This document collects candidate analyses that may reveal scientifically interesting differences between the implemented social-norm formulations. It is intended as a living backlog rather than a fixed analysis plan.

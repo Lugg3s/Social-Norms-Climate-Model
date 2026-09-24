@@ -5,7 +5,7 @@ from collections import namedtuple
 
 import numpy as np
 import pandas as pd
-from scipy.integrate import solve_ivp
+from solvers import ADAPTIVE_SOLVERS, get_solver
 import agent
 
 emissions_path = Path(__file__).with_name("global.1751_2017.csv")
@@ -119,9 +119,15 @@ def unpack_state(z):
     return dict(zip(STATE_NAMES, z))
 
 
-def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=1, output_points_per_year=100, simulate_only_x=False, verbose=None):     # network_size
-    """Run the coupled climate-social model for given parameters and return
-    time series for each state variable."""
+def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=0.1, output_points_per_year=100, simulate_only_x=False, verbose=None, solver="BDF", dt=None):     # network_size
+    """Run the coupled climate-social model and return state time series.
+
+    solver: "BDF" (default), "LSODA" (both adaptive), or fixed-step "RK4".
+    dt: Required positive step in years for RK4; ignored by adaptive solvers.
+        RK4 shortens steps at coupling/end boundaries and records delay
+        history at accepted steps independently of output sampling.
+    """
+    solver_name, integrate_interval = get_solver(solver, dt)
     p = resolve_parameters(extension)
     if verbose is None:
         verbose = multiprocessing.current_process().name == "MainProcess"
@@ -197,27 +203,25 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         """Downward radiative flux at the surface given CO2 and temperature."""
         return (1 - p["A"]) * p["S"] / 4 * (1 + 0.75 * tau(C_a, T))
 
-    def diff_C_at(t, state):
-        """Time derivative of atmospheric carbon pool C_a."""
+    def diff_carbon(t, state):
+        """Evaluate each shared flux once for this RHS state only.
+
+        Preserve the arithmetic order in each original carbon equation.
+        Never reuse fluxes across solver evaluations (including RK stages
+        and finite-difference Jacobian evaluations).
+        """
+        emissions = epsilon(t) * (1 - state["x"])
+        productivity = P(state["C_at"], state["T"])
+        vegetation_respiration = R_veg(state["C_v"], state["T"])
+        soil_respiration = R_so(state["T"], state["C_so"])
+        ocean_flux = F_oc(state["C_at"], state["C_oc"])
+        litterfall = L(state["C_v"])
         return (
-            epsilon(t) * (1 - state["x"])
-            - P(state["C_at"], state["T"])
-            + R_veg(state["C_v"], state["T"])
-            + R_so(state["T"], state["C_so"])
-            - F_oc(state["C_at"], state["C_oc"])
+            emissions - productivity + vegetation_respiration + soil_respiration - ocean_flux,
+            ocean_flux,
+            productivity - vegetation_respiration - litterfall,
+            litterfall - soil_respiration,
         )
-
-    def diff_C_o(t, state):
-        """Time derivative of ocean carbon pool C_oc (flux to/from atmosphere)."""
-        return F_oc(state["C_at"], state["C_oc"])
-
-    def diff_C_v(t, state):
-        """Time derivative of vegetation carbon pool C_v."""
-        return P(state["C_at"], state["T"]) - R_veg(state["C_v"], state["T"]) - L(state["C_v"])
-
-    def diff_C_so(t, state):
-        """Time derivative of soil organic carbon pool C_so."""
-        return L(state["C_v"]) - R_so(state["T"], state["C_so"])
 
     def diff_T(t, state):
         """Time derivative of temperature anomaly T from radiative imbalance."""
@@ -229,9 +233,13 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
 
     delay_history_times: list[float] = [0.0]
     delay_history_x: list[float] = [float(p["x0"])]
+    # np.interp would otherwise convert both Python lists on every query.
+    # Rebuild lazily after history changes; the sample values stay identical.
+    delay_history_arrays = None
 
     def evaluate_delayed_x(query_time: float, current_time: float, current_x: float) -> float:
         """Get x(query_time) from stored history, with linear interpolation fallback."""
+        nonlocal delay_history_arrays
         if query_time <= delay_history_times[0]:
             return delay_history_x[0]
 
@@ -244,7 +252,12 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             alpha = float(np.clip(alpha, 0.0, 1.0))
             return delay_history_x[-1] + alpha * (current_x - delay_history_x[-1])
 
-        return float(np.interp(query_time, delay_history_times, delay_history_x))
+        if delay_history_arrays is None:
+            delay_history_arrays = (
+                np.asarray(delay_history_times, dtype=float),
+                np.asarray(delay_history_x, dtype=float),
+            )
+        return float(np.interp(query_time, *delay_history_arrays))
 
     def get_social_norm_term(state, t, frozen_agentic_term_observation_intention=None):
         match p["social_norm"]:
@@ -327,9 +340,10 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                
 
     def diff_x(t, state, frozen_agentic_term_observation_intention=None):
-        social_norm_term = get_social_norm_term(state, t, frozen_agentic_term_observation_intention)
+        # Mitigation is fixed before 2017; no social-norm evaluation is needed.
         if t < 217:
             return 0
+        social_norm_term = get_social_norm_term(state, t, frozen_agentic_term_observation_intention)
         if social_norm_term is None:
             return 0
         return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + p["temperature_factor"] * f_T(state["T"]) + p["social_norm_factor"] * social_norm_term)
@@ -355,11 +369,9 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         def model(t, z):
             state = unpack_state(z)
 
+            carbon_derivatives = (0, 0, 0, 0) if simulate_only_x else diff_carbon(t, state)
             return np.array([
-                0 if simulate_only_x else diff_C_at(t, state),
-                0 if simulate_only_x else diff_C_o(t, state),
-                0 if simulate_only_x else diff_C_v(t, state),
-                0 if simulate_only_x else diff_C_so(t, state),
+                *carbon_derivatives,
                 diff_T(t, state),
                 diff_x(t, state, frozen_agentic_term_observation_intention),
                 diff_x_p(t, state),
@@ -389,6 +401,16 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         agent_shares.append(initial_agent_share)
         agent_social_terms.append(initial_agent_social_term)
 
+    def record_solver_step(t, state):
+        nonlocal delay_history_arrays
+        # RK4 checks every accepted node, including nodes absent from t_eval.
+        if np.any(state[5:8] < -1e-7) or np.any(state[5:8] > 1 + 1e-7):
+            raise RuntimeError(f"RK4 fractions left [0, 1] at t={t}; reduce dt")
+        if is_delay_dynamic_mode:
+            delay_history_times.append(float(t))
+            delay_history_x.append(float(state[5]))
+            delay_history_arrays = None
+
     # -------------------------------------------------------------
     # Coupled simulation loop
     # -------------------------------------------------------------
@@ -403,14 +425,13 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
 
         local_t_eval = np.linspace(t0, t1, n_output_points)
 
-        interval_solution = solve_ivp(
+        interval_solution = integrate_interval(
             make_model(frozen_agentic_term),
             (t0, t1),
             z_current,
-            method="BDF",
             t_eval=local_t_eval,
-            rtol=1e-7,
-            atol=1e-9,
+            dt=dt,
+            on_step=record_solver_step,
         )
 
         if not interval_solution.success:
@@ -444,16 +465,13 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
             return invalid
 
         invalid_states = invalid_fraction_states(interval_solution)
-        if invalid_states:
-            interval_solution = solve_ivp(
+        if invalid_states and solver_name in ADAPTIVE_SOLVERS:
+            interval_solution = integrate_interval(
                 make_model(frozen_agentic_term),
                 (t0, t1),
                 z_current,
-                method="BDF",
                 t_eval=local_t_eval,
-                rtol=1e-9,
-                atol=1e-11,
-                max_step=min(0.05, interval_length),
+                retry=True,
             )
             if not interval_solution.success:
                 raise RuntimeError("ODE integration failed: " + interval_solution.message)
@@ -491,8 +509,9 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
 
         if is_delay_dynamic_mode:
             # Extend and retain only the history needed for delayed interpolation.
-            delay_history_times.extend(interval_times.tolist())
-            delay_history_x.extend(interval_states[5, :].tolist())
+            if solver_name in ADAPTIVE_SOLVERS:
+                delay_history_times.extend(interval_times.tolist())
+                delay_history_x.extend(interval_states[5, :].tolist())
             cutoff_time = float(interval_times[-1]) - delay_window - max(float(coupling_interval), 1.0)
             if cutoff_time > delay_history_times[0]:
                 keep_from = int(np.searchsorted(delay_history_times, cutoff_time, side="left"))
@@ -500,6 +519,7 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 if keep_from > 0:
                     delay_history_times = delay_history_times[keep_from:]
                     delay_history_x = delay_history_x[keep_from:]
+            delay_history_arrays = None
 
         if use_agentic_norm:
             all_social_terms.append(np.full(interval_times.shape, frozen_agentic_term, dtype=float))
@@ -580,6 +600,9 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         "social_norm_term": social_norm_history,
         "f_T": np.asarray(f_T(simulation.T), dtype=float),
         "parameters": dict(p),
+        "solver_settings": {"solver": solver_name, "dt": dt,
+                            "coupling_interval": coupling_interval,
+                            "output_points_per_year": output_points_per_year},
     }
 
     if use_agentic_norm:

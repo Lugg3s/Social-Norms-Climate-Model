@@ -311,20 +311,16 @@ def plot_temperature_sensitivity_2d(
 
 
 def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=400, simulate_only_x=False):
-    """Plot social-norm and temperature-benefit trajectories.
+    """Plot weighted social and temperature contributions with the beta threshold.
 
     If `results` is provided, it must map scenario names to simulation results
     and no simulations are run inside this function.
     """
     fig, ax = plt.subplots(1, 1, figsize=(14, 6))
-    f_T_fig, f_T_ax = plt.subplots(1, 1, figsize=(14, 6))
     ax.set_xlabel("Time (year)", fontsize=16)
-    ax.set_ylabel("Social norm value", fontsize=16)
-    ax.set_ylim(-1.1, 1.1)
+    ax.set_ylabel("Contribution to mitigation incentive", fontsize=16)
+    ax.axhline(0, color="0.6", linewidth=0.8, label="_zero")
     ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
-    f_T_ax.set_xlabel("Time (year)", fontsize=16)
-    f_T_ax.set_ylabel("Temperature benefit f_T", fontsize=16)
-    f_T_ax.set_xlim(1900, TIME_ZERO_YEAR + simulation_time)
 
     def _extract_series(item, key):
         if isinstance(item, dict):
@@ -389,27 +385,33 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
             time = np.linspace(TIME_ZERO_YEAR, TIME_ZERO_YEAR + simulation_time, len(series))
         else:
             time = time + TIME_ZERO_YEAR
+        params = result.get("parameters") if isinstance(result, dict) else None
+        if params is None:
+            params = resolve_parameters(scenario_name)
+        color = ax._get_lines.get_next_color()
         if not np.all(np.isnan(series)):
-            ax.plot(time, series, label=scenario_name)
+            ax.plot(time, params["social_norm_factor"] * series, color=color,
+                    label=f"{scenario_name}: social norm", linestyle="-")
+        ax.plot(time, np.full(len(time), params["beta"]), color=color,
+                linestyle=":", label=f"{scenario_name}: beta (cost threshold)")
 
         _, f_T_series = _extract_series(result, "f_T")
         if f_T_series is None:
             simulation = result.get("simulation") if isinstance(result, dict) else result
             if hasattr(simulation, "T"):
-                params = resolve_parameters(scenario_name)
                 f_T_series = params["f_max"] / (
                     1 + np.exp(-params["omega"] * (simulation.T - params["T_c"]))
                 )
         if f_T_series is not None:
             f_T_series = _to_numeric_series(f_T_series)
             if not np.all(np.isnan(f_T_series)):
-                f_T_ax.plot(time, f_T_series, label=scenario_name)
+                ax.plot(time, params["temperature_factor"] * f_T_series, color=color,
+                        linestyle="--", label=f"{scenario_name}: temperature benefit")
         
-    fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
-    f_T_fig.legend(loc="center left", bbox_to_anchor=(0.84, 0.5), fontsize=9)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), fontsize=9)
+    fig.tight_layout()
     output_dir = _get_run_output_dir()
-    fig.savefig(output_dir / "social_norm_value.png", dpi=300)
-    f_T_fig.savefig(output_dir / "f_T_value.png", dpi=300)
+    fig.savefig(output_dir / "mitigation_incentives.png", dpi=300, bbox_inches="tight")
     _store_scenario_json()
     plt.show()
 

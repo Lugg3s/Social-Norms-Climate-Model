@@ -5,6 +5,7 @@ import json
 import math
 import os
 import signal
+import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -46,9 +47,11 @@ class ExperimentGroup:
     fixed_overrides: dict[str, Any] = field(default_factory=dict)
     simulation_time: int = DEFAULT_SIMULATION_TIME
     n_agents: int = 1000
-    coupling_interval: float = 1.0
+    coupling_interval: float = 0.1
     output_points_per_year: int = 100
     seed: int = 42
+    solver: str = "BDF"
+    dt: float | None = None
 
 GLOBAL_SWEEP_VALUES = [0, 0.5, 1, 2, 3, 5, 10]
 X0_SWEEP_VALUES = [0, 0.2, 0.5, 0.8, 1]
@@ -68,8 +71,8 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         name="Descriptive, injunctive, dynamic2 (chaos)",
         scenarios=["Descriptive, injunctive, dynamic2 (chaos candidate)"],
         sweep_parameters={
-            "c_inj": np.round(np.arange(0, 40, 1), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 40, 1), 1).tolist(),
+            "c_inj": np.round(np.arange(0, 30, 2), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 30, 2), 1).tolist(),
         },
     ),
 
@@ -631,17 +634,21 @@ def save_social_norm_plot(
     series = frame["social_norm_term"].to_numpy(dtype=float)
     if np.all(np.isnan(series)):
         series = np.zeros_like(series)
-    ax.plot(frame["year"], series, label="social_norm_term")
+    ax.plot(frame["year"], params["social_norm_factor"] * series,
+            label="Social norm", linestyle="-")
+    ax.plot(frame["year"], params["temperature_factor"] * frame["f_T"],
+            label="Temperature benefit", linestyle="--")
+    ax.axhline(params["beta"], label="Beta (cost threshold)", linestyle=":", color="black")
     ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
     ax.set_xlabel("Time (year)")
-    ax.set_ylabel("Social norm value")
+    ax.set_ylabel("Contribution to mitigation incentive")
     ax.set_xlim(1900, float(frame["year"].iloc[-1]))
     ax.set_title(run_label)
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
     _finalize_run_plot(
-        fig, run_dir / "social_norm.png", store_file=store_file, show=show
+        fig, run_dir / "mitigation_incentives.png", store_file=store_file, show=show
     )
 
 
@@ -702,7 +709,6 @@ def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_paramete
     save_x_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     save_x_phase_space_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     save_social_norm_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
-    save_f_T_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
         frame["x_ref"] == frame["x_ref"].iloc[0]
     ):
@@ -788,6 +794,8 @@ def run_single_combination(
             coupling_interval=group.coupling_interval,
             output_points_per_year=group.output_points_per_year,
             seed=group.seed,
+            solver=group.solver,
+            dt=group.dt,
         )
         metrics = compute_run_metrics(result, params)
         if save_outputs_per_run:
@@ -1368,6 +1376,25 @@ def _run_parallel_job(job: tuple[Any, ...]) -> dict[str, Any]:
     )
 
 
+def _format_completion_log(record, completed_runs, total_runs, elapsed_seconds, now=None):
+    """Estimate remaining job time from aggregate throughput (all workers).
+
+    Includes computation and per-run output, but not final summary plots.
+    Startup, skipped jobs and differing parameter runtimes can skew the estimate.
+    """
+    remaining = max(0, total_runs - completed_runs)
+    eta_seconds = math.ceil(max(0., elapsed_seconds) * remaining / completed_runs)
+    hours, remainder = divmod(eta_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    stamp = (now or datetime.now()).strftime("%H:%M:%S")
+    status = {"failed": "Failed", "skipped": "Skipped"}.get(record.get("status"), "Completed")
+    return (
+        f"[{stamp}] [{completed_runs}/{total_runs}] {status} "
+        f"{record.get('group')} | {record.get('scenario')} | {record.get('run_name')} "
+        f"| ETA ~{hours:02d}:{minutes:02d}:{seconds:02d}"
+    )
+
+
 def run_groups(
     selected_group_names: list[str] | None = None,
     output_root: Path = DEFAULT_OUTPUT_ROOT,
@@ -1404,6 +1431,8 @@ def run_groups(
                     "coupling_interval": group.coupling_interval,
                     "output_points_per_year": group.output_points_per_year,
                     "seed": group.seed,
+                    "solver": group.solver,
+                    "dt": group.dt,
                 }
                 for group in groups
             ],
@@ -1442,6 +1471,7 @@ def run_groups(
 
     total_runs = len(jobs)
     all_records: list[dict[str, Any]] = []
+    jobs_started_at = time.monotonic()
 
     if worker_count == 1:
         for current_run, job in enumerate(jobs, start=1):
@@ -1466,6 +1496,9 @@ def run_groups(
                 total_runs=total_runs,
             )
             all_records.append(record)
+            print(_format_completion_log(
+                record, current_run, total_runs, time.monotonic() - jobs_started_at
+            ), flush=True)
     else:
         print(f"Running {total_runs} simulations with {worker_count} worker processes")
         executor = ProcessPoolExecutor(
@@ -1478,10 +1511,9 @@ def run_groups(
             for completed_runs, future in enumerate(as_completed(future_to_job), start=1):
                 record = future.result()
                 all_records.append(record)
-                print(
-                    f"[{completed_runs}/{total_runs}] Completed "
-                    f"{record.get('group')} | {record.get('scenario')} | {record.get('run_name')}"
-                )
+                print(_format_completion_log(
+                    record, completed_runs, total_runs, time.monotonic() - jobs_started_at
+                ), flush=True)
         except KeyboardInterrupt:
             print("\nBatch run interrupted. Terminating worker processes...")
             _terminate_executor_workers(executor)

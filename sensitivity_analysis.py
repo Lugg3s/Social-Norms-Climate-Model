@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
+import sys
 import traceback
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -19,9 +19,10 @@ from SALib.sample import sobol as sobol_sample
 
 from model_equations import load_scenarios, resolve_parameters, simulate
 from simulation_metrics import compute_run_metrics
+from bounded_process_map import bounded_map
 
 
-DEFAULT_SIMULATION_TIME = 1500
+DEFAULT_SIMULATION_TIME = 1200
 DEFAULT_OUTPUT_ROOT = Path("plots") / "sensitivity_results"
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
@@ -117,6 +118,11 @@ class SensitivityConfig:
     coupling_interval: float = 1.0
     output_points_per_year: int = DEFAULT_OUTPUT_POINTS_PER_YEAR
     score_mode: str = "simple_mean"
+    sample_timeout_minutes: float = 20.0
+
+    def __post_init__(self):
+        if not np.isfinite(self.sample_timeout_minutes) or self.sample_timeout_minutes <= 0:
+            raise ValueError("sample-timeout-minutes must be finite and positive")
 
 
 def build_problem(scenario_name: str) -> dict[str, Any]:
@@ -181,10 +187,68 @@ def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
     return {**metrics, **sensitivity_outputs}
 
 
+def _run_tracked_sample(
+    job: tuple[Any, ...],
+    sample_index: int,
+    diagnostics_dir: Path | None,
+    phase: str = "sample",
+    boundary_parameter: str | None = None,
+) -> dict[str, float]:
+    """Persist actual worker start/finish events in one file per simulation.
+
+    A started record with no terminal record means that completion was not
+    recorded: the job may still be running or its process may have stopped.
+    The parent process enforces deadlines and records hard timeouts separately.
+    """
+    if diagnostics_dir is None:
+        return _run_sample(job)
+    scenario_params, parameter_names, sample, config = job
+    overrides = {name: float(value) for name, value in zip(parameter_names, sample)}
+    parameters = {**scenario_params, **overrides}
+    diagnostics_dir.mkdir(parents=True, exist_ok=True)
+    log_path = diagnostics_dir / f"{phase}_{sample_index:06d}.jsonl"
+    started_at = datetime.now().astimezone().isoformat(timespec="milliseconds")
+    started_clock = monotonic()
+    identity = dict(sample_index=sample_index if phase == "sample" else None,
+                    boundary_index=sample_index if phase == "boundary" else None,
+                    phase=phase, boundary_parameter=boundary_parameter,
+                    worker_pid=os.getpid(), started_at=started_at)
+    label = f"sample_index={sample_index}" if phase == "sample" else f"boundary {boundary_parameter}=0"
+
+    def write_event(event, mode="a"):
+        # Closing the file flushes each event before computation/return.
+        # Only this worker writes this file; no cross-process CSV append race.
+        with log_path.open(mode, encoding="utf-8") as handle:
+            handle.write(json.dumps({**identity, **event}, ensure_ascii=False) + "\n")
+
+    write_event(dict(status="started", parameters=parameters,
+                     sampled_parameters=overrides, config=vars(config)), mode="w")
+    _log_sample_detail(f"[{datetime.now():%H:%M:%S}] Started {label} | PID {os.getpid()}")
+    try:
+        result = _run_sample(job)
+    except BaseException as error:
+        status = "interrupted" if isinstance(error, (KeyboardInterrupt, SystemExit)) else "failed"
+        elapsed = monotonic() - started_clock
+        write_event(dict(status=status,
+                         finished_at=datetime.now().astimezone().isoformat(timespec="milliseconds"),
+                         elapsed_seconds=elapsed, error_type=type(error).__name__,
+                         error_message=str(error),
+                         traceback="".join(traceback.format_exception(type(error), error, error.__traceback__))))
+        print(f"[{datetime.now():%H:%M:%S}] {status.capitalize()} {label} | {elapsed:.1f}s", flush=True)
+        raise
+    elapsed = monotonic() - started_clock
+    write_event(dict(status="completed",
+                     finished_at=datetime.now().astimezone().isoformat(timespec="milliseconds"),
+                     elapsed_seconds=elapsed))
+    _log_sample_detail(f"[{datetime.now():%H:%M:%S}] Completed {label} | {elapsed:.1f}s")
+    return result
+
+
 def _write_failed_sample(
     failure_path: Path | None,
     sample_index: int,
     error: BaseException,
+    parameters: dict[str, Any] | None = None,
 ) -> None:
     if failure_path is None:
         return
@@ -194,8 +258,10 @@ def _write_failed_sample(
         "error_type": type(error).__name__,
         "error_message": str(error),
         "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+        "parameters": json.dumps(parameters, ensure_ascii=False),
     }
-    pd.DataFrame([row]).to_csv(failure_path, index=False, sep=";")
+    pd.DataFrame([row]).to_csv(failure_path, index=False, sep=";", mode="a",
+                              header=not failure_path.exists())
 
 
 def _resolve_worker_count(workers: int | None) -> int:
@@ -204,21 +270,6 @@ def _resolve_worker_count(workers: int | None) -> int:
             raise ValueError("workers must be at least 1")
         return workers
     return max(1, (os.cpu_count() or 1) - 1)
-
-
-def _ignore_sigint_in_worker() -> None:
-    """Let the main process handle Ctrl+C; workers are terminated explicitly."""
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-
-def _terminate_executor_workers(executor: ProcessPoolExecutor) -> None:
-    """Immediately terminate running worker processes during an interrupted sensitivity run."""
-    processes = list(getattr(executor, "_processes", {}).values())
-    for process in processes:
-        if process.is_alive():
-            process.terminate()
-    for process in processes:
-        process.join(timeout=1.0)
 
 
 def _log_sample_progress(completed: int, total: int, started_at: float) -> None:
@@ -242,69 +293,77 @@ def _log_sample_progress(completed: int, total: int, started_at: float) -> None:
 
 
 
+def _execute_sample_task(task):
+    return _run_tracked_sample(*task)
+
+
+def _record_timeout(task, outcome):
+    job, index, diagnostics_dir, phase, boundary_parameter = task
+    base_params, names, sample, config = job
+    overrides = {name: float(value) for name, value in zip(names, sample)}
+    record = {
+        "status": "timed_out", "phase": phase,
+        "sample_index": index if phase == "sample" else None,
+        "boundary_index": index if phase == "boundary" else None,
+        "boundary_parameter": boundary_parameter,
+        "parameters": {**base_params, **overrides}, "sampled_parameters": overrides,
+        "config": vars(config), **outcome,
+        "finished_at": datetime.now().astimezone().isoformat(timespec="milliseconds"),
+        "timeout_minutes": config.sample_timeout_minutes,
+        "message": "Simulation exceeded its wall-clock limit. Its worker was terminated; continuing with other combinations.",
+    }
+    if diagnostics_dir is not None:
+        diagnostics_dir.mkdir(parents=True, exist_ok=True)
+        # The worker has been stopped and joined before the parent writes here.
+        with (diagnostics_dir / f"{phase}_{index:06d}.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        with (diagnostics_dir / "timeouts.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    print(f"[{datetime.now():%H:%M:%S}] TIMED OUT {phase} index={index} "
+          f"after {outcome['elapsed_seconds'] / 60:.1f} min | parameters={overrides}", flush=True)
+    return record
+
+
 def run_samples(
     scenario_params: dict[str, Any],
     problem: dict[str, Any],
     samples: np.ndarray,
     config: SensitivityConfig,
     failure_path: Path | None = None,
+    diagnostics_dir: Path | None = None,
 ) -> pd.DataFrame:
-    jobs = [
-        (scenario_params, problem["names"], sample, config)
-        for sample in samples
-    ]
+    tasks = [((scenario_params, problem["names"], sample, config), index,
+              diagnostics_dir, "sample", None) for index, sample in enumerate(samples)]
+    records = [None] * len(tasks)
     started_at = monotonic()
-
-    if config.workers == 1:
-        records: list[dict[str, Any]] = []
-        for sample_index, job in enumerate(jobs):
-            try:
-                records.append(_run_sample(job))
-            except Exception as error:
-                _write_failed_sample(
-                    failure_path,
-                    sample_index,
-                    error,
-                )
-                raise
-            _log_sample_progress(sample_index + 1, len(jobs), started_at)
-        return pd.DataFrame(records)
-
-    records: list[dict[str, Any] | None] = [None] * len(jobs)
-    executor = ProcessPoolExecutor(
-        max_workers=config.workers,
-        initializer=_ignore_sigint_in_worker,
-    )
-    future_to_index = {}
+    results = bounded_map(_execute_sample_task, tasks, config.workers,
+                          config.sample_timeout_minutes * 60)
     try:
-        future_to_index = {
-            executor.submit(_run_sample, job): index
-            for index, job in enumerate(jobs)
-        }
-        for completed_runs, future in enumerate(as_completed(future_to_index), start=1):
-            index = future_to_index[future]
-            try:
-                records[index] = future.result()
-            except Exception as error:
-                _write_failed_sample(
-                    failure_path,
-                    index,
-                    error,
-                )
-                _terminate_executor_workers(executor)
-                executor.shutdown(wait=True, cancel_futures=False)
-                raise
-            _log_sample_progress(completed_runs, len(jobs), started_at)
-    except KeyboardInterrupt:
-        print("\nSensitivity run interrupted. Terminating worker processes...")
-        _terminate_executor_workers(executor)
-        executor.shutdown(wait=True, cancel_futures=False)
-        raise
-    else:
-        executor.shutdown(wait=True)
-
-    if any(record is None for record in records):
-        raise RuntimeError("At least one sensitivity simulation did not return a result.")
+        for completed, (index, outcome) in enumerate(results, start=1):
+            if outcome["status"] == "completed":
+                records[index] = {**outcome["result"], "status": "completed"}
+            elif outcome["status"] == "timed_out":
+                _record_timeout(tasks[index], outcome)
+                records[index] = {**{name: np.nan for name in SENSITIVITY_OUTPUTS},
+                                  "status": "timed_out"}
+            else:
+                error = RuntimeError(f"Sample {index}: {outcome['error_type']}: "
+                                     f"{outcome['error_message']}\n{outcome['traceback']}")
+                parameters = {**scenario_params, **dict(zip(problem["names"],
+                                                           map(float, samples[index])))}
+                _write_failed_sample(failure_path, index, error, parameters)
+                # Recover only from the model's explicit integration failure.
+                # Programming errors and interruptions must remain visible/fatal.
+                if (outcome["error_type"] != "RuntimeError" or
+                        not outcome["error_message"].startswith("ODE integration failed:")):
+                    raise error
+                records[index] = {**{name: np.nan for name in SENSITIVITY_OUTPUTS},
+                                  "status": "failed", "error_message": outcome["error_message"]}
+                print(f"[{datetime.now():%H:%M:%S}] Skipping sample_index={index}: "
+                      f"{outcome['error_message']} | continuing with remaining samples", flush=True)
+            _log_sample_progress(completed, len(tasks), started_at)
+    finally:
+        results.close()
     return pd.DataFrame(records)
 
 
@@ -312,59 +371,60 @@ def run_zero_boundary_cases(
     base_params: dict[str, Any],
     problem: dict[str, Any],
     config: SensitivityConfig,
+    diagnostics_dir: Path | None = None,
 ) -> pd.DataFrame:
-    """Evaluate exact zero-boundary cases separately from the Sobol sample."""
-    zero_boundary_parameters = [
-        parameter_name
-        for parameter_name, bounds in zip(problem["names"], problem["bounds"])
-        if float(bounds[0]) == 0.0
-    ]
-    if not zero_boundary_parameters:
-        return pd.DataFrame()
-
-    records: list[dict[str, Any]] = []
-    for boundary_index, parameter_name in enumerate(zero_boundary_parameters, start=1):
-        print(
-            f"  Boundary check {boundary_index}/{len(zero_boundary_parameters)}: "
-            f"{parameter_name}=0",
-            flush=True,
-        )
-        params = dict(base_params)
-        params[parameter_name] = 0.0
-        try:
-            result = simulate(
-                extension=params,
-                simulation_time=config.simulation_time,
-                seed=config.seed,
-                coupling_interval=config.coupling_interval,
-                output_points_per_year=config.output_points_per_year,
-                verbose=False,
-            )
-            metrics = compute_run_metrics(result, params)
-            sensitivity_outputs = _prepare_sensitivity_outputs(
-                metrics,
-                config.simulation_time,
-            )
-            records.append(
-                {
-                    "status": "ok",
-                    "boundary_parameter": parameter_name,
-                    "boundary_value": 0.0,
-                    **metrics,
-                    **sensitivity_outputs,
-                }
-            )
-        except Exception as error:
-            records.append(
-                {
-                    "status": "failed",
-                    "boundary_parameter": parameter_name,
-                    "boundary_value": 0.0,
-                    "error_type": type(error).__name__,
-                    "error_message": str(error),
-                }
-            )
+    """Evaluate exact zero boundaries serially, each with the same hard timeout."""
+    names = [name for name, bounds in zip(problem["names"], problem["bounds"])
+             if float(bounds[0]) == 0.]
+    tasks = [((base_params, [name], np.array([0.]), config), index,
+              diagnostics_dir, "boundary", name) for index, name in enumerate(names)]
+    records = []
+    results = bounded_map(_execute_sample_task, tasks, 1, config.sample_timeout_minutes * 60)
+    try:
+        for index, outcome in results:
+            row = {"boundary_parameter": names[index], "boundary_value": 0.}
+            if outcome["status"] == "completed":
+                row.update(status="ok", **outcome["result"])
+            elif outcome["status"] == "timed_out":
+                _record_timeout(tasks[index], outcome)
+                row.update(status="timed_out", error_message="Wall-clock limit exceeded")
+            else:
+                row.update(status="failed", error_type=outcome["error_type"],
+                           error_message=outcome["error_message"])
+            records.append(row)
+    finally:
+        results.close()
     return pd.DataFrame(records)
+
+
+def complete_sobol_blocks(problem, outputs):
+    """Retain complete A/AB/B blocks; never shift rows or impute missing values.
+
+    Conditional deletion can bias the original Sobol estimand. Results after
+    exclusions are exploratory and must be labelled provisional.
+    """
+    block_size = problem["num_vars"] + 2  # calc_second_order=False, no groups
+    if len(outputs) % block_size:
+        raise ValueError("Output row count does not match complete Sobol block layout")
+    valid = np.isfinite(outputs[SENSITIVITY_OUTPUTS].to_numpy(dtype=float)).all(axis=1)
+    if "status" in outputs:
+        valid &= outputs["status"].eq("completed").to_numpy()
+    block_valid = valid.reshape(-1, block_size).all(axis=1)
+    keep = np.repeat(block_valid, block_size)
+    retained = int(block_valid.sum())
+    excluded = np.flatnonzero(~block_valid).tolist()
+    info = {
+        "status": ("unavailable" if retained < 2 else "provisional" if excluded else "complete"),
+        "block_size": block_size, "requested_base_samples": len(block_valid),
+        "retained_base_samples": retained, "excluded_block_indices": excluded,
+        "missing_sample_indices": np.flatnonzero(~valid).tolist(),
+        "excluded_sample_indices": np.flatnonzero(~keep).tolist(),
+        "included_sample_indices": np.flatnonzero(keep).tolist(),
+        "warning": ("Too few complete Sobol blocks to calculate indices." if retained < 2 else
+                    "PROVISIONAL: incomplete blocks were excluded. Parameter-dependent timeouts or numerical failures can bias indices; confidence intervals do not account for this selection bias. Rerun missing combinations for full-design results." if excluded else
+                    "Complete requested design; statistical convergence still depends on sample size."),
+    }
+    return outputs.loc[keep].reset_index(drop=True), info
 
 
 def analyze_outputs(
@@ -439,6 +499,7 @@ def run_sensitivity_analysis(
     scenario_name: str,
     run_root: Path,
     config: SensitivityConfig,
+    overwrite_existing: bool = True,
 ) -> Path:
     scenarios = load_scenarios()
     if scenario_name not in scenarios:
@@ -447,6 +508,14 @@ def run_sensitivity_analysis(
         raise ValueError("The agent-based scenario is excluded from this Sobol analysis for now.")
 
     problem = build_problem(scenario_name)
+    scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+
+    if not overwrite_existing and any(scenario_dir.iterdir()):
+        raise FileExistsError(
+            f"Scenario results already exist and will not be overwritten: {scenario_dir}"
+        )
+
     base_params = resolve_parameters(scenario_name)
     samples = sobol_sample.sample(
         problem,
@@ -460,9 +529,6 @@ def run_sensitivity_analysis(
         flush=True,
     )
 
-    scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
-    scenario_dir.mkdir(parents=True, exist_ok=True)
-
     # Remove files from an incomplete prior attempt if this run directory is reused.
     for filename in (
         "samples.csv",
@@ -473,6 +539,9 @@ def run_sensitivity_analysis(
         "failed_sample.csv",
         "zero_boundary_cases.csv",
         "parameters.json",
+        "diagnostics.json",
+        "analysis_status.json",
+        "sample_inclusion.csv",
     ):
         path = scenario_dir / filename
         if path.exists():
@@ -485,7 +554,26 @@ def run_sensitivity_analysis(
     sample_frame.insert(0, "sample_index", np.arange(len(sample_frame), dtype=int))
     sample_frame.to_csv(scenario_dir / "samples.csv", index=False, sep=";")
 
-    boundary_cases = run_zero_boundary_cases(base_params, problem, config)
+    # Keep attempts separate so unfinished records from a reused run directory
+    # cannot be mistaken for samples running in the current attempt.
+    diagnostics_dir = scenario_dir / (
+        "sample_diagnostics_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    )
+    diagnostics_dir.mkdir(parents=True, exist_ok=False)
+    diagnostics_info = {
+        "directory": diagnostics_dir.name,
+        "format": "One JSONL file per sample or boundary check; start and terminal events.",
+        "sample_index": "Zero-based index matching samples.csv and simulation_outputs.csv.",
+        "unfinished_record": "A start without a terminal event indicates running or interrupted/crashed work.",
+        "timeouts_file": "timeouts.jsonl (created when a timeout occurs; includes full parameters)",
+        "sample_timeout_minutes": config.sample_timeout_minutes,
+    }
+    (scenario_dir / "diagnostics.json").write_text(
+        json.dumps(diagnostics_info, indent=2), encoding="utf-8"
+    )
+    print(f"  Per-simulation diagnostics: {diagnostics_dir}", flush=True)
+
+    boundary_cases = run_zero_boundary_cases(base_params, problem, config, diagnostics_dir)
     print(f"  Zero-boundary checks completed: {len(boundary_cases)}", flush=True)
     if not boundary_cases.empty:
         boundary_cases.to_csv(scenario_dir / "zero_boundary_cases.csv", index=False, sep=";")
@@ -496,6 +584,7 @@ def run_sensitivity_analysis(
         samples,
         config,
         failure_path=scenario_dir / "failed_sample.csv",
+        diagnostics_dir=diagnostics_dir,
     )
     print("  Calculating Sobol indices and parameter ranking...", flush=True)
     simulation_outputs = outputs.reset_index(drop=True).copy()
@@ -506,11 +595,37 @@ def run_sensitivity_analysis(
     )
     simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False, sep=";")
 
-    sobol_results = analyze_outputs(problem, outputs, seed=config.seed)
+    analysis_outputs, analysis_info = complete_sobol_blocks(problem, outputs)
+    print(f"  Analysis status: {analysis_info['status']}. {analysis_info['warning']}", flush=True)
+    inclusion = sample_frame.copy()
+    inclusion["status"] = outputs["status"].to_numpy()
+    inclusion["block_index"] = inclusion["sample_index"] // analysis_info["block_size"]
+    inclusion["included_in_complete_blocks"] = inclusion["sample_index"].isin(
+        analysis_info["included_sample_indices"]
+    )
+    inclusion.to_csv(scenario_dir / "sample_inclusion.csv", index=False, sep=";")
+    if analysis_info["status"] == "unavailable":
+        sobol_results = pd.DataFrame(columns=["output", "parameter", "S1", "S1_conf", "ST", "ST_conf"])
+        ranking = pd.DataFrame(columns=["parameter", "rank", "overall_score"])
+    else:
+        sobol_results = analyze_outputs(problem, analysis_outputs, seed=config.seed)
+        ranking = build_parameter_ranking(sobol_results, config.score_mode)
+        analysis_info["nonfinite_estimates"] = bool(
+            not np.isfinite(sobol_results[["S1", "S1_conf", "ST", "ST_conf"]]).all().all()
+        )
+        if analysis_info["nonfinite_estimates"]:
+            analysis_info["warning"] += " Some estimates or confidence intervals are undefined; increase the sample size."
+            print(f"  WARNING: {analysis_info['warning']}", flush=True)
+    (scenario_dir / "analysis_status.json").write_text(
+        json.dumps(analysis_info, indent=2), encoding="utf-8"
+    )
+    for frame in (sobol_results, ranking):
+        frame["analysis_status"] = analysis_info["status"]
+        frame["retained_base_samples"] = analysis_info["retained_base_samples"]
+        frame["analysis_warning"] = analysis_info["warning"]
     sobol_results.insert(0, "scenario", scenario_name)
     sobol_results.to_csv(scenario_dir / "sobol_indices.csv", index=False, sep=";")
 
-    ranking = build_parameter_ranking(sobol_results, config.score_mode)
     ranking.insert(0, "scenario", scenario_name)
     ranking.to_csv(scenario_dir / "parameter_ranking.csv", index=False, sep=";")
 
@@ -527,6 +642,9 @@ def run_sensitivity_analysis(
         "output_points_per_year": config.output_points_per_year,
         "score_mode": config.score_mode,
         "parameters_file": "parameters.json",
+        "diagnostics": diagnostics_info,
+        "sample_timeout_minutes": config.sample_timeout_minutes,
+        "analysis": analysis_info,
         "samples_file": "samples.csv",
         "simulation_outputs_file": "simulation_outputs.csv",
         "parameter_reconstruction_note": (
@@ -583,7 +701,15 @@ def parse_args() -> argparse.Namespace:
         help="Stored solver evaluation points per simulated year.",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--sample-timeout-minutes", type=float, default=20.0,
+                        help="Wall-clock limit per simulation, including boundary checks (default: 20 minutes).")
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument(
+        "--append-existing-folder",
+        type=Path,
+        default=None,
+        help="Use this existing run folder below --output-root and append selected scenarios to it.",
+    )
     parser.add_argument(
         "--score-mode",
         choices=["simple_mean", "grouped_mean"],
@@ -591,6 +717,67 @@ def parse_args() -> argparse.Namespace:
         help="Rule used to combine output-specific total-order Sobol indices.",
     )
     return parser.parse_args()
+
+
+def _log_sample_detail(message):
+    if hasattr(sys.stdout, "write_log_only"):
+        sys.stdout.write_log_only(message + "\n")
+
+
+class _TeeStream:
+    def __init__(self, console, logfile):
+        self.console = console
+        self.logfile = logfile
+
+    def write(self, text):
+        self.console.write(text)
+        self.logfile.write(text)
+        self.logfile.flush()
+        return len(text)
+
+    def flush(self):
+        self.console.flush()
+        self.logfile.flush()
+
+    def write_log_only(self, text):
+        self.logfile.write(text)
+        self.logfile.flush()
+
+
+@contextmanager
+def sensitivity_console_log(path):
+    """Mirror parent and forwarded worker messages to a continuously flushed log."""
+    with path.open("a", encoding="utf-8") as logfile:
+        with redirect_stdout(_TeeStream(sys.stdout, logfile)), \
+             redirect_stderr(_TeeStream(sys.stderr, logfile)):
+            try:
+                yield
+            except BaseException:
+                # The interpreter prints the uncaught error after redirection ends.
+                # Persist it here without printing it twice in the terminal.
+                traceback.print_exc(file=logfile)
+                logfile.flush()
+                raise
+
+
+def _existing_rankings(run_root: Path) -> list[pd.DataFrame]:
+    rankings = []
+    for ranking_path in run_root.glob("*/parameter_ranking.csv"):
+        rankings.append(pd.read_csv(ranking_path, sep=";"))
+    return rankings
+
+
+def _scenario_directory(run_root: Path, scenario_name: str) -> Path:
+    return run_root / scenario_name.replace("/", "_").replace(" ", "_")
+
+
+def _validate_append_scenarios(run_root: Path, scenario_names) -> None:
+    for scenario_name in scenario_names:
+        scenario_dir = _scenario_directory(run_root, scenario_name)
+        if scenario_dir.exists() and any(scenario_dir.iterdir()):
+            raise FileExistsError(
+                f"Scenario results already exist and will not be overwritten: {scenario_dir}"
+            )
 
 
 def main() -> None:
@@ -615,13 +802,35 @@ def main() -> None:
         seed=args.seed,
         output_points_per_year=args.output_points_per_year,
         score_mode=args.score_mode,
+        sample_timeout_minutes=args.sample_timeout_minutes,
     )
 
-    timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
-    run_root = args.output_root / timestamp
-    run_root.mkdir(parents=True, exist_ok=False)
+    if args.append_existing_folder is not None:
+        run_root = args.output_root / args.append_existing_folder
+        if not run_root.is_dir():
+            raise FileNotFoundError(
+                f"Requested run folder does not exist: {run_root}"
+            )
+        _validate_append_scenarios(run_root, scenario_names)
+    else:
+        timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
+        run_root = args.output_root / timestamp
+        run_root.mkdir(parents=True, exist_ok=False)
 
-    overall_top_rows: list[pd.DataFrame] = []
+    with sensitivity_console_log(run_root / "sensitivity_analysis.log"):
+        _run_scenarios(
+            scenario_names,
+            run_root,
+            config,
+            overwrite_existing=args.append_existing_folder is None,
+        )
+
+
+def _run_scenarios(scenario_names, run_root, config, overwrite_existing=True):
+
+    overall_top_rows: list[pd.DataFrame] = [
+        ranking.head(2) for ranking in _existing_rankings(run_root)
+    ]
     total_scenarios = len(scenario_names)
     print(
         f"Starting sensitivity analysis for {total_scenarios} scenarios with "
@@ -635,7 +844,12 @@ def main() -> None:
             f"[{scenario_index}/{total_scenarios}] Starting scenario: {scenario_name}",
             flush=True,
         )
-        scenario_dir = run_sensitivity_analysis(scenario_name, run_root, config)
+        scenario_dir = run_sensitivity_analysis(
+            scenario_name,
+            run_root,
+            config,
+            overwrite_existing=overwrite_existing,
+        )
         ranking = pd.read_csv(scenario_dir / "parameter_ranking.csv", sep=";")
         overall_top_rows.append(ranking.head(2))
         print(
