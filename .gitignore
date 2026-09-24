@@ -3,3 +3,13 @@
 plots/
 agent_model_equation_anara.py
 sensitivity_results/
+profiling_results/
+bounded_process_map.py
+image-1.png
+image.png
+profile_dynamic_norms.py
+solvers.py
+test_model_optimizations.py
+test_sensitivity_diagnostics.py
+test_sensitivity_timeouts.py
+test_solvers.py
