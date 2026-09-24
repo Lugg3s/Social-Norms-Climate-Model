@@ -148,6 +148,24 @@ Existing scenario results are never overwritten in append mode; trying to add a
 scenario that is already present stops with an error. The overall top-parameter
 file is rebuilt from all scenario result folders.
 
+After each sensitivity run, the runner also scans all scenario folders in the
+run directory and overwrites one violin plot with an overlaid boxplot per
+sensitivity output:
+
+```text
+violin_boxplot_final_x.png
+violin_boxplot_final_temperature.png
+violin_boxplot_cumulative_emissions.png
+violin_boxplot_time_to_elimination_censored.png
+violin_boxplot_oscillation_amplitude.png
+violin_boxplot_oscillations_per_500_years.png
+violin_boxplot_damping_index.png
+```
+
+Only rows with `status=completed` are plotted. Adding another norm and using
+`--append-existing-folder` regenerates all plots from the available norm
+folders.
+
 Each `sample_000000.jsonl` file records the actual worker start, zero-based
 `sample_index` (matching `samples.csv`), full input parameters, sampled overrides,
 worker PID and configuration. A second event records completion time and elapsed

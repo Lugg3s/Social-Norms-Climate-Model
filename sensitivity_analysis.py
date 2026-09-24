@@ -864,6 +864,10 @@ def _run_scenarios(scenario_names, run_root, config, overwrite_existing=True):
             index=False,
             sep=";",
         )
+    from sensitivity_plots import create_goal_variable_violin_boxplots
+
+    plot_paths = create_goal_variable_violin_boxplots(run_root, SENSITIVITY_OUTPUTS)
+    print(f"Created {len(plot_paths)} goal-variable violin-boxplot(s).", flush=True)
     print(
         f"Sensitivity analysis completed in {(monotonic() - overall_started_at) / 60:.1f} min.",
         flush=True,
