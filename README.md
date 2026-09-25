@@ -166,6 +166,11 @@ Only rows with `status=completed` are plotted. Adding another norm and using
 `--append-existing-folder` regenerates all plots from the available norm
 folders.
 
+For the `dynamic2` sensitivity definitions, `theta` is sampled from `[1, 10]`;
+`c_dyn` remains sampled from `[0, 100]`. This avoids treating a sub-year
+finite-difference window as a separate model regime while preserving the full
+tested `c_dyn` range.
+
 Each `sample_000000.jsonl` file records the actual worker start, zero-based
 `sample_index` (matching `samples.csv`), full input parameters, sampled overrides,
 worker PID and configuration. A second event records completion time and elapsed
@@ -192,6 +197,10 @@ Explicit ODE integration failures are also recorded and skipped, with
 `status=failed` and missing metrics. `failed_sample.csv` accumulates their indices,
 full parameters and error details; individual diagnostic files retain timestamps
 and tracebacks. Unexpected errors still stop the main sample analysis.
+`simulation_outputs.csv` also contains `simulation_success` (`1` for completed,
+`0` for failed or timed-out samples), and `simulation_status.csv` combines this
+status with the sampled parameter values for failure analysis. This status output
+is separate from the seven Sobol target variables; failed metrics are not imputed.
 
 Indices use only complete Sobol blocks of `D+2` rows; one missing simulation
 excludes its entire block. `sample_inclusion.csv` records block membership and

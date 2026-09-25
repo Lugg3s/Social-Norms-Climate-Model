@@ -72,19 +72,19 @@ NORM_SPECIFIC_PARAMETER_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
         "x_target": (0.0, 1.0),
         "c_dyn": (0.0, 100.0),
         "tau": (0.0, 100.0),
-        "theta": (0.0, 10.0),
+        "theta": (1.0, 10.0),
     },
     "Injunctive, dynamic2": {
         "c_inj": (0.0, 100.0),
         "x_target": (0.0, 1.0),
         "c_dyn": (0.0, 100.0),
         "tau": (0.0, 100.0),
-        "theta": (0.0, 10.0),
+        "theta": (1.0, 10.0),
     },
     "dynamic social norm2": {
         "c_dyn": (0.0, 100.0),
         "tau": (0.0, 100.0),
-        "theta": (0.0, 10.0),
+        "theta": (1.0, 10.0),
     },
 }
 
@@ -97,6 +97,12 @@ SENSITIVITY_OUTPUTS = [
     "oscillations_per_500_years",
     "damping_index",
 ]
+
+SIMULATION_SUCCESS_OUTPUT = "simulation_success"
+RECOVERABLE_INTEGRATION_ERRORS = (
+    "ODE integration failed:",
+    "Numerical integration left the valid fraction interval [0, 1]",
+)
 
 OUTPUT_GROUPS = {
     "mitigation": ["final_x", "time_to_elimination_censored"],
@@ -115,7 +121,7 @@ class SensitivityConfig:
     base_sample_size: int = DEFAULT_BASE_SAMPLE_SIZE
     workers: int = 1
     seed: int = 42
-    coupling_interval: float = 1.0
+    coupling_interval: float = 0.1
     output_points_per_year: int = DEFAULT_OUTPUT_POINTS_PER_YEAR
     score_mode: str = "simple_mean"
     sample_timeout_minutes: float = 20.0
@@ -184,7 +190,7 @@ def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
     )
     metrics = compute_run_metrics(result, params)
     sensitivity_outputs = _prepare_sensitivity_outputs(metrics, config.simulation_time)
-    return {**metrics, **sensitivity_outputs}
+    return {**metrics, **sensitivity_outputs, SIMULATION_SUCCESS_OUTPUT: 1}
 
 
 def _run_tracked_sample(
@@ -345,6 +351,7 @@ def run_samples(
             elif outcome["status"] == "timed_out":
                 _record_timeout(tasks[index], outcome)
                 records[index] = {**{name: np.nan for name in SENSITIVITY_OUTPUTS},
+                                  SIMULATION_SUCCESS_OUTPUT: 0,
                                   "status": "timed_out"}
             else:
                 error = RuntimeError(f"Sample {index}: {outcome['error_type']}: "
@@ -352,12 +359,13 @@ def run_samples(
                 parameters = {**scenario_params, **dict(zip(problem["names"],
                                                            map(float, samples[index])))}
                 _write_failed_sample(failure_path, index, error, parameters)
-                # Recover only from the model's explicit integration failure.
+                # Recover only from known numerical integration failures.
                 # Programming errors and interruptions must remain visible/fatal.
                 if (outcome["error_type"] != "RuntimeError" or
-                        not outcome["error_message"].startswith("ODE integration failed:")):
+                    not outcome["error_message"].startswith(RECOVERABLE_INTEGRATION_ERRORS)):
                     raise error
                 records[index] = {**{name: np.nan for name in SENSITIVITY_OUTPUTS},
+                                  SIMULATION_SUCCESS_OUTPUT: 0,
                                   "status": "failed", "error_message": outcome["error_message"]}
                 print(f"[{datetime.now():%H:%M:%S}] Skipping sample_index={index}: "
                       f"{outcome['error_message']} | continuing with remaining samples", flush=True)
@@ -542,6 +550,7 @@ def run_sensitivity_analysis(
         "diagnostics.json",
         "analysis_status.json",
         "sample_inclusion.csv",
+        "simulation_status.csv",
     ):
         path = scenario_dir / filename
         if path.exists():
@@ -588,12 +597,26 @@ def run_sensitivity_analysis(
     )
     print("  Calculating Sobol indices and parameter ranking...", flush=True)
     simulation_outputs = outputs.reset_index(drop=True).copy()
+    if SIMULATION_SUCCESS_OUTPUT not in simulation_outputs:
+        simulation_outputs[SIMULATION_SUCCESS_OUTPUT] = (
+            simulation_outputs["status"].eq("completed").astype(int)
+        )
     simulation_outputs.insert(
         0,
         "sample_index",
         np.arange(len(simulation_outputs), dtype=int),
     )
     simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False, sep=";")
+
+    status_columns = ["status", SIMULATION_SUCCESS_OUTPUT]
+    if "error_message" in simulation_outputs:
+        status_columns.append("error_message")
+    simulation_status = sample_frame.copy()
+    simulation_status = pd.concat(
+        [simulation_status, simulation_outputs[status_columns].reset_index(drop=True)],
+        axis=1,
+    )
+    simulation_status.to_csv(scenario_dir / "simulation_status.csv", index=False, sep=";")
 
     analysis_outputs, analysis_info = complete_sobol_blocks(problem, outputs)
     print(f"  Analysis status: {analysis_info['status']}. {analysis_info['warning']}", flush=True)
@@ -636,6 +659,15 @@ def run_sensitivity_analysis(
         "base_sample_size": config.base_sample_size,
         "number_of_model_runs": int(len(samples)),
         "number_of_zero_boundary_runs": int(len(boundary_cases)),
+        "number_of_completed_samples": int(
+            outputs["status"].eq("completed").sum()
+        ),
+        "number_of_failed_samples": int(
+            outputs["status"].eq("failed").sum()
+        ),
+        "number_of_timed_out_samples": int(
+            outputs["status"].eq("timed_out").sum()
+        ),
         "workers": config.workers,
         "seed": config.seed,
         "coupling_interval": config.coupling_interval,
@@ -647,6 +679,8 @@ def run_sensitivity_analysis(
         "analysis": analysis_info,
         "samples_file": "samples.csv",
         "simulation_outputs_file": "simulation_outputs.csv",
+        "simulation_status_file": "simulation_status.csv",
+        "simulation_success_output": SIMULATION_SUCCESS_OUTPUT,
         "parameter_reconstruction_note": (
             "Reconstruct each model input as parameters.json updated with the "
             "sample-specific values from samples.csv for the same sample_index."

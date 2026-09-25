@@ -97,6 +97,16 @@
         "tau": 1,
         "theta": 1
     },
+    "Descriptive, injunctive, dynamic2 (testing)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 60.99077891558409,
+        "x_target": 0.48354777600616217,
+        "c_dyn": 46.392013505101204,
+        "tau": 31.357963476330042,
+        "theta": 0.09535451419651508,
+        "social_norm_factor": 9.96413629502058,
+        "temperature_factor": 9.521761853247881
+    },
     "Descriptive, injunctive, dynamic2 (tau_timestep)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
         "c_inj": 10,

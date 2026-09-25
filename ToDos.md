@@ -2,6 +2,7 @@
 1. Sensitivitätsanalyse validieren. Ist die jetzt abgeschlossen?
     1. Gibt es fehlgeschlagene Simulationen? Warum?
 1. Warum hatte ich das chaotische Verhalten nicht in meinen Batch runs?
+1. Sensitivitätsanalyse auch nochmal mit anderen x0-Werten durchführen, um zu prüfen ob sich etwas ändert.
 
 
 # Sonstige ToDos:
