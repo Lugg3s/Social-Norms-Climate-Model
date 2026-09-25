@@ -72,19 +72,19 @@ NORM_SPECIFIC_PARAMETER_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
         "x_target": (0.0, 1.0),
         "c_dyn": (0.0, 100.0),
         "tau": (0.0, 100.0),
-        "theta": (1.0, 10.0),
+        "theta": (0.1, 10.0),
     },
     "Injunctive, dynamic2": {
         "c_inj": (0.0, 100.0),
         "x_target": (0.0, 1.0),
         "c_dyn": (0.0, 100.0),
         "tau": (0.0, 100.0),
-        "theta": (1.0, 10.0),
+        "theta": (0.1, 10.0),
     },
     "dynamic social norm2": {
         "c_dyn": (0.0, 100.0),
         "tau": (0.0, 100.0),
-        "theta": (1.0, 10.0),
+        "theta": (0.1, 10.0),
     },
 }
 
