@@ -184,11 +184,14 @@ def _first_threshold_crossing_time(
     t_values: np.ndarray,
     x_values: np.ndarray,
     threshold: float = ELIMINATION_THRESHOLD,
+    *, stepwise: bool = False,
 ) -> float:
     above = np.flatnonzero(x_values >= threshold)
     if above.size == 0:
         return float("nan")
     first_index = int(above[0])
+    if stepwise:
+        return float(t_values[first_index])
     if first_index == 0:
         return float(t_values[0])
 
@@ -228,8 +231,9 @@ def _base_metrics(
     social_norm = np.asarray(social_norm, dtype=float)
 
     max_temperature_index = int(np.nanargmax(temperature))
-    time_to_elimination = _first_threshold_crossing_time(t_values, x_values)
-    threshold_reached = bool(np.any(x_values >= ELIMINATION_THRESHOLD))
+    stepwise = params is not None and params.get("agent_decision_model") == "annual_intention_threshold"
+    time_to_elimination = _first_threshold_crossing_time(t_values, x_values, stepwise=stepwise)
+    bool_x95 = bool(np.any(x_values >= ELIMINATION_THRESHOLD))
     elimination_success = bool(x_values[-1] >= ELIMINATION_THRESHOLD)
     min_x = float(np.nanmin(x_values))
     max_x = float(np.nanmax(x_values))
@@ -239,27 +243,40 @@ def _base_metrics(
     if params is not None and {"epsilon_max", "s"}.issubset(params):
         prescribed_emissions = _prescribed_emission_rate(t_values, params)
         effective_emissions = prescribed_emissions * (1.0 - x_values)
-        cumulative_emissions = float(np.trapz(effective_emissions, t_values))
+        # The new agent model has exact annual breakpoints. Both actual x and
+        # the prescribed emission rate are held until the next event; trapezoids
+        # would smear a decision backwards and make totals sampling-dependent.
+        cumulative_emissions = (float(np.sum(effective_emissions[:-1] * np.diff(t_values)))
+                                if stepwise else float(np.trapz(effective_emissions, t_values)))
 
+    x_area = (float(np.sum(x_values[:-1] * np.diff(t_values)))
+              if stepwise else float(np.trapz(x_values, t_values)))
+    duration = float(t_values[-1] - t_values[0])
     metrics = {
         "max_temperature": float(np.nanmax(temperature)),
         "final_temperature": float(temperature[-1]),
         "temperature_area": float(np.trapz(temperature, t_values)),
         "time_to_peak_temperature": float(t_values[max_temperature_index]),
         "final_x": float(x_values[-1]),
+        "x_mean": x_area / duration if duration > 0 else float("nan"),
         "max_x": max_x,
         "min_x": min_x,
         "x_bounds_valid": x_bounds_valid,
-        "x_area": float(np.trapz(x_values, t_values)),
+        "x_area": x_area,
         "final_social_norm": float(social_norm[-1]) if social_norm.size else float("nan"),
         "max_social_norm": float(np.nanmax(social_norm)) if social_norm.size else float("nan"),
         "min_social_norm": float(np.nanmin(social_norm)) if social_norm.size else float("nan"),
-        "threshold_reached": threshold_reached,
+        "bool_x95": bool_x95,
         "time_to_elimination": time_to_elimination,
         "elimination_success": elimination_success,
         "cumulative_emissions": cumulative_emissions,
     }
-    metrics.update(_compute_oscillation_metrics(t_values, x_values))
+    if stepwise:
+        # Evaluate discrete extrema on years, independent of climate/output steps.
+        years = t_values == np.floor(t_values)
+        metrics.update(_compute_oscillation_metrics(t_values[years], x_values[years]))
+    else:
+        metrics.update(_compute_oscillation_metrics(t_values, x_values))
     return metrics
 
 

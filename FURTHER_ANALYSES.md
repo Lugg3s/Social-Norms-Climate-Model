@@ -100,7 +100,7 @@ This can distinguish similar final outcomes that arise through very different tr
 
 Use the existing oscillation metrics (`n_oscillations`, `median_period`, `amplitude_ratio`, `damping_rate`, `oscillation_score`) and extend them with an explicit overshoot measure.
 
-For the ODE dynamic formulation, investigate `tau_ref`, `tau_xp`, and `tau_STref`. For the delay formulation, investigate `tau`, `theta`, and `c_dyn`.
+For the ODE dynamic formulation, investigate `tau_ref` and `tau_xp`, with `social_norm_factor` controlling overall norm strength. In the dynamic baseline and combined ODE norm, also investigate `c_dyn` for relative trend strength. For the delay formulation, investigate `tau`, `theta`, and `c_dyn`.
 
 ## 8. Comparison of the two dynamic-norm implementations
 
@@ -174,7 +174,7 @@ After identifying candidate interesting differences, vary shared behavioural and
 
 **Research question:** Does representing social influence explicitly at the agent/network level generate aggregate behaviour that cannot be reproduced by the deterministic norm formulations?
 
-For the agent-based intention model, vary network size, susceptibility, threshold, and random seed. Compare distributions across repeated stochastic runs with deterministic trajectories, focusing on transition probability, timing variability, and threshold crossing.
+For the agent-based intention model, vary network size, mean cost beta, the independent norm weight, the norm-activation threshold, the action threshold, and random seed. Seeds vary the fixed individual costs, initial behaviours, and peer networks; annual decisions are deterministic and simultaneous thereafter. Compare distributions across initializations with aggregate ODE trajectories, focusing on adoption, reversal, timing variability, and threshold crossing. Differences also reflect the replacement of the replicator by annual threshold decisions.
 
 ## Suggested prioritization
 

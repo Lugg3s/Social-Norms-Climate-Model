@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import traceback
+import warnings
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,84 +19,95 @@ from SALib.analyze import sobol
 from SALib.sample import sobol as sobol_sample
 
 from model_equations import load_scenarios, resolve_parameters, simulate
-from simulation_metrics import compute_run_metrics
+from simulation_metrics import ELIMINATION_THRESHOLD, compute_run_metrics
 from bounded_process_map import bounded_map
 
 
-DEFAULT_SIMULATION_TIME = 1200
+DEFAULT_SIMULATION_TIME = 600
 DEFAULT_OUTPUT_ROOT = Path("plots") / "sensitivity_results"
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
 DEFAULT_OUTPUT_POINTS_PER_YEAR = 24
-ELIMINATION_CENSOR_OFFSET = 10_000.0
 OSCILLATION_WINDOW_YEARS = 500.0
+OSCILLATION_MIN_COMPLETE_CYCLES = 2
+ABM_AGENT_COUNT = 1000
 
 COMMON_PARAMETER_BOUNDS: dict[str, tuple[float, float]] = {
-    "social_norm_factor": (0.0, 10.0),
-    "temperature_factor": (0.0, 10.0),
+    "social_norm_factor": (0.0, 5.0),
+    "temperature_factor": (0.0, 5.0),
+    "beta": (0.0, 5.0),
+    "kappa": (0.0, 0.5),   
 }
 
 # Parameter ranges are intentionally broad enough to contain all values currently
 # documented in interesting_parameter_sets.csv. Time-scale lower bounds follow the
 # sensitivity-analysis convention discussed for this project.
+# In masterarbeit begründen, wieso ich die Grenzen der sensi so gewählt habe
 NORM_SPECIFIC_PARAMETER_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
     "baseline": {
-        "delta": (0.0, 100.0),
     },
     "Dynamic social norm": {
-        "tau_ref": (0.1, 50.0),
-        "tau_STref": (0.1, 10.0),
+        "tau_ref": (0.1, 10.0),
         "tau_xp": (0.1, 10.0),
     },
     "Belief-based / intention motivation": {
-        "N": (0.0, 3.0),
+        # N = 0 ist neutral.  N < 0 bedeutet nicht-mitigieren wird begünstigt. N > 0 begünstigt mitigieren.
+        # Alternative hier wäre von 0 bis 1 variieren und die Formel umzuändern in N-0.5
+        # N ist ein vorzeichenbehafteter Normeinfluss, keine Wahrscheinlichkeit.
+        # [-1, 1] ist eine Projektannahme, kein Literatur-/Kalibrierungsintervall.
+        "N": (-1.0, 1.0),
+    },
+    "Observation-based / intention motivation (agents)": {
+        "network_size": (1, ABM_AGENT_COUNT - 1),  # Rounded peer count; excludes the agent itself.
+        "eta": (0.0, 1.0),
+        "phi": (0.0, 1.0),
+        "psi": (0.0, 1.0),
     },
     "Observation based / approval (punish only one behaviour)": {
-        "alpha": (0.0, 3.0),
+        # Approval strength is controlled solely by social_norm_factor.
     },
     "Static injunctive": {
-        "c_inj": (0.0, 100.0),
         "x_target": (0.0, 1.0),
     },
     "Descriptive, injunctive, dynamic": {
-        "delta": (0.0, 100.0),
-        "c_inj": (0.0, 100.0),
+        "c_inj": (0.0, 10.0),
         "x_target": (0.0, 1.0),
-        "c_dyn": (0.0, 100.0),
-        "tau_ref": (0.1, 50.0),
-        "tau_STref": (0.1, 10.0),
+        "c_dyn": (0.0, 10.0),
+        "tau_ref": (0.1, 10.0),
         "tau_xp": (0.1, 10.0),
     },
     "Descriptive, injunctive, dynamic2": {
-        "delta": (0.0, 100.0),
-        "c_inj": (0.0, 100.0),
+        "c_inj": (0.0, 10.0),
         "x_target": (0.0, 1.0),
-        "c_dyn": (0.0, 100.0),
-        "tau": (0.0, 100.0),
-        "theta": (0.1, 10.0),
+        "c_dyn": (0.0, 10.0),
+        "tau": (0.1, 10.0),
+        "rho": (1.1, 10.0),  # theta = tau*rho; rho > 1.
     },
     "Injunctive, dynamic2": {
-        "c_inj": (0.0, 100.0),
+        "c_inj": (0.0, 10.0),
         "x_target": (0.0, 1.0),
-        "c_dyn": (0.0, 100.0),
-        "tau": (0.0, 100.0),
-        "theta": (0.1, 10.0),
+        "c_dyn": (0.0, 10.0),
+        "tau": (0.1, 10.0),
+        "rho": (1.1, 10.0),  # theta = tau*rho; rho > 1.
     },
     "dynamic social norm2": {
-        "c_dyn": (0.0, 100.0),
-        "tau": (0.0, 100.0),
-        "theta": (0.1, 10.0),
+        "c_dyn": (0.0, 10.0),
+        "tau": (0.1, 10.0),
+        "rho": (1.1, 10.0),  # theta = tau*rho; rho > 1.
     },
 }
 
 SENSITIVITY_OUTPUTS = [
-    "final_x",
+    # "final_x",  # Kandidat für Regression Trees.
+    "x_mean",
     "final_temperature",
     "cumulative_emissions",
-    "time_to_elimination_censored",
-    "oscillation_amplitude",
+    "first_time_x95",
+    "bool_x95",
+    "oscillation_occurrence",
+    # "oscillation_amplitude",  # Kandidat für Regression Trees.
     "oscillations_per_500_years",
-    "damping_index",
+    # "damping_index",  # Kandidat für Regression Trees.
 ]
 
 SIMULATION_SUCCESS_OUTPUT = "simulation_success"
@@ -105,12 +117,16 @@ RECOVERABLE_INTEGRATION_ERRORS = (
 )
 
 OUTPUT_GROUPS = {
-    "mitigation": ["final_x", "time_to_elimination_censored"],
+    "mitigation": [
+        # "final_x",
+        "x_mean", "first_time_x95", "bool_x95",
+    ],
     "climate": ["final_temperature", "cumulative_emissions"],
     "dynamics": [
-        "oscillation_amplitude",
+        "oscillation_occurrence",
+        # "oscillation_amplitude",
         "oscillations_per_500_years",
-        "damping_index",
+        # "damping_index",
     ],
 }
 
@@ -125,6 +141,7 @@ class SensitivityConfig:
     output_points_per_year: int = DEFAULT_OUTPUT_POINTS_PER_YEAR
     score_mode: str = "simple_mean"
     sample_timeout_minutes: float = 20.0
+    constant_temperature_costs: bool = False
 
     def __post_init__(self):
         if not np.isfinite(self.sample_timeout_minutes) or self.sample_timeout_minutes <= 0:
@@ -139,6 +156,10 @@ def build_problem(scenario_name: str) -> dict[str, Any]:
         **COMMON_PARAMETER_BOUNDS,
         **NORM_SPECIFIC_PARAMETER_BOUNDS[scenario_name],
     }
+    if scenario_name == "Observation-based / intention motivation (agents)":
+        # Actual x comes from annual decisions; neither parameter enters BI.
+        parameter_bounds.pop("social_norm_factor")
+        parameter_bounds.pop("kappa")
     return {
         "num_vars": len(parameter_bounds),
         "names": list(parameter_bounds.keys()),
@@ -147,7 +168,8 @@ def build_problem(scenario_name: str) -> dict[str, Any]:
 
 
 def _oscillations_per_window(metrics: dict[str, Any], simulation_time: float) -> float:
-    if simulation_time <= 0:
+    # Use the same complete-cycle requirement as oscillation_occurrence.
+    if simulation_time <= 0 or metrics["n_oscillations"] < OSCILLATION_MIN_COMPLETE_CYCLES:
         return 0.0
     return float(metrics["n_oscillations"]) * OSCILLATION_WINDOW_YEARS / float(simulation_time)
 
@@ -155,37 +177,43 @@ def _oscillations_per_window(metrics: dict[str, Any], simulation_time: float) ->
 def _prepare_sensitivity_outputs(metrics: dict[str, Any], simulation_time: float) -> dict[str, float]:
     time_to_elimination = float(metrics["time_to_elimination"])
     if not np.isfinite(time_to_elimination):
-        time_to_elimination = float(simulation_time) + ELIMINATION_CENSOR_OFFSET
-
-    oscillation_amplitude = float(metrics["oscillation_amplitude"])
-    if not np.isfinite(oscillation_amplitude):
-        oscillation_amplitude = 0.0
-
-    damping_index = float(metrics["damping_index"])
-    if not np.isfinite(damping_index):
-        damping_index = 0.0
+        time_to_elimination = 0.0  # Kennzeichnung für nie erreichte Elimination; keine Ereigniszeit.
 
     return {
-        "final_x": float(metrics["final_x"]),
+        # "final_x": float(metrics["final_x"]),
+        "x_mean": float(metrics["x_mean"]),
         "final_temperature": float(metrics["final_temperature"]),
         "cumulative_emissions": float(metrics["cumulative_emissions"]),
-        "time_to_elimination_censored": time_to_elimination,
-        "oscillation_amplitude": oscillation_amplitude,
+        "first_time_x95": time_to_elimination,
+        "bool_x95": bool(metrics["bool_x95"]),
+        "oscillation_occurrence": bool(metrics["n_oscillations"] >= OSCILLATION_MIN_COMPLETE_CYCLES),
+        # "oscillation_amplitude": float(metrics["oscillation_amplitude"]),
         "oscillations_per_500_years": _oscillations_per_window(metrics, simulation_time),
-        "damping_index": damping_index,
+        # "damping_index": float(metrics["damping_index"]),
     }
+
+
+def _resolve_sample_parameters(scenario_params, parameter_names, sample):
+    """Use the same effective inputs in simulations and diagnostic records."""
+    params = dict(scenario_params)
+    params.update(dict(zip(parameter_names, sample)))
+    if params["ABM"]:
+        # Sobol draws are continuous; peer counts use the nearest integer.
+        params["network_size"] = int(np.rint(params["network_size"]))
+    return resolve_parameters(params)
 
 
 def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
     scenario_params, parameter_names, sample, config = job
-    params = dict(scenario_params)
-    params.update(dict(zip(parameter_names, sample)))
+    params = _resolve_sample_parameters(scenario_params, parameter_names, sample)
     result = simulate(
         extension=params,
         simulation_time=config.simulation_time,
+        n_agents=ABM_AGENT_COUNT,
         seed=config.seed,
         coupling_interval=config.coupling_interval,
         output_points_per_year=config.output_points_per_year,
+        constant_temperature_costs=config.constant_temperature_costs,
         verbose=False,
     )
     metrics = compute_run_metrics(result, params)
@@ -210,7 +238,7 @@ def _run_tracked_sample(
         return _run_sample(job)
     scenario_params, parameter_names, sample, config = job
     overrides = {name: float(value) for name, value in zip(parameter_names, sample)}
-    parameters = {**scenario_params, **overrides}
+    parameters = _resolve_sample_parameters(scenario_params, parameter_names, sample)
     diagnostics_dir.mkdir(parents=True, exist_ok=True)
     log_path = diagnostics_dir / f"{phase}_{sample_index:06d}.jsonl"
     started_at = datetime.now().astimezone().isoformat(timespec="milliseconds")
@@ -312,7 +340,7 @@ def _record_timeout(task, outcome):
         "sample_index": index if phase == "sample" else None,
         "boundary_index": index if phase == "boundary" else None,
         "boundary_parameter": boundary_parameter,
-        "parameters": {**base_params, **overrides}, "sampled_parameters": overrides,
+        "parameters": _resolve_sample_parameters(base_params, names, sample), "sampled_parameters": overrides,
         "config": vars(config), **outcome,
         "finished_at": datetime.now().astimezone().isoformat(timespec="milliseconds"),
         "timeout_minutes": config.sample_timeout_minutes,
@@ -358,6 +386,8 @@ def run_samples(
                                      f"{outcome['error_message']}\n{outcome['traceback']}")
                 parameters = {**scenario_params, **dict(zip(problem["names"],
                                                            map(float, samples[index])))}
+                if parameters.get("ABM", False):
+                    parameters["network_size"] = int(np.rint(parameters["network_size"]))
                 _write_failed_sample(failure_path, index, error, parameters)
                 # Recover only from known numerical integration failures.
                 # Programming errors and interruptions must remain visible/fatal.
@@ -460,13 +490,20 @@ def analyze_outputs(
                 )
             continue
 
-        result = sobol.analyze(
-            problem,
-            values,
-            calc_second_order=False,
-            print_to_console=False,
-            seed=seed,
-        )
+        # SALib bootstraps confidence intervals by resampling A/B blocks. Rare
+        # outputs can produce a constant bootstrap sample, for which SALib
+        # correctly returns undefined intervals but currently emits a noisy
+        # RuntimeWarning during the zero-variance division. The undefined
+        # values are retained and reported through analysis_status.json below.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module=r"SALib\.analyze\.sobol")
+            result = sobol.analyze(
+                problem,
+                values,
+                calc_second_order=False,
+                print_to_console=False,
+                seed=seed,
+            )
         for index, parameter_name in enumerate(problem["names"]):
             rows.append(
                 {
@@ -512,9 +549,6 @@ def run_sensitivity_analysis(
     scenarios = load_scenarios()
     if scenario_name not in scenarios:
         raise KeyError(f"Unknown scenario: {scenario_name}")
-    if scenarios[scenario_name].get("ABM", False):
-        raise ValueError("The agent-based scenario is excluded from this Sobol analysis for now.")
-
     problem = build_problem(scenario_name)
     scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
     scenario_dir.mkdir(parents=True, exist_ok=True)
@@ -551,6 +585,10 @@ def run_sensitivity_analysis(
         "analysis_status.json",
         "sample_inclusion.csv",
         "simulation_status.csv",
+        "ranking_balken_gruppen_gesamt.png",
+        "ranking_balken_gruppen_gesamt.svg",
+        "ranking_balken_zielvariablen.png",
+        "ranking_balken_zielvariablen.svg",
     ):
         path = scenario_dir / filename
         if path.exists():
@@ -673,6 +711,12 @@ def run_sensitivity_analysis(
         "coupling_interval": config.coupling_interval,
         "output_points_per_year": config.output_points_per_year,
         "score_mode": config.score_mode,
+        "constant_temperature_costs": config.constant_temperature_costs,
+        "temperature_response_definition": (
+            "f_T(T) = 1; behavioural contribution = temperature_factor"
+            if config.constant_temperature_costs else
+            "f_T(T) = f_max / (1 + exp(-omega * (T - T_c)))"
+        ),
         "parameters_file": "parameters.json",
         "diagnostics": diagnostics_info,
         "sample_timeout_minutes": config.sample_timeout_minutes,
@@ -683,10 +727,33 @@ def run_sensitivity_analysis(
         "simulation_success_output": SIMULATION_SUCCESS_OUTPUT,
         "parameter_reconstruction_note": (
             "Reconstruct each model input as parameters.json updated with the "
-            "sample-specific values from samples.csv for the same sample_index."
+            "sample-specific values from samples.csv for the same sample_index. "
+            "Pass constant_temperature_costs from this metadata as a simulate() argument."
         ),
-        "elimination_censor_offset": ELIMINATION_CENSOR_OFFSET,
+        "elimination_time_definition": {
+            "method": "zero_if_not_reached",
+            "threshold": ELIMINATION_THRESHOLD,
+            "event": "First time x >= threshold, even if x later decreases.",
+            "observation_horizon": config.simulation_time,
+            "non_event_value": 0.0,
+            "event_indicator": "bool_x95",
+            "raw_time": "time_to_elimination (NaN if the threshold is never reached).",
+            "sobol_output": "first_time_x95 (0 if never reached; otherwise first threshold time).",
+        },
+        "x_mean_definition": "Time-weighted mean over the whole simulated interval: integral(x dt)/(t_end-t_start).",
         "oscillation_window_years": OSCILLATION_WINDOW_YEARS,
+        "oscillations_per_500_years_definition": {
+            "minimum_complete_cycles": OSCILLATION_MIN_COMPLETE_CYCLES,
+            "method": "zero_below_minimum_otherwise_scaled_complete_cycle_count",
+            "formula": "n_oscillations * 500 / simulation_time if oscillation_occurrence else 0",
+        },
+        "oscillation_occurrence_definition": {
+            "minimum_complete_cycles": OSCILLATION_MIN_COMPLETE_CYCLES,
+            "evaluation_window": "Entire simulated interval, including the prescribed historical period.",
+            "minimum_peak_to_trough_swing": "max(0.02, 0.05 * (max(x) - min(x))) over the evaluation window.",
+            "complete_cycle": "Two consecutive qualifying peak/trough half-cycles; interrupted half-cycles are not paired.",
+            "encoding": "1 if at least two complete cycles are detected, otherwise 0.",
+        },
         "zero_boundary_parameters": (
             boundary_cases["boundary_parameter"].tolist()
             if not boundary_cases.empty
@@ -703,6 +770,14 @@ def run_sensitivity_analysis(
         "output_groups": OUTPUT_GROUPS,
         "top_2_parameters": ranking.head(2)["parameter"].tolist(),
     }
+    if base_params["ABM"]:
+        metadata["agent_initialization"] = {
+            "n_agents": ABM_AGENT_COUNT,
+            "seed": config.seed,
+            "mode": "fixed_seed_for_all_samples",
+            "interpretation": "Sobol indices are conditional on this initialization seed; no averaging over seeds.",
+            "network_size_transform": "Nearest integer via numpy.rint; samples.csv retains the original draw, diagnostics record the effective integer.",
+        }
     with (scenario_dir / "metadata.json").open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, ensure_ascii=False)
 
@@ -735,6 +810,10 @@ def parse_args() -> argparse.Namespace:
         help="Stored solver evaluation points per simulated year.",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--constant-temperature-costs", action="store_true",
+        help="Use f_T(T)=1 in all ODE/agent decisions, scaled by temperature_factor; climate still evolves.",
+    )
     parser.add_argument("--sample-timeout-minutes", type=float, default=20.0,
                         help="Wall-clock limit per simulation, including boundary checks (default: 20 minutes).")
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
@@ -805,13 +884,27 @@ def _scenario_directory(run_root: Path, scenario_name: str) -> Path:
     return run_root / scenario_name.replace("/", "_").replace(" ", "_")
 
 
-def _validate_append_scenarios(run_root: Path, scenario_names) -> None:
+def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_temperature_costs=False) -> None:
     for scenario_name in scenario_names:
         scenario_dir = _scenario_directory(run_root, scenario_name)
         if scenario_dir.exists() and any(scenario_dir.iterdir()):
             raise FileExistsError(
                 f"Scenario results already exist and will not be overwritten: {scenario_dir}"
             )
+    for metadata_path in run_root.glob("*/metadata.json"):
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if (metadata.get("outputs_for_ranking") != SENSITIVITY_OUTPUTS
+                or metadata.get("elimination_time_definition", {}).get("method") != "zero_if_not_reached"
+                or metadata.get("oscillations_per_500_years_definition", {}).get("minimum_complete_cycles")
+                != OSCILLATION_MIN_COMPLETE_CYCLES
+                or metadata.get("oscillations_per_500_years_definition", {}).get("method")
+                != "zero_below_minimum_otherwise_scaled_complete_cycle_count"):
+            raise ValueError("Existing sensitivity results use different output definitions. "
+                             "Start a new result folder for the current sensitivity targets.")
+        # Runs saved before this optional flag always used the sigmoid.
+        if metadata.get("constant_temperature_costs", False) != constant_temperature_costs:
+            raise ValueError("Existing sensitivity results use a different constant-temperature-costs mode. "
+                             "Use the same flag or start a new result folder.")
 
 
 def main() -> None:
@@ -837,6 +930,7 @@ def main() -> None:
         output_points_per_year=args.output_points_per_year,
         score_mode=args.score_mode,
         sample_timeout_minutes=args.sample_timeout_minutes,
+        constant_temperature_costs=args.constant_temperature_costs,
     )
 
     if args.append_existing_folder is not None:
@@ -845,7 +939,8 @@ def main() -> None:
             raise FileNotFoundError(
                 f"Requested run folder does not exist: {run_root}"
             )
-        _validate_append_scenarios(run_root, scenario_names)
+        _validate_append_scenarios(run_root, scenario_names,
+                                   constant_temperature_costs=config.constant_temperature_costs)
     else:
         timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
         run_root = args.output_root / timestamp
@@ -872,6 +967,8 @@ def _run_scenarios(scenario_names, run_root, config, overwrite_existing=True):
         flush=True,
     )
     overall_started_at = monotonic()
+    print("Temperature response: " + ("f_T(T) = 1 (constant), scaled by temperature_factor."
+          if config.constant_temperature_costs else "standard temperature-dependent sigmoid."), flush=True)
     for scenario_index, scenario_name in enumerate(scenario_names, start=1):
         scenario_started_at = monotonic()
         print(
@@ -898,8 +995,13 @@ def _run_scenarios(scenario_names, run_root, config, overwrite_existing=True):
             index=False,
             sep=";",
         )
-    from sensitivity_plots import create_goal_variable_violin_boxplots
+    from sensitivity_plots import (
+        create_goal_variable_violin_boxplots,
+        create_parameter_ranking_barplots,
+    )
 
+    ranking_plot_paths = create_parameter_ranking_barplots(run_root)
+    print(f"Created {len(ranking_plot_paths)} ranking plot file(s), including the combined SVG overview.", flush=True)
     plot_paths = create_goal_variable_violin_boxplots(run_root, SENSITIVITY_OUTPUTS)
     print(f"Created {len(plot_paths)} goal-variable violin-boxplot(s).", flush=True)
     print(

@@ -134,7 +134,9 @@ def plot_x(include_scenarios=None, exclude_scenarios=None, results=None, show_x_
     scenario_parameters = load_scenarios()
 
     for scenario_name, result in results.items():
-        ax.plot(result.t + TIME_ZERO_YEAR, result.x, label=scenario_name)
+        is_agent = scenario_parameters.get(scenario_name, {}).get("ABM", False)
+        ax.plot(result.t + TIME_ZERO_YEAR, result.x, label=scenario_name,
+                drawstyle="steps-post" if is_agent else "default")
         if show_x_auxiliary and _is_dynamic_social_norm(scenario_parameters.get(scenario_name, {})):
             ax.plot(result.t + TIME_ZERO_YEAR, result.x_p, linestyle="--", label=f"{scenario_name} x_p")
         if show_x_auxiliary and _is_dynamic_social_norm(scenario_parameters.get(scenario_name, {})):
@@ -183,7 +185,8 @@ def plot_x_sensitivity(
                 simulate_only_x=simulate_only_x,
             )["simulation"]
             label = f"{parameter_name}={parameter_value}"
-            ax.plot(result.t + TIME_ZERO_YEAR, result.x, label=label)
+            ax.plot(result.t + TIME_ZERO_YEAR, result.x, label=label,
+                    drawstyle="steps-post" if run_params.get("ABM", False) else "default")
 
             if show_x_auxiliary and _is_dynamic_social_norm(run_params):
                 ax.plot(result.t + TIME_ZERO_YEAR, result.x_p, linestyle="--", label=f"{label} x_p")
@@ -389,11 +392,16 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         if params is None:
             params = resolve_parameters(scenario_name)
         color = ax._get_lines.get_next_color()
+        stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
         if not np.all(np.isnan(series)):
-            ax.plot(time, params["social_norm_factor"] * series, color=color,
-                    label=f"{scenario_name}: social norm", linestyle="-")
-        ax.plot(time, np.full(len(time), params["beta"]), color=color,
-                linestyle=":", label=f"{scenario_name}: beta (cost threshold)")
+            norm_scale = 1.0 if stepwise else params["social_norm_factor"]
+            ax.plot(time, norm_scale * series, color=color,
+                    label=f"{scenario_name}: social norm", linestyle="-",
+                    drawstyle="steps-post" if stepwise else "default")
+        threshold = params["beta"] + params["psi"] if stepwise else params["beta"]
+        cost_label = "expected mean cost + action threshold" if stepwise else "beta (cost threshold)"
+        ax.plot(time, np.full(len(time), threshold), color=color,
+                linestyle=":", label=f"{scenario_name}: {cost_label}")
 
         _, f_T_series = _extract_series(result, "f_T")
         if f_T_series is None:

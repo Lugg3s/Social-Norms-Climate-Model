@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#254f40">
+  <meta name="description" content="Dein Arbeitsbuch für die qualitative Interpretation sozialer Normen am Beispiel wiederverwendbarer Becher.">
+  <title>Normen-Werkbuch · Reusable Cups</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="model-data.js" defer></script>
+  <script src="papers.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a href="#main" class="skip-link">Zum Arbeitsbereich</a>
+  <aside class="sidebar" id="sidebar" aria-label="Normenübersicht">
+    <a class="brand" href="#baseline"><img src="icon.svg" width="40" height="40" alt=""><span>Normen<span class="brand-sub">Das qualitative Werkbuch</span></span></a>
+    <div class="nav-caption">DEINE ZEHN NORMEN</div>
+    <label class="search-wrap"><span class="sr-only">Norm suchen</span><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Norm suchen …" autocomplete="off"></label>
+    <nav id="norm-nav" aria-label="Norm wählen"></nav>
+    <div class="sidebar-bottom"><span class="tiny-dot"></span> Raum für deine eigenen Gedanken<span class="sidebar-footnote">Die Deutungsfelder starten leer.</span></div>
+  </aside>
+  <button class="nav-shade" id="nav-shade" aria-label="Navigation schließen" hidden></button>
+  <div class="workspace">
+    <header class="topbar">
+      <button id="menu-toggle" class="button mobile-menu" aria-controls="sidebar" aria-expanded="false">☰ Normen</button>
+      <div id="save-state" class="save-state" role="status" aria-live="polite"><span class="tiny-dot"></span><span id="save-label">Im Browser gespeichert</span></div>
+      <div class="actions"><button id="import-button" class="button">Sicherung laden</button><button id="export-markdown" class="button">Als Text</button><button id="export-json" class="button primary">Sicherung speichern <span aria-hidden="true">↗</span></button></div>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+    </header>
+    <main id="main" class="main">
+      <div class="notice" id="notice" role="status" hidden></div>
+      <section class="case-card" aria-labelledby="case-title">
+        <div class="case-icon" aria-hidden="true"><img src="icon.svg" width="50" height="50" alt=""></div>
+        <div class="case-copy"><div class="eyebrow">EIN GEMEINSAMES GEDANKENEXPERIMENT</div><h2 id="case-title">LoopCup geht in den Markt.</h2><p>Eine Firma, wiederverwendbare Becher und ein Markt im Wandel. Du untersuchst jede Norm am selben Beispiel.</p>
+        <details class="case-details"><summary>Beispiel lesen &amp; anpassen <span aria-hidden="true">↗</span></summary><label for="case-study" class="sr-only">Gemeinsames fiktives Beispiel</label><textarea id="case-study" rows="7"></textarea></details></div>
+        <span class="case-tag">REUSABLE CUPS</span>
+      </section>
+      <div id="norm-content"></div>
+      <footer class="page-footer"><span>Deine Notizen werden in diesem Browser gespeichert. Eine Sicherungsdatei kannst du auf einem anderen Gerät wieder laden.</span><span>Normen-Werkbuch · LoopCup</span></footer>
+    </main>
+  </div>
+  <dialog id="import-dialog"><form method="dialog"><div class="eyebrow">SICHERUNG LADEN</div><h2>Deine Notizen wiederherstellen?</h2><p>Die aktuelle Sammlung wird durch die Notizen aus der gewählten Datei ersetzt. Speichere deine aktuelle Sammlung vorher als Sicherung, wenn du sie behalten möchtest.</p><div class="dialog-actions"><button value="cancel" class="button">Abbrechen</button><button value="import" class="button primary">Sicherung übernehmen</button></div></form></dialog>
+</body>
+</html>

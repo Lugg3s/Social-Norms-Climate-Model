@@ -9,3 +9,4 @@ imageio-ffmpeg
 IPython
 ipykernel
 SALib
+scikit-learn>=1.5

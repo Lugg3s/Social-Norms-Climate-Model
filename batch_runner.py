@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from model_equations import SimulationResult, load_scenarios, simulate
+from model_equations import DELAY_NORMS, SimulationResult, load_scenarios, resolve_parameters, simulate
 from simulation_metrics import (
     compute_metrics_from_saved_time_series,
     compute_oscillation_metrics,
@@ -59,9 +59,9 @@ TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 
 STRENGTH_VALUES = [0, 0.1, 0.3, 1, 3, 10, 30, 100]
 POSITIVE_TIME_VALUES = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
-DELAY_VALUES = [0, 0.5, 1, 2, 5, 10, 25, 50, 100]
-THETA_VALUES = [0, *POSITIVE_TIME_VALUES]
-BELIEF_VALUES = [0, 0.1, 0.3, 0.5, 1, 2, 3]
+DELAY_VALUES = [0.5, 1, 2, 5, 10, 25, 50, 100]
+RHO_VALUES = [1.1, 1.5, 2, 3, 5, 10]  # theta = tau*rho > tau.
+BELIEF_VALUES = [-1, -0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5, 1]  # Signed N; zero is neutral.
 APPROVAL_VALUES = [0, 0.1, 0.25, 0.5, 1, 2, 3]
 
 
@@ -83,7 +83,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     scenarios=["Observation-based / intention motivation (agents)"],
     #     sweep_parameters={
     #         "network_size": [2, 5, 10, 20, 50, 100, 150, 200],
-    #         "agent_susceptibility": X0_SWEEP_VALUES,
+    #         "eta": [0.0, 0.25, 0.5, 2/3, 1.0],
     #     },
     # ),
 
@@ -91,14 +91,13 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     # ExperimentGroup(
     #     name="observation_based_imitation",
     #     scenarios=["baseline"],
-    #     sweep_parameters={"delta": STRENGTH_VALUES},
+    #     sweep_parameters={"social_norm_factor": STRENGTH_VALUES},
     # ),
     # ExperimentGroup(
     #     name="dynamic_social_norm",
     #     scenarios=["Dynamic social norm"],
     #     sweep_parameters={
     #         "tau_ref": POSITIVE_TIME_VALUES,
-    #         "tau_STref": POSITIVE_TIME_VALUES,
     #         "tau_xp": POSITIVE_TIME_VALUES,
     #     },
     # ),
@@ -111,12 +110,12 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     # ExperimentGroup(
     #     name="observation_based_approval_punish_one",
     #     scenarios=["Observation based / approval (punish only one behaviour)"],
-    #     sweep_parameters={"alpha": APPROVAL_VALUES},
+    #     sweep_parameters={"social_norm_factor": APPROVAL_VALUES},
     # ),
     # ExperimentGroup(
     #     name="static_injunctive",
     #     scenarios=["Static injunctive"],
-    #     sweep_parameters={"c_inj": STRENGTH_VALUES, "x_target": X0_SWEEP_VALUES},
+    #     sweep_parameters={"social_norm_factor": STRENGTH_VALUES, "x_target": X0_SWEEP_VALUES},
     # ),
     # ExperimentGroup(
     #     name="descriptive_injunctive_dynamic",
@@ -139,13 +138,13 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     scenarios=["Injunctive, dynamic2"],
     #     sweep_parameters={
     #         "tau": DELAY_VALUES,
-    #         "theta": THETA_VALUES,
+    #         "rho": RHO_VALUES,
     #     },
     # ),
     # ExperimentGroup(
     #     name="dynamic_social_norm2",
     #     scenarios=["dynamic social norm2"],
-    #     sweep_parameters={"tau": DELAY_VALUES, "theta": THETA_VALUES},
+    #     sweep_parameters={"tau": DELAY_VALUES, "rho": RHO_VALUES},
     # ),
 
 
@@ -205,12 +204,11 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     ],
     #     static_parameters={
     #         "tau_ref": 2,
-    #         "tau_STref": 2,
     #         "tau_xp": 2,
     #     },
     #     sweep_parameters={
     #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": (np.round(np.arange(0, 10.1, 0.5), 1) / 2).tolist(),
     #     },
     # ),
     # ExperimentGroup(
@@ -220,12 +218,11 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     ],
     #     static_parameters={
     #         "tau_ref": 5,
-    #         "tau_STref": 5,
     #         "tau_xp": 5,
     #     },
     #     sweep_parameters={
     #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
-    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": (np.round(np.arange(0, 10.1, 0.5), 1) / 5).tolist(),
     #     },
     # ),
     # ExperimentGroup(
@@ -239,46 +236,53 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     },
     # ),    
     # ExperimentGroup(
-    #     name="Descriptive_injunctive_dynamic2_theta_tau",
+    #     name="Descriptive_injunctive_dynamic2_rho_tau",
     #     scenarios=[
     #         "Descriptive, injunctive, dynamic2"
     #     ],
     #     sweep_parameters={
-    #         "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
-    #         "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #         "rho": RHO_VALUES,
+    #         "tau": TAU_SWEEP_VALUES,
     #     },
     # ),    
     # ExperimentGroup(
-    #         name="dynamic_social_norm2_theta_tau",
+    #         name="dynamic_social_norm2_rho_tau",
     #         scenarios=[
     #             "Descriptive, injunctive, dynamic2"
     #         ],
     #         sweep_parameters={
-    #             "theta": np.round(np.arange(0, 10.1, 1), 1).tolist(),
-    #             "tau": np.round(np.arange(0, 10.1, 1), 1).tolist(),
+    #             "rho": RHO_VALUES,
+    #             "tau": TAU_SWEEP_VALUES,
     #         },
     #     ),     
     # ExperimentGroup(
-    #     name="Static_injunctive_sensitivity",
+    #     name="combined_injunctive_sensitivity",
     #     scenarios=[
-    #         "Static injunctive",
     #         "Descriptive, injunctive, dynamic"
     #     ],
     #     sweep_parameters={
     #         "x_target": [0.1, 0.5, 0.8],
     #         "c_inj": np.round(np.arange(0, 10.1, 2), 1).tolist(),
-    #         "c_dyn": np.round(np.arange(0, 10.1, 2), 1).tolist(),
-    #         "tau_STref": [0.5, 4],
+    #         "c_dyn": sorted({value / scale for value in np.round(np.arange(0, 10.1, 2), 1) for scale in [0.5, 4]}),
     #         "tau_xp": [0.5, 4],
     #         "tau_ref": [0.5, 4],
     #     },
     # ),
     # ExperimentGroup(
-    #     name="dynamic_norm_trend",          # interessanter Verlauf für dynamic baseline bei tau_ref = 4, tau_STref = 0.5, tau_xp = 4
-    #     scenarios=["Dynamic social norm", "Dynamic baseline"],
+    #     name="dynamic_norm_trend",
+    #     scenarios=["Dynamic social norm"],
     #     sweep_parameters={
     #         "tau_ref": TAU_SWEEP_VALUES,
-    #         "tau_STref": TAU_SWEEP_VALUES,
+    #         "social_norm_factor": [1 / value for value in TAU_SWEEP_VALUES],
+    #         "tau_xp": TAU_SWEEP_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_baseline_trend",      # interesting at tau_ref=4, c_dyn=2, tau_xp=4
+    #     scenarios=["Dynamic baseline"],
+    #     sweep_parameters={
+    #         "tau_ref": TAU_SWEEP_VALUES,
+    #         "c_dyn": [1 / value for value in TAU_SWEEP_VALUES],
     #         "tau_xp": TAU_SWEEP_VALUES,
     #     },
     # ),
@@ -290,22 +294,23 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     name="Belief-based / intention motivation",
     #     scenarios=["Belief-based / intention motivation"],
     #     sweep_parameters={
-    #         "N": [0, 0.05, 0.1, 0.2, 0.5],
+    #         "N": BELIEF_VALUES,
     #     },
     # ),      
     # ExperimentGroup(
     #     name="approval_sensitivity",
     #     scenarios=["Observation based / approval (punish only one behaviour)"],
     #     sweep_parameters={
-    #         "alpha": [0.25, 0.5, 1, 2, 4],         # sobald alpha * x0 > 1 steigt x initial
+    #         "social_norm_factor": [0.25, 0.5, 1, 2, 4],
     #     },
     # ),
     # ExperimentGroup(
     #     name="agent_based_intention",
     #     scenarios=["Observation-based / intention motivation (agents)"],
     #     sweep_parameters={
-    #         "threshold": [0.001, 0.01, 0.05, 0.1],
-    #         "agent_susceptibility": [0.2, 0.5, 0.8, 1.0],
+    #         "phi": [0.25, 0.5, 0.75],
+    #         "eta": [0.0, 0.25, 0.5, 2/3, 1.0],
+    #         "psi": [0.0, 0.25, 0.5],
     #         "network_size": [20, 50, 100, 200],
     #     },
     #     n_agents=1000,
@@ -339,7 +344,7 @@ KEY_METRICS = [
     "final_social_norm",
     "max_social_norm",
     "min_social_norm",
-    "threshold_reached",
+    "bool_x95",
     "time_to_elimination",
     "elimination_success",
     "cumulative_emissions",
@@ -504,6 +509,10 @@ def simulation_to_dataframe(result: dict[str, Any], params: dict[str, Any]) -> p
             ),
         }
     )
+    if "agent_history" in result:
+        history = result["agent_history"]
+        indices = np.searchsorted(history["t"], simulation.t, side="right") - 1
+        frame["mean_intention"] = history["behavioral_intention"].mean(axis=1)[indices]
     return frame
 
 
@@ -570,7 +579,8 @@ def save_x_plot(
     frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
 ) -> None:
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.plot(frame["year"], frame["x"], label="x")
+    ax.plot(frame["year"], frame["x"], label="x",
+            drawstyle="steps-post" if params.get("agent_decision_model") == "annual_intention_threshold" else "default")
     ax.set_xlabel("Time (year)")
     ax.set_ylabel("Fraction of mitigators (X)")
     ax.set_xlim(1900, float(frame["year"].iloc[-1]))
@@ -593,7 +603,17 @@ def save_x_phase_space_plot(
     if t_values.size < 2 or np.any(np.diff(t_values) <= 0):
         return
 
-    dx_dt = np.gradient(x_values, t_values)
+    stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
+    if stepwise:
+        # An instantaneous jump has no finite dx/dt. Plot annual differences
+        # instead of output-grid-dependent gradient spikes.
+        years_mask = t_values == np.floor(t_values)
+        t_values, x_values = t_values[years_mask], x_values[years_mask]
+        if t_values.size < 2:
+            return
+        dx_dt = np.concatenate(([0.0], np.diff(x_values) / np.diff(t_values)))
+    else:
+        dx_dt = np.gradient(x_values, t_values)
     years = TIME_ZERO_YEAR + t_values
 
     fig, ax = plt.subplots(figsize=(10, 7))
@@ -613,7 +633,7 @@ def save_x_phase_space_plot(
     ax.scatter(dx_dt[0], x_values[0], color="green", marker="o", s=55, label="Start", zorder=3)
     ax.scatter(dx_dt[-1], x_values[-1], color="red", marker="X", s=65, label="End", zorder=3)
     ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
-    ax.set_xlabel("Rate of change dx/dt")
+    ax.set_xlabel("Annual change in x" if stepwise else "Rate of change dx/dt")
     ax.set_ylabel("Fraction of mitigators x(t)")
     ax.set_ylim(-0.1, 1.1)
     ax.set_title(f"{run_label} | Phase space")
@@ -634,11 +654,15 @@ def save_social_norm_plot(
     series = frame["social_norm_term"].to_numpy(dtype=float)
     if np.all(np.isnan(series)):
         series = np.zeros_like(series)
-    ax.plot(frame["year"], params["social_norm_factor"] * series,
-            label="Social norm", linestyle="-")
+    stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
+    norm_scale = 1.0 if stepwise else params["social_norm_factor"]
+    ax.plot(frame["year"], norm_scale * series, label="Social norm", linestyle="-",
+            drawstyle="steps-post" if stepwise else "default")
     ax.plot(frame["year"], params["temperature_factor"] * frame["f_T"],
             label="Temperature benefit", linestyle="--")
-    ax.axhline(params["beta"], label="Beta (cost threshold)", linestyle=":", color="black")
+    threshold = params["beta"] + params["psi"] if stepwise else params["beta"]
+    ax.axhline(threshold, label="Expected mean cost + action threshold" if stepwise else "Beta (cost threshold)",
+               linestyle=":", color="black")
     ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
     ax.set_xlabel("Time (year)")
     ax.set_ylabel("Contribution to mitigation incentive")
@@ -697,12 +721,15 @@ def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_paramete
     frame = simulation_to_dataframe(result, resolved_params)
     frame.to_csv(run_dir / "time_series.csv", index=False, sep=";")
     save_json(run_dir / "parameters.json", resolved_params)
+    if "agent_history" in result:
+        np.savez_compressed(run_dir / "agent_history.npz", **result["agent_history"])
     save_json(
         run_dir / "metadata.json",
         {
             "run_label": run_label,
             "parameters_file": "parameters.json",
             "metrics": metrics,
+            **({"agent_history_file": "agent_history.npz"} if "agent_history" in result else {}),
         },
     )
     save_temperature_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
@@ -724,6 +751,8 @@ def save_run_time_series_only(run_dir: Path, params: dict[str, Any], result: dic
         sep=";",
     )
     save_json(run_dir / "parameters.json", resolved_params)
+    if "agent_history" in result:
+        np.savez_compressed(run_dir / "agent_history.npz", **result["agent_history"])
 
 
 def append_failure_record(run_dir: Path, run_label: str, error: Exception) -> None:
@@ -749,7 +778,11 @@ def run_single_combination(
     current_run: int | None = None,
     total_runs: int | None = None,
 ) -> dict[str, Any]:
-    params = {**base_params, **group.fixed_overrides, **group.static_parameters, **sweep_values}
+    if any("theta" in overrides for overrides in
+           (group.fixed_overrides, group.static_parameters, sweep_values)):
+        raise ValueError("theta is derived for Dynamic2; sweep tau and rho instead.")
+    params = resolve_parameters({**base_params, **group.fixed_overrides,
+                                 **group.static_parameters, **sweep_values})
     run_name = create_run_name(scenario_name, sweep_values)
     run_dir = run_root / sanitize_name(group.name) / sanitize_name(scenario_name) / run_name
     ensure_directory(run_dir)
@@ -761,6 +794,26 @@ def run_single_combination(
         required_columns = {"t", "T", "x", "social_norm_term", "f_T"}
         if required_columns.issubset(existing_frame.columns):
             saved_params = load_json(parameters_path)
+            if params.get("social_norm") in DELAY_NORMS:
+                if ("rho" not in saved_params
+                        or any(saved_params.get(key) != params[key] for key in ("tau", "rho", "theta"))):
+                    raise ValueError("Saved Dynamic2 results use different tau/rho/theta parameters. "
+                                     "Use a new output directory or explicitly enable overwrite.")
+            if params.get("ABM", False) and saved_params.get("agent_decision_model") != "annual_intention_threshold":
+                raise ValueError("Saved agent results use the replaced model. Use a new "
+                                 "output directory or explicitly enable overwrite.")
+            if params.get("ABM", False):
+                if not {"eta", "phi", "psi"}.issubset(saved_params):
+                    raise ValueError("Saved agent parameters use outdated names. "
+                                     "Use a new output directory or enable overwrite.")
+                history_path = run_dir / "agent_history.npz"
+                if not history_path.exists():
+                    raise ValueError("Saved agent results lack the separate BI/actual-behaviour "
+                                     "history. Use a new output directory or enable overwrite.")
+                with np.load(history_path) as history:
+                    if not {"behavioral_intention", "actual_behavior"}.issubset(history.files):
+                        raise ValueError("Saved agent history uses outdated field names. "
+                                         "Use a new output directory or enable overwrite.")
             existing_metrics = compute_metrics_from_saved_time_series(
                 existing_frame,
                 params=saved_params,
@@ -1017,7 +1070,12 @@ def save_overlaid_time_series_plot(
             for p in sweep_parameters
             if p in record.index
         ) or str(record.get("scenario", "run"))
-        ax.plot(frame["year"], values, label=label)
+        parameters_path = Path(run_dir) / "parameters.json"
+        params = load_json(parameters_path) if parameters_path.exists() else {}
+        stepwise = (params.get("agent_decision_model") == "annual_intention_threshold"
+                    and metric_name in {"x", "social_norm_term", "mean_intention"})
+        ax.plot(frame["year"], values, label=label,
+                drawstyle="steps-post" if stepwise else "default")
         plotted_lines += 1
         maximum_value = max(maximum_value, float(values.max()))
         last_year = float(frame["year"].iloc[-1])
@@ -1278,7 +1336,7 @@ def build_scenario_comparison_table(all_runs: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for scenario_name, scenario_runs in usable.groupby("scenario", sort=False):
         success = scenario_runs["elimination_success"].fillna(False).astype(bool)
-        threshold_reached = scenario_runs["threshold_reached"].fillna(False).astype(bool)
+        bool_x95 = scenario_runs["bool_x95"].fillna(False).astype(bool)
         successful_runs = scenario_runs[success]
 
         final_x_mean, final_x_std = _mean_std(scenario_runs["final_x"])
@@ -1302,7 +1360,7 @@ def build_scenario_comparison_table(all_runs: pd.DataFrame) -> pd.DataFrame:
             "n_runs": int(len(scenario_runs)),
             "elimination_threshold": ELIMINATION_THRESHOLD,
             "elimination_success_rate": float(success.mean()),
-            "threshold_reached_rate": float(threshold_reached.mean()),
+            "bool_x95_rate": float(bool_x95.mean()),
             "time_to_elimination_mean_successful": time_to_elimination_mean,
             "time_to_elimination_std_successful": time_to_elimination_std,
             "final_x_mean": final_x_mean,

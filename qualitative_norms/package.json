@@ -1,0 +1,10 @@
+{
+  "name": "normen-werkbuch",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check": "node --check dist/app.js && node --check dist/model-data.js && node --check dist/papers.js",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

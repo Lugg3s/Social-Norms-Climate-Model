@@ -81,21 +81,20 @@ def _symbols_for_parameters(parameter_names: set[str]) -> dict[str, sp.Symbol]:
 def _parameter_names_for_norm(norm: str) -> set[str]:
     common = {"beta", "kappa", "temperature_factor", "f_max", "omega", "T_c", "social_norm_factor"}
     by_norm = {
-        "Observation-based / imitation": {"delta"},
-        "Observation-based / intention motivation": set(),
+        "Observation-based / imitation": set(),
         "Belief-based / intention motivation": {"N"},
-        "Observation based / approval (punish only one behaviour)": {"alpha"},
-        "dynamic social norm": {"tau_STref", "tau_ref", "tau_xp"},
-        "dynamic baseline": {"delta", "tau_STref", "tau_ref", "tau_xp"},
-        "Static injunctive": {"c_inj", "x_target"},
+        "Observation based / approval (punish only one behaviour)": set(),
+        "dynamic social norm": {"tau_ref", "tau_xp"},
+        "dynamic baseline": {"c_dyn", "tau_ref", "tau_xp"},
+        "Static injunctive": {"x_target"},
         "Descriptive, injunctive, dynamic": {
-            "delta", "c_inj", "x_target", "c_dyn", "tau_STref", "tau_ref", "tau_xp"
+            "c_inj", "x_target", "c_dyn", "tau_ref", "tau_xp"
         },
-        "dynamic social norm2": {"c_dyn", "tau", "theta"},
+        "dynamic social norm2": {"c_dyn", "tau", "rho"},
         "Descriptive, injunctive, dynamic2": {
-            "delta", "c_inj", "x_target", "c_dyn", "tau", "theta"
+            "c_inj", "x_target", "c_dyn", "tau", "rho"
         },
-        "Injunctive, dynamic2": {"c_inj", "x_target", "c_dyn", "tau", "theta"},
+        "Injunctive, dynamic2": {"c_inj", "x_target", "c_dyn", "tau", "rho"},
     }
     return common | by_norm.get(norm, set())
 
@@ -108,37 +107,38 @@ def _temperature_term(s: dict[str, sp.Symbol]) -> sp.Expr:
 
 def _social_norm_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
     if norm == "Observation-based / imitation":
-        return s["delta"] * (2 * x - 1)
+        return 2 * x - 1
     if norm == "Belief-based / intention motivation":
+        # N is real and signed, not a probability or a nonnegative magnitude.
         return s["N"]
     if norm == "Observation based / approval (punish only one behaviour)":
-        return s["alpha"] * x
+        return x
     if norm == "Static injunctive":
-        return s["c_inj"] * (s["x_target"] - x)
+        return s["x_target"] - x
     if norm == "dynamic social norm":
-        return (x_p - x_ref) / (x_ref * s["tau_STref"])
+        return (x_p - x_ref) / x_ref
     if norm == "dynamic baseline":
-        trend = (x_p - x_ref) / (x_ref * s["tau_STref"])
-        return (1 + trend) * s["delta"] * (2 * x - 1)
+        trend = s["c_dyn"] * (x_p - x_ref) / x_ref
+        return (1 + trend) * (2 * x - 1)
     if norm == "Descriptive, injunctive, dynamic":
-        dynamic = s["c_dyn"] * (x_p - x_ref) / (x_ref * s["tau_STref"])
+        dynamic = s["c_dyn"] * (x_p - x_ref) / x_ref
         return (
-            s["delta"] * (2 * x - 1)
+            (2 * x - 1)
             + s["c_inj"] * (s["x_target"] - x)
             + dynamic
         )
     if norm == "dynamic social norm2":
-        return s["c_dyn"] * (x_tau - x_tau_theta) / s["theta"]
+        return s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
     if norm == "Descriptive, injunctive, dynamic2":
         return (
-            s["delta"] * (2 * x - 1)
+            (2 * x - 1)
             + s["c_inj"] * (s["x_target"] - x)
-            + s["c_dyn"] * (x_tau - x_tau_theta) / s["theta"]
+            + s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
         )
     if norm == "Injunctive, dynamic2":
         return (
             s["c_inj"] * (s["x_target"] - x)
-            + s["c_dyn"] * (x_tau - x_tau_theta) / s["theta"]
+            + s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
         )
     raise ValueError(f"Unsupported social norm: {norm}")
 
@@ -274,7 +274,7 @@ def analyze_social_norm(norm: str, bifurcation_parameter: str = "beta") -> Socia
             bifurcation_conditions=(),
             bifurcation_equations=(),
             status="unsupported",
-            note="The agent-based social-norm term is stochastic and is not a deterministic symbolic function of x.",
+            note="Annual agent decisions depend on individual costs and neighbourhood states; there is no single replicator ODE in x to analyse.",
         )
 
     names = _parameter_names_for_norm(norm)

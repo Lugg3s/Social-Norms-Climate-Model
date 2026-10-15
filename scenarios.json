@@ -1,5 +1,6 @@
 {
     "baseline": {
+        "ABM": false,
         "social_norm": "Observation-based / imitation",
         "C_s0": 1500,
         "C_veg0": 550,
@@ -23,7 +24,6 @@
         "zeta": 50,
         "kappa": 0.05,
         "beta": 1,
-        "delta": 1,
         "H": 0.5915,
         "P_0": 1.4e+11,
         "L": 43655,
@@ -48,26 +48,25 @@
     "Dynamic social norm": {
         "social_norm": "dynamic social norm",
         "tau_ref": 2,
-        "tau_STref": 1,
         "tau_xp": 2
     },
     "Observation-based / intention motivation (agents)": {
         "ABM": true,
         "social_norm": "Observation-based / intention motivation",
         "network_size": 50,
-        "agent_susceptibility": 0.5
+        "eta": 0.5,
+        "phi": 0.6,
+        "psi": 0.6
     },
     "Belief-based / intention motivation": {
         "social_norm": "Belief-based / intention motivation",
         "N": 0.1
     },
     "Observation based / approval (punish only one behaviour)": {
-        "social_norm": "Observation based / approval (punish only one behaviour)",
-        "alpha": 1
+        "social_norm": "Observation based / approval (punish only one behaviour)"
     },
     "Static injunctive": {
         "social_norm": "Static injunctive",
-        "c_inj": 1,
         "x_target": 0.7 
     },
     "Descriptive, injunctive, dynamic": {
@@ -76,7 +75,6 @@
         "x_target": 0.7,
         "c_dyn": 1,
         "tau_ref": 1,
-        "tau_STref": 1,
         "tau_xp": 1
     },
     "Descriptive, injunctive, dynamic (transient oscillations)": {
@@ -85,7 +83,6 @@
         "c_dyn": 0.9720691684494003,
         "tau_xp": 6.275058172356088,
         "tau_ref": 22.103135311990886,
-        "tau_STref": 1.0,
         "kappa": 0.22495125981026398,
         "x_target": 0.7084647736869595
     },
@@ -95,7 +92,7 @@
         "x_target": 0.7,
         "c_dyn": 6,
         "tau": 1,
-        "theta": 1
+        "rho": 2
     },
     "Descriptive, injunctive, dynamic2 (testing)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
@@ -103,7 +100,7 @@
         "x_target": 0.48354777600616217,
         "c_dyn": 46.392013505101204,
         "tau": 31.357963476330042,
-        "theta": 0.09535451419651508,
+        "rho": 2,
         "social_norm_factor": 9.96413629502058,
         "temperature_factor": 9.521761853247881
     },
@@ -113,12 +110,12 @@
         "x_target": 0.7,
         "c_dyn": 100,
         "tau": 1,
-        "theta": 1
+        "rho": 2
     },
     "Descriptive, injunctive, dynamic2 (custom)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
         "tau": 11.57254,
-        "theta": 5.00081,
+        "rho": 2,
         "c_dyn": 3,
         "c_inj": 2,
         "x_target": 0.7
@@ -128,7 +125,7 @@
         "c_inj": 9.683160497336068,
         "c_dyn": 23.60635052690566,
         "tau": 49.20895162814507,
-        "theta": 2.111013193897135,
+        "rho": 2,
         "kappa": 0.7581846076889143,
         "x_target": 0.375687046498698
     },
@@ -138,13 +135,13 @@
         "x_target": 0.7,
         "c_dyn": 6,
         "tau": 1,
-        "theta": 1
+        "rho": 2
     },
     "dynamic social norm2": {
         "social_norm": "dynamic social norm2",
         "c_dyn": 1,
         "tau": 1,
-        "theta": 1
+        "rho": 2
     },
 
 
@@ -154,7 +151,7 @@
         "Dynamic baseline": {
             "social_norm": "dynamic baseline",
             "tau_ref": 2,
-            "tau_STref": 1,
+            "c_dyn": 1,
             "tau_xp": 2
         },
         "Observation based / approval (relative to mean)": {
@@ -165,11 +162,6 @@
             "social_norm": "Belief-based / approval",
             "sanction_term": 0.01
         },
-        "Agent-based / peer norm": {
-            "social_norm": "Agent-based / peer norm",
-            "agent_update_rate": 0.01,
-            "agent_susceptibility": 1.0
-        },
-        "free letters (baseline)": "alpha, gamma, eta, theta, iota, lambda, mu, nu, omicron, pi, rho, phi, chi, psi, upsilon."
+        "free letters (model)": "gamma, iota, lambda, mu, nu, omicron, pi, chi, upsilon."
     }
 }

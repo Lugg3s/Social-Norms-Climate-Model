@@ -332,7 +332,10 @@ def run_interesting_parameter_sets(
         scenario_name = _resolve_scenario_name(source_name, scenarios)
 
         overrides = dict(entry["parameters"])
-        params = {**resolve_parameters(scenario_name), **overrides}
+        if "theta" in overrides:
+            raise ValueError("Historical Dynamic2 theta values must be replaced by rho = theta/tau > 1; "
+                             "entries with theta <= tau are outside the current model.")
+        params = resolve_parameters({**resolve_parameters(scenario_name), **overrides})
         parameter_names = list(overrides.keys())
         run_name = f"{entry_number:03d}_{sanitize_name(scenario_name)}"
         run_dir = ensure_directory(run_root / run_name) if run_root is not None else Path(".")

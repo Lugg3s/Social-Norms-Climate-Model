@@ -1,0 +1,4 @@
+node_modules/
+qa/
+.sites-workflow/
+*.tar.gz

@@ -1,5 +1,15 @@
 # Interesting Findings
 
+# Die Formel von Observation based / approval ist ein specialcase von static injunctive mit x_target = 1
+
+# Analyse der Ergebnisse der  Sensitivitätsanalyse
+- Das Agentenmodell wurde nicht betrachtet
+- x_target ist besonders einflussreich bei den injunctive modellen
+- "Seltene Oszillationen verursachen unzuverlässige Unsicherheitsschätzungen. Deshalb sollte das bisherige Mittel über alle sieben Zielgrößen nicht als zentrale Parameterrangfolge verwendet werden." ???
+- Der Mitigationsanteil am letzten Zeitpunkt kann stark von der Schwingungsphase abhängen
+- "„Elimination“ muss genauer definiert werden: Erstes Überschreiten von 95 %, Zustand am Ende und dauerhaftes Erreichen sind unterschiedliche Fragen"
+
+
 This document collects potentially interesting findings from the social-norm climate model. It is intended as a living document and should be extended or revised as additional simulations and analyses are completed.
 
 > **Status:** Preliminary. The findings below are primarily analytical consequences of the currently implemented model equations and parameterization. They should be verified and quantified with systematic simulation experiments before being reported as empirical simulation results.
@@ -9,22 +19,22 @@ This document collects potentially interesting findings from the social-norm cli
 For the observation-based imitation norm, the social-norm term is
 
 ```text
-N_desc = delta * (2x - 1).
+N_desc = 2x - 1.
 ```
 
 The term changes sign at `x = 0.5`. Below 50% mitigation, the norm discourages mitigation; above 50%, it encourages mitigation. Thus, descriptive imitation introduces self-reinforcing majority dynamics and can potentially generate lock-in or tipping behaviour.
 
-With the current baseline `x0 = 0.3` and `delta = 1`, the initial norm term is `-0.4`, i.e. initially anti-mitigation.
+With the current baseline `x0 = 0.3` and `social_norm_factor = 1`, the initial norm term and its weighted contribution are both `-0.4`, i.e. initially anti-mitigation. The behavioural equation weights the norm term with `social_norm_factor`.
 
 ## 2. Approval and descriptive imitation can point in opposite directions
 
 The implemented approval norm uses
 
 ```text
-N_approval = alpha * x.
+N_approval = x; weighted contribution = social_norm_factor * x.
 ```
 
-For positive `alpha`, this term is non-negative for all feasible `x`. At the current baseline (`x0 = 0.3`, `alpha = 1`) it equals `0.3`, whereas descriptive imitation equals `-0.4`.
+This term is non-negative for all feasible `x`. At the current baseline (`x0 = 0.3`, `social_norm_factor = 1`) both the term and its weighted contribution equal `0.3`, whereas descriptive imitation equals `-0.4`.
 
 Consequently, two observation-based norms can predict opposite social pressure from exactly the same behavioural state. This is a structurally important difference between the norm formulations rather than merely a difference in parameter magnitude.
 
