@@ -4,14 +4,44 @@ This repository contains the computational model developed as part of a Master's
 
 ## Contents
 
-- `agent.py` — agent-based social-norm layer and peer interactions
-- `model_equations.py` — climate and behavioural model equations and scenario handling
-- `batch_runner.py` — batch simulations
+- `model/agent.py` — agent-based social-norm layer and peer interactions
+- `model/model_equations.py` — climate and behavioural model equations and scenario handling
+- `simulation/batch_runner.py` — batch simulations
 - `main.ipynb` — main notebook for running and exploring the model
-- `plotting.py` — visualisation utilities
-- `make_plot_videos.py` — generation of plot videos
-- `scenarios.json` — model parameter scenarios
-- `global.1751_2017.csv` — emissions data used by the model
+- `visualization/plotting.py` — visualisation utilities
+- `visualization/make_plot_videos.py` — generation of plot videos
+- `config/scenarios.json` — model parameter scenarios
+- `data/global.1751_2017.csv` — emissions data used by the model
+
+Model code lives in `model/`, run orchestration in `simulation/`, and numerical
+and symbolic analyses in `analysis/`. Shared infrastructure is in `utils/` and
+general plotting in `visualization/`. `config/` and `data/` contain model inputs.
+`main.ipynb` and `INTERESTING_FINDINGS.md` stay at the repository root.
+
+Tests, the qualitative workbook, profiling tools/results and supplementary
+notes are grouped in `support/`. Simulation results stay in `plots/`; explicitly
+selected external result folders are unchanged. Repository-owned input and
+default output paths are resolved centrally in `utils/paths.py`.
+
+Run these commands from the repository root:
+
+```powershell
+# Sensitivity analysis
+python -m analysis.sensitivity.sensitivity_analysis --base-sample-size 64 --workers 11
+
+# Sensitivity analysis followed by regression trees
+python -m analysis.sensitivity.sensitivity_pipeline --base-sample-size 64 --workers 11
+
+# Batch simulations and the qualitative workbook
+python -m simulation.batch_runner --help
+python support/qualitative_norms/serve.py
+
+# Python tests (including nested test packages)
+python -m unittest discover -s support/tests -t . -v
+```
+
+The pytest-style sensitivity-review tests can additionally be run with
+`python -m pytest support/tests/sensitivity/test_sensitivity_review.py`.
 
 ## Status
 
@@ -19,7 +49,7 @@ The code is part of ongoing Master's thesis research and is therefore subject to
 
 ## Reproducibility
 
-The model is implemented primarily in Python and uses NumPy, pandas, SciPy, and Jupyter notebooks. Parameter scenarios are defined in `scenarios.json`.
+The model is implemented primarily in Python and uses NumPy, pandas, SciPy, and Jupyter notebooks. Parameter scenarios are defined in `config/scenarios.json`.
 
 `load_scenarios()` loads named scenarios using the shared parameters explicitly
 configured in the JSON `baseline` block and each scenario's own values.
@@ -32,6 +62,8 @@ Missing inputs raise native `KeyError` exceptions when accessed by the model.
 To vary a parameter, start from the explicitly selected configuration:
 
 ```python
+from model.model_equations import resolve_parameters, simulate
+
 params = resolve_parameters("dynamic social norm2")
 params.update(tau=3, rho=2)
 result = simulate(params)
@@ -45,11 +77,10 @@ in the replicator scenarios. The agent intention scenario uses its own
 `2*x - 1`; `c_inj` and `c_dyn` weight the injunctive and dynamic components
 relative to it in combined norms.
 
-In `dynamic baseline`, the norm is
-`(1 + c_dyn * (x_p - x_ref) / x_ref) * (2*x - 1)`.
-Setting `c_dyn = 0` recovers the descriptive baseline. In `dynamic social norm`,
-the unweighted term is simply `(x_p - x_ref) / x_ref`. Both use the existing
-zero-reference guard; the adaptation times remain `tau_ref` and `tau_xp`.
+In `dynamic social norm`, the unweighted term is `(x_p - x_ref) / x_ref`.
+The combined ODE norm weights this dynamic component with `c_dyn`. Both use
+the existing zero-reference guard; the adaptation times remain `tau_ref` and
+`tau_xp`.
 
 A structural literature analogue for these two timescales is
 [Rajah et al. (2025), FRIDA v2.1, section 3.1.3 and Table A1, p. 6017](https://doi.org/10.5194/gmd-18-5997-2025).
@@ -77,7 +108,6 @@ literature lookup does not change configured parameter values.
 The former `tau_STref` parameter has also been removed. To preserve legacy
 trend strength, convert it before removing the key:
 
-- `dynamic baseline`: set `c_dyn = 1 / tau_STref`.
 - `Descriptive, injunctive, dynamic`: set `c_dyn = c_dyn / tau_STref`.
 - `dynamic social norm`: set `social_norm_factor = social_norm_factor / tau_STref`.
 
@@ -87,11 +117,11 @@ so that outdated inputs cannot silently change dynamics.
 
 The former `delta` parameter has been removed. Default scenarios previously used
 `delta = 1`, so their dynamics are unchanged. The baseline examples in
-`interesting_parameter_sets.csv` have been converted to `social_norm_factor`.
+`data/interesting_parameter_sets.csv` have been converted to `social_norm_factor`.
 Simulations reject parameter dictionaries containing `delta` to avoid silently
 changing the meaning of older inputs.
 
-For legacy imitation or dynamic-baseline parameter sets, replace
+For legacy imitation parameter sets, replace
 `social_norm_factor` with `social_norm_factor * delta`, then remove `delta`.
 For combined descriptive/injunctive/dynamic norms with positive `delta`, also
 divide `c_inj` and `c_dyn` by the old `delta` to preserve all weighted components.
@@ -118,7 +148,7 @@ dx/dt = kappa*x*(1-x)*(-beta + temperature_factor*f_T(T) + social_norm_factor*x)
 To reproduce an old approval parameter set, use
 `social_norm_factor_new = social_norm_factor_old * alpha_old` and remove
 `alpha`. Current simulations reject obsolete `alpha` inputs rather than silently
-ignoring their effect. The approval examples in `interesting_parameter_sets.csv`
+ignoring their effect. The approval examples in `data/interesting_parameter_sets.csv`
 have been converted this way. The configured scenario had `alpha = 1`, so its
 trajectory is unchanged. Sobol now varies only `social_norm_factor` on `[0,5]`;
 this is a different sampling distribution from the former product of two
@@ -138,7 +168,7 @@ dx/dt = kappa*x*(1-x)*(-beta + temperature_factor*f_T(T) + social_norm_factor*(x
 
 For old standalone static-injunctive parameter sets, use
 `social_norm_factor_new = social_norm_factor_old * c_inj_old`, then remove
-`c_inj`. The two static examples in `interesting_parameter_sets.csv` have been
+`c_inj`. The two static examples in `data/interesting_parameter_sets.csv` have been
 converted; combined-norm examples retain `c_inj` and their original strengths.
 The simulator rejects `c_inj` only for `Static injunctive`, where it would
 otherwise be silently ignored. Combined norms still use it to weight their
@@ -210,7 +240,7 @@ illustrative intermediate value, not a calibration. `eta`, `phi`, `psi`, and
 fallback parameter values. The base thresholded BI rule follows
 [Prawitz et al. (2026), section 4.3](https://doi.org/10.1088/1748-9326/ae3b55);
 the temperature-dependent `A_i(t)` is this project's extension. Sources and
-these qualifications also appear in code comments in `agent.py`.
+these qualifications also appear in code comments in `model/agent.py`.
 
 The initial actual share is `round(x0*n_agents)/n_agents` and remains prescribed
 until the first decision. Decision times are exact years even when
@@ -312,9 +342,9 @@ and direct simulation results include `solver_settings`. Keep `theta` fixed
 while refining `dt` to test numerical convergence separately from changing the
 model's observation window.
 
-Integrator implementations and the `SOLVERS` registry live in `solvers.py`,
+Integrator implementations and the `SOLVERS` registry live in `model/solvers.py`,
 separate from model equations and coupling logic, for future solver additions.
-Run checks with `python -m unittest test_solvers -v`.
+Run checks with `python -m unittest support.tests.model.test_solvers -v`.
 
 ## Model performance
 
@@ -328,11 +358,11 @@ every accepted RK4 step. The interpolation formula, samples, boundary behavior,
 solver tolerances, and coupling/output intervals are unchanged.
 
 Run solver and history-update checks with
-`python -m unittest test_solvers test_model_optimizations -v`.
+`python -m unittest support.tests.model.test_solvers support.tests.model.test_model_optimizations -v`.
 
 ## Runtime profiling
 
-`python profile_dynamic_norms.py` profiles representative baseline and dynamic
+`python -m support.tools.profile_dynamic_norms` profiles representative baseline and dynamic
 norm cases, serially, using a 400-year horizon, with the sensitivity defaults
 of one-year coupling and 24 output intervals per year. It does
 not change model equations or solver tolerances. Profiling adds overhead, so
@@ -345,7 +375,7 @@ samples, use `--scenarios "Descriptive, injunctive, dynamic2" --samples-file
 is used when available. `--simulation-time`, `--coupling-interval`, and
 `--output-points-per-year` control the reproduced simulation settings.
 
-Results are saved under `profiling_results/<timestamp>/`: each case contains
+Results are saved under `support/profiling_results/<timestamp>/`: each case contains
 `profile.prof`, a readable `profile.txt`, function timings in `functions.csv`,
 interval timings and solver counters in `intervals.csv`, and `summary.json`.
 `--max-seconds` bounds each case (default 60); time-limited cases retain partial
@@ -359,10 +389,10 @@ Use `--constant-temperature-costs` to replace the temperature response by
 continue to run. Omitting the flag keeps the usual sigmoid.
 
 ```powershell
-python sensitivity_analysis.py --constant-temperature-costs --base-sample-size 64 --workers 11 --output-root "E:\Masterarbeit\Sensitivity"
+python -m analysis.sensitivity.sensitivity_analysis --constant-temperature-costs --base-sample-size 64 --workers 11 --output-root "E:\Masterarbeit\Sensitivity"
 ```
 
-The flag also works with `sensitivity_pipeline.py`. It is recorded in
+The flag also works with `analysis/sensitivity/sensitivity_pipeline.py`. It is recorded in
 `metadata.json` and per-simulation diagnostic configuration and shown in the
 ranking formula graphics. When reconstructing a run from saved parameters, pass
 the recorded `constant_temperature_costs` value to `simulate()`. Append mode
@@ -370,7 +400,7 @@ rejects mixing constant-response and sigmoid scenarios in one result folder.
 
 ### Regression trees from saved simulations
 
-`regression_tree_analysis.py` evaluates saved simulations without running the
+`analysis/regression_trees/regression_tree_analysis.py` evaluates saved simulations without running the
 socio-climate model again. It fits a separate `DecisionTreeRegressor` per norm
 and target. The seven active sensitivity targets are included: `x_mean`,
 `final_temperature`, `cumulative_emissions`, `first_time_x95`, `bool_x95`,
@@ -380,7 +410,7 @@ and `damping_rate` remain available. Inputs come only from sampled model paramet
 `sample_index` joins the two CSVs and never enters the model as a feature.
 
 ```powershell
-python regression_tree_analysis.py --input-root "E:\Masterarbeit\Sensitivity\2026-10-08_12-24-45\baseline" --targets final_x --output-root plots/regression_tree_results
+python -m analysis.regression_trees.regression_tree_analysis --input-root "E:\Masterarbeit\Sensitivity\2026-10-08_12-24-45\baseline" --targets final_x --output-root plots/regression_tree_results
 ```
 
 `--input-root` accepts a saved run root or a single scenario folder. Optional
@@ -424,7 +454,7 @@ manifest. `regressiontrees_alle_normen.svg` embeds all saved trees in one vector
 overview: one section per norm and one column per target. Unfitted targets show
 their status and available row/block counts. Parameter and target names are
 preserved; no trees are refitted for the overview. This SVG is created automatically
-by the standalone tree analysis and by `sensitivity_pipeline.py`.
+by the standalone tree analysis and by `analysis/sensitivity/sensitivity_pipeline.py`.
 Fitted targets additionally export `tree.svg`/`.png`, `rules.txt`,
 `predictions.csv`, prediction-check plots, training-CV results and test-set
 permutation importance. Reports compare test MAE/RMSE/R² against a training-mean
@@ -455,7 +485,7 @@ both common-input groups are also created without the agent norm under
 recomputes its input intersection and has separate reports, source manifests and
 SVG overviews labelled "mit Agentennorm" or "ohne Agentennorm". The agent rows
 are excluded completely from the latter variant. This also runs automatically
-in `sensitivity_pipeline.py`.
+in `analysis/sensitivity/sensitivity_pipeline.py`.
 
 Pooled trees retain the source norm and original sample index for auditing.
 Matching original Sobol block indices across norms are kept together during
@@ -470,45 +500,45 @@ To create only the common-input groups (both variants when agents are present)
 from saved sensitivity data:
 
 ```powershell
-python regression_tree_analysis.py --input-root "E:\Masterarbeit\Sensitivity\samplesize_64_2026-10-09_00-42-25" --analysis-modes pooled_common per_norm_common --output-root "E:\Masterarbeit\Sensitivity\samplesize_64_2026-10-09_00-42-25\regression_trees"
+python -m analysis.regression_trees.regression_tree_analysis --input-root "E:\Masterarbeit\Sensitivity\samplesize_64_2026-10-09_00-42-25" --analysis-modes pooled_common per_norm_common --output-root "E:\Masterarbeit\Sensitivity\samplesize_64_2026-10-09_00-42-25\regression_trees"
 ```
 
 `--analysis-modes per_norm` selects only the original full-input trees. Single
-scenario input defaults to that original mode. `sensitivity_pipeline.py` uses
+scenario input defaults to that original mode. `analysis/sensitivity/sensitivity_pipeline.py` uses
 all three modes automatically when several saved norms are present.
 
 To add the overview to an existing tree result folder without repeating analysis:
 
 ```powershell
-python regression_tree_plots.py --input-root "E:\Masterarbeit\Sensitivity\<run-folder>\regression_trees\<timestamp>"
+python -m analysis.regression_trees.regression_tree_plots --input-root "E:\Masterarbeit\Sensitivity\<run-folder>\regression_trees\<timestamp>"
 ```
 
 For a small reproducible **synthetic known-rule example** (128 rows, no climate
 simulation), run:
 
 ```powershell
-python regression_tree_demo.py
-python -m unittest test_regression_tree_analysis -v
+python -m analysis.regression_trees.regression_tree_demo
+python -m unittest support.tests.regression_trees.test_regression_tree_analysis -v
 ```
 
 The demonstration writes separate input and result folders under
 `plots/regression_tree_example/<timestamp>/`.
 
 To run regression trees automatically after every successfully completed Sobol
-invocation, use `sensitivity_pipeline.py` with the same sensitivity arguments:
+invocation, use `analysis/sensitivity/sensitivity_pipeline.py` with the same sensitivity arguments:
 
 ```powershell
-python sensitivity_pipeline.py --base-sample-size 32 --workers 11 --output-root "E:\Masterarbeit\Sensitivity"
+python -m analysis.sensitivity.sensitivity_pipeline --base-sample-size 32 --workers 11 --output-root "E:\Masterarbeit\Sensitivity"
 ```
 
-This separate entry point leaves `sensitivity_analysis.py` unchanged. After the
+This separate entry point leaves `analysis/sensitivity/sensitivity_analysis.py` unchanged. After the
 simulations and Sobol plots complete, it reads that run's saved data and writes
 trees to `<run-folder>/regression_trees/<timestamp>/`. No additional simulations
 are run. The regression stage is also recorded in `sensitivity_analysis.log`.
 Appending scenarios refreshes the tree analysis for all completed scenario
 folders in the run. Insufficient eligible data are reported per target; unexpected
 postprocessing errors remain visible and do not remove saved Sobol results.
-The original `sensitivity_analysis.py` command continues to run Sobol only.
+The original `analysis/sensitivity/sensitivity_analysis.py` command continues to run Sobol only.
 
 ### Current Sobol targets
 
@@ -544,7 +574,7 @@ contains `oscillation_occurrence` and `oscillations_per_500_years`.
 `final_x`, `oscillation_amplitude` and `damping_index` are commented out of
 the Sobol selection and ranking groups but remain saved as raw metrics.
 Together with `median_period` and `damping_rate`, they are candidates for
-future regression-tree analyses (see ToDos.md).
+future regression-tree analyses (see support/docs/ToDos.md).
 `simple_mean` averages all seven active ST indices; `grouped_mean` gives equal
 weight to the three groups. Scores differ from runs with earlier target selections. Start a new result folder for this analysis: append mode rejects older
 output definitions. Existing saved rankings remain readable with their original
@@ -566,8 +596,8 @@ To process norms one at a time in the same result set, pass the existing run
 folder name with `--append-existing-folder` on subsequent runs:
 
 ```powershell
-python sensitivity_analysis.py --scenarios baseline --output-root plots/sensitivity_results
-python sensitivity_analysis.py --scenarios "Dynamic social norm" --output-root plots/sensitivity_results --append-existing-folder 2026-09-24_10-00-00
+python -m analysis.sensitivity.sensitivity_analysis --scenarios baseline --output-root plots/sensitivity_results
+python -m analysis.sensitivity.sensitivity_analysis --scenarios "Dynamic social norm" --output-root plots/sensitivity_results --append-existing-folder 2026-09-24_10-00-00
 ```
 
 The folder is resolved below `--output-root`. Supplying
@@ -703,4 +733,4 @@ headed empty index/ranking files are written and the next scenario continues.
 Two blocks are only a computational minimum, not evidence of convergence.
 Boundary checks do not form part of the Sobol design.
 
-Run checks with `python -m unittest test_sensitivity_diagnostics test_sensitivity_timeouts -v`.
+Run checks with `python -m unittest support.tests.sensitivity.test_sensitivity_diagnostics support.tests.sensitivity.test_sensitivity_timeouts -v`.

@@ -1,0 +1,161 @@
+{
+    "baseline": {
+        "ABM": false,
+        "social_norm": "Observation-based / imitation",
+        "C_s0": 1500,
+        "C_veg0": 550,
+        "C_at0": 596,
+        "C_ao0": 1.5e+5,
+        "K_a": 1.773e+20,
+        "K_p": 0.184,
+        "K_A": 8.7039e+09,
+        "K_mm": 1.478,
+        "K_c": 2.9e-05,
+        "K_m": 120e-6,
+        "T_0": 288.15,
+        "K_r": 0.092,
+        "E_a": 54.83,
+        "R": 8.314,
+        "K_sr": 0.034,
+        "K_b": 157.072,
+        "K_t": 0.092,
+        "F_0": 0.025,
+        "xi": 0.3,
+        "zeta": 50,
+        "kappa": 0.05,
+        "beta": 1,
+        "H": 0.5915,
+        "P_0": 1.4e+11,
+        "L": 43655,
+        "A": 0.225,
+        "S": 1368,
+        "c": 4.69e+23,
+        "sigma": 5.67e-08,
+        "a_E": 5.101e+14,
+        "f_max": 5,
+        "omega": 3,
+        "T_c": 2.5,
+        "epsilon_max": 7,
+        "s": 50,
+        "r_0": 5,
+        "x0": 0.3,
+        "f_gtm": 8.3259e+13,
+        
+        "social_norm_factor": 1,
+        "temperature_factor": 1
+    },
+
+    "Dynamic social norm": {
+        "social_norm": "dynamic social norm",
+        "tau_ref": 2,
+        "tau_xp": 2
+    },
+    "Observation-based / intention motivation (agents)": {
+        "ABM": true,
+        "social_norm": "Observation-based / intention motivation",
+        "network_size": 50,
+        "eta": 0.5,
+        "phi": 0.6,
+        "psi": 0.6
+    },
+    "Belief-based / intention motivation": {
+        "social_norm": "Belief-based / intention motivation",
+        "N": 0.1
+    },
+    "Observation based / approval (punish only one behaviour)": {
+        "social_norm": "Observation based / approval (punish only one behaviour)"
+    },
+    "Static injunctive": {
+        "social_norm": "Static injunctive",
+        "x_target": 0.7 
+    },
+    "Descriptive, injunctive, dynamic": {
+        "social_norm": "Descriptive, injunctive, dynamic",
+        "c_inj": 1,
+        "x_target": 0.7,
+        "c_dyn": 1,
+        "tau_ref": 1,
+        "tau_xp": 1
+    },
+    "Descriptive, injunctive, dynamic (transient oscillations)": {
+        "social_norm": "Descriptive, injunctive, dynamic",
+        "c_inj": 3.717788197800025,
+        "c_dyn": 0.9720691684494003,
+        "tau_xp": 6.275058172356088,
+        "tau_ref": 22.103135311990886,
+        "kappa": 0.22495125981026398,
+        "x_target": 0.7084647736869595
+    },
+    "Descriptive, injunctive, dynamic2": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 6,
+        "x_target": 0.7,
+        "c_dyn": 6,
+        "tau": 1,
+        "rho": 2
+    },
+    "Descriptive, injunctive, dynamic2 (testing)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 60.99077891558409,
+        "x_target": 0.48354777600616217,
+        "c_dyn": 46.392013505101204,
+        "tau": 31.357963476330042,
+        "rho": 2,
+        "social_norm_factor": 9.96413629502058,
+        "temperature_factor": 9.521761853247881
+    },
+    "Descriptive, injunctive, dynamic2 (tau_timestep)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 10,
+        "x_target": 0.7,
+        "c_dyn": 100,
+        "tau": 1,
+        "rho": 2
+    },
+    "Descriptive, injunctive, dynamic2 (custom)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "tau": 11.57254,
+        "rho": 2,
+        "c_dyn": 3,
+        "c_inj": 2,
+        "x_target": 0.7
+    },
+    "Descriptive, injunctive, dynamic2 (chaos candidate)": {
+        "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_inj": 9.683160497336068,
+        "c_dyn": 23.60635052690566,
+        "tau": 49.20895162814507,
+        "rho": 2,
+        "kappa": 0.7581846076889143,
+        "x_target": 0.375687046498698
+    },
+    "Injunctive, dynamic2": {
+        "social_norm": "Injunctive, dynamic2",
+        "c_inj": 6,
+        "x_target": 0.7,
+        "c_dyn": 6,
+        "tau": 1,
+        "rho": 2
+    },
+    "dynamic social norm2": {
+        "social_norm": "dynamic social norm2",
+        "c_dyn": 1,
+        "tau": 1,
+        "rho": 2
+    },
+
+
+
+
+    "ignore":{
+        "Observation based / approval (relative to mean)": {
+            "comment": "not implemented yet",
+            "social_norm": "Observation based / approval (relative to mean)"
+        },
+        "Belief-based / approval": {
+            "social_norm": "Belief-based / approval",
+            "sanction_term": 0.01
+        },
+        "free letters (model)": "gamma, iota, lambda, mu, nu, omicron, pi, chi, upsilon."
+    }
+}

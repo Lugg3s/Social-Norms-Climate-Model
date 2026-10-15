@@ -1,0 +1,1679 @@
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import signal
+import time
+import traceback
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from datetime import datetime
+from itertools import product
+from pathlib import Path
+from typing import Any
+
+import matplotlib
+
+matplotlib.use("Agg")
+from matplotlib.animation import FFMpegWriter, FuncAnimation
+from matplotlib.offsetbox import AnchoredText
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from model.model_equations import DELAY_NORMS, SimulationResult, load_scenarios, resolve_parameters, simulate
+from utils.paths import PLOTS_DIR
+from analysis.simulation_metrics import (
+    compute_metrics_from_saved_time_series,
+    compute_oscillation_metrics,
+    compute_run_metrics,
+)
+
+
+TIME_ZERO_YEAR = 1800
+DEFAULT_SIMULATION_TIME = 1500
+DEFAULT_OUTPUT_ROOT = PLOTS_DIR
+DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
+ELIMINATION_THRESHOLD = 0.95
+
+
+@dataclass(frozen=True)
+class ExperimentGroup:
+    name: str
+    scenarios: list[str]
+    sweep_parameters: dict[str, list[Any]]
+    static_parameters: dict[str, Any] = field(default_factory=dict)
+    fixed_overrides: dict[str, Any] = field(default_factory=dict)
+    simulation_time: int = DEFAULT_SIMULATION_TIME
+    n_agents: int = 1000
+    coupling_interval: float = 0.1
+    output_points_per_year: int = 100
+    seed: int = 42
+    solver: str = "BDF"
+    dt: float | None = None
+
+GLOBAL_SWEEP_VALUES = [0, 0.5, 1, 2, 3, 5, 10]
+X0_SWEEP_VALUES = [0, 0.2, 0.5, 0.8, 1]
+TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
+
+STRENGTH_VALUES = [0, 0.1, 0.3, 1, 3, 10, 30, 100]
+POSITIVE_TIME_VALUES = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
+DELAY_VALUES = [0.5, 1, 2, 5, 10, 25, 50, 100]
+RHO_VALUES = [1.1, 1.5, 2, 3, 5, 10]  # theta = tau*rho > tau.
+BELIEF_VALUES = [-1, -0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5, 1]  # Signed N; zero is neutral.
+APPROVAL_VALUES = [0, 0.1, 0.25, 0.5, 1, 2, 3]
+
+
+# Active experiments. Historical experiment definitions can be re-enabled here as needed.
+DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
+    ExperimentGroup(
+        name="Descriptive, injunctive, dynamic2 (chaos)",
+        scenarios=["Descriptive, injunctive, dynamic2 (chaos candidate)"],
+        sweep_parameters={
+            "c_inj": np.round(np.arange(0, 30, 2), 1).tolist(),
+            "c_dyn": np.round(np.arange(0, 30, 2), 1).tolist(),
+        },
+    ),
+
+
+    # Agents based
+    # ExperimentGroup(
+    #     name="observation_based_intention_agents",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     sweep_parameters={
+    #         "network_size": [2, 5, 10, 20, 50, 100, 150, 200],
+    #         "eta": [0.0, 0.25, 0.5, 2/3, 1.0],
+    #     },
+    # ),
+
+
+    # ExperimentGroup(
+    #     name="observation_based_imitation",
+    #     scenarios=["baseline"],
+    #     sweep_parameters={"social_norm_factor": STRENGTH_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_social_norm",
+    #     scenarios=["Dynamic social norm"],
+    #     sweep_parameters={
+    #         "tau_ref": POSITIVE_TIME_VALUES,
+    #         "tau_xp": POSITIVE_TIME_VALUES,
+    #     },
+    # ),
+
+    # ExperimentGroup(
+    #     name="belief_based_intention",
+    #     scenarios=["Belief-based / intention motivation"],
+    #     sweep_parameters={"N": BELIEF_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="observation_based_approval_punish_one",
+    #     scenarios=["Observation based / approval (punish only one behaviour)"],
+    #     sweep_parameters={"social_norm_factor": APPROVAL_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="static_injunctive",
+    #     scenarios=["Static injunctive"],
+    #     sweep_parameters={"social_norm_factor": STRENGTH_VALUES, "x_target": X0_SWEEP_VALUES},
+    # ),
+    # ExperimentGroup(
+    #     name="descriptive_injunctive_dynamic",
+    #     scenarios=["Descriptive, injunctive, dynamic"],
+    #     sweep_parameters={
+    #         "c_inj": STRENGTH_VALUES,
+    #         "c_dyn": STRENGTH_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="descriptive_injunctive_dynamic2",
+    #     scenarios=["Descriptive, injunctive, dynamic2"],
+    #     sweep_parameters={
+    #         "c_inj": STRENGTH_VALUES,
+    #         "c_dyn": STRENGTH_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="injunctive_dynamic2",
+    #     scenarios=["Injunctive, dynamic2"],
+    #     sweep_parameters={
+    #         "tau": DELAY_VALUES,
+    #         "rho": RHO_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_social_norm2",
+    #     scenarios=["dynamic social norm2"],
+    #     sweep_parameters={"tau": DELAY_VALUES, "rho": RHO_VALUES},
+    # ),
+
+
+
+
+
+
+    # ExperimentGroup(
+    #     name="social_factors",
+    #     scenarios=[
+    #         "baseline",
+    #         "Dynamic social norm",
+    #         "Observation-based / intention motivation (agents)",
+    #         "Belief-based / intention motivation",
+    #         # "Belief-based / approval",
+    #         "Observation based / approval (punish only one behaviour)",
+    #         # "Observation based / approval (relative to mean)",
+    #         "Static injunctive",
+    #         "Descriptive, injunctive, dynamic",
+    #     ],
+    #     sweep_parameters={
+    #         "social_norm_factor": GLOBAL_SWEEP_VALUES,
+    #         "temperature_factor": GLOBAL_SWEEP_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="x0_sensitivity",
+    #     scenarios=[
+    #         "baseline",
+    #         "Dynamic social norm",
+    #         "Belief-based / intention motivation",
+    #         "Belief-based / approval",
+    #         "Observation based / approval (punish only one behaviour)",
+    #         "Static injunctive",
+    #         "Descriptive, injunctive, dynamic",
+    #     ],
+    #     sweep_parameters={
+    #         "x0": X0_SWEEP_VALUES,
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),    
+    #     ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic_tau2",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     static_parameters={
+    #         "tau_ref": 2,
+    #         "tau_xp": 2,
+    #     },
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": (np.round(np.arange(0, 10.1, 0.5), 1) / 2).tolist(),
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic_tau5",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     static_parameters={
+    #         "tau_ref": 5,
+    #         "tau_xp": 5,
+    #     },
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": (np.round(np.arange(0, 10.1, 0.5), 1) / 5).tolist(),
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic2"
+    #     ],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 10.1, 0.5), 1).tolist(),
+    #     },
+    # ),    
+    # ExperimentGroup(
+    #     name="Descriptive_injunctive_dynamic2_rho_tau",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic2"
+    #     ],
+    #     sweep_parameters={
+    #         "rho": RHO_VALUES,
+    #         "tau": TAU_SWEEP_VALUES,
+    #     },
+    # ),    
+    # ExperimentGroup(
+    #         name="dynamic_social_norm2_rho_tau",
+    #         scenarios=[
+    #             "Descriptive, injunctive, dynamic2"
+    #         ],
+    #         sweep_parameters={
+    #             "rho": RHO_VALUES,
+    #             "tau": TAU_SWEEP_VALUES,
+    #         },
+    #     ),     
+    # ExperimentGroup(
+    #     name="combined_injunctive_sensitivity",
+    #     scenarios=[
+    #         "Descriptive, injunctive, dynamic"
+    #     ],
+    #     sweep_parameters={
+    #         "x_target": [0.1, 0.5, 0.8],
+    #         "c_inj": np.round(np.arange(0, 10.1, 2), 1).tolist(),
+    #         "c_dyn": sorted({value / scale for value in np.round(np.arange(0, 10.1, 2), 1) for scale in [0.5, 4]}),
+    #         "tau_xp": [0.5, 4],
+    #         "tau_ref": [0.5, 4],
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="dynamic_norm_trend",
+    #     scenarios=["Dynamic social norm"],
+    #     sweep_parameters={
+    #         "tau_ref": TAU_SWEEP_VALUES,
+    #         "social_norm_factor": [1 / value for value in TAU_SWEEP_VALUES],
+    #         "tau_xp": TAU_SWEEP_VALUES,
+    #     },
+    # ),
+
+
+
+    # uninterresting
+    # ExperimentGroup(
+    #     name="Belief-based / intention motivation",
+    #     scenarios=["Belief-based / intention motivation"],
+    #     sweep_parameters={
+    #         "N": BELIEF_VALUES,
+    #     },
+    # ),      
+    # ExperimentGroup(
+    #     name="approval_sensitivity",
+    #     scenarios=["Observation based / approval (punish only one behaviour)"],
+    #     sweep_parameters={
+    #         "social_norm_factor": [0.25, 0.5, 1, 2, 4],
+    #     },
+    # ),
+    # ExperimentGroup(
+    #     name="agent_based_intention",
+    #     scenarios=["Observation-based / intention motivation (agents)"],
+    #     sweep_parameters={
+    #         "phi": [0.25, 0.5, 0.75],
+    #         "eta": [0.0, 0.25, 0.5, 2/3, 1.0],
+    #         "psi": [0.0, 0.25, 0.5],
+    #         "network_size": [20, 50, 100, 200],
+    #     },
+    #     n_agents=1000,
+    # ),
+]
+
+
+KEY_METRICS = [
+    "max_temperature",
+    "final_temperature",
+    "temperature_area",
+    "time_to_peak_temperature",
+    "final_x",
+    "max_x",
+    "min_x",
+    "x_bounds_valid",
+    "n_peaks",
+    "n_troughs",
+    "n_prominent_half_cycles",
+    "n_prominent_extrema",
+    "n_oscillations",
+    "median_period",
+    "oscillation_amplitude",
+    "amplitude_initial",
+    "amplitude_final",
+    "amplitude_ratio",
+    "damping_rate",
+    "damping_index",
+    "oscillation_score",
+    "x_area",
+    "final_social_norm",
+    "max_social_norm",
+    "min_social_norm",
+    "bool_x95",
+    "time_to_elimination",
+    "elimination_success",
+    "cumulative_emissions",
+]
+
+
+PHASE_ORDER = [
+    "Kollaps auf 0",
+    "volle S-Kurve auf 1",
+    "Zwischenzustand",
+    "gedaempft oszillierend",
+    "ungedämpft oszillierend",
+]
+
+PHASE_COLORS = {
+    "Kollaps auf 0": "#d62728",
+    "volle S-Kurve auf 1": "#ff7f0e",
+    "Zwischenzustand": "#2ca02c",
+    "gedaempft oszillierend": "#1f77b4",
+    "ungedämpft oszillierend": "#9467bd",
+}
+
+
+def classify(traj):
+    """Classify x(t) using prominent oscillations, amplitude decay, and final x."""
+    traj = np.asarray(traj, dtype=float)
+    traj = traj[np.isfinite(traj)]
+    if traj.size == 0:
+        return "Zwischenzustand"
+
+    # The oscillation detector already rejects small extrema through its
+    # prominence threshold. Using the full trajectory also preserves strongly
+    # damped oscillations that have disappeared by the final tail.
+    oscillation_metrics = compute_oscillation_metrics(
+        np.arange(traj.size, dtype=float),
+        traj,
+    )
+    n_oscillations = float(oscillation_metrics["n_oscillations"])
+    damping_index = float(oscillation_metrics["damping_index"])
+    amplitude_ratio = float(oscillation_metrics["amplitude_ratio"])
+
+    if n_oscillations >= 1:
+        clearly_damped = damping_index >= 0.15 or (
+            np.isfinite(amplitude_ratio) and amplitude_ratio <= 0.85
+        )
+        if clearly_damped:
+            return "gedaempft oszillierend"
+        return "ungedämpft oszillierend"
+
+    final_x = traj[-1]
+    if final_x < 0.05:
+        return "Kollaps auf 0"
+    if final_x > 0.95:
+        return "volle S-Kurve auf 1"
+    return "Zwischenzustand"
+
+
+def sanitize_name(value: Any) -> str:
+    text = str(value)
+    replacements = {
+        " ": "_",
+        "/": "_",
+        "\\": "_",
+        ":": "_",
+        "=": "_",
+        ",": "_",
+        "(": "",
+        ")": "",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    while "__" in text:
+        text = text.replace("__", "_")
+    return text.strip("_") or "value"
+
+
+def format_value_for_slug(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if math.isfinite(value):
+            if float(value).is_integer():
+                return str(int(value))
+            return ("{:.4g}".format(value)).replace("-", "m").replace(".", "p")
+        return str(value)
+    return sanitize_name(value)
+
+
+def format_value_for_display(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        numeric_value = float(value)
+        if math.isfinite(numeric_value):
+            return f"{numeric_value:g}".replace(".", ",")
+    return str(value)
+
+
+def ensure_directory(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def save_json(path: Path, payload: dict[str, Any]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, ensure_ascii=True)
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def create_run_name(scenario_name: str, sweep_values: dict[str, Any]) -> str:
+    parts = [sanitize_name(scenario_name)]
+    for parameter_name, parameter_value in sweep_values.items():
+        parts.append(f"{sanitize_name(parameter_name)}-{format_value_for_slug(parameter_value)}")
+    return "__".join(parts)
+
+
+def build_sweep_combinations(sweep_parameters: dict[str, list[Any]]) -> list[dict[str, Any]]:
+    parameter_names = list(sweep_parameters.keys())
+    parameter_values = [list(values) for values in sweep_parameters.values()]
+    return [dict(zip(parameter_names, combo)) for combo in product(*parameter_values)]
+
+
+def make_output_root(base_output_root: Path = DEFAULT_OUTPUT_ROOT) -> Path:
+    timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
+    return ensure_directory(base_output_root / f"{timestamp}_night_batch")
+
+
+def simulation_to_dataframe(result: dict[str, Any], params: dict[str, Any]) -> pd.DataFrame:
+    simulation = result["simulation"]
+    if not isinstance(simulation, SimulationResult):
+        raise TypeError("Expected result['simulation'] to be a SimulationResult")
+
+    frame = pd.DataFrame(
+        {
+            "t": simulation.t,
+            "year": simulation.t + TIME_ZERO_YEAR,
+            "C_at": simulation.C_at,
+            "C_oc": simulation.C_oc,
+            "C_v": simulation.C_v,
+            "C_so": simulation.C_so,
+            "T": simulation.T,
+            "x": simulation.x,
+            "x_p": simulation.x_p,
+            "x_ref": simulation.x_ref,
+            "social_norm_term": np.asarray(
+                result.get("social_norm_term", np.full_like(simulation.t, np.nan, dtype=float)),
+                dtype=float,
+            ),
+            "f_T": np.asarray(
+                result.get(
+                    "f_T",
+                    params["f_max"]
+                    / (1 + np.exp(-params["omega"] * (simulation.T - params["T_c"]))),
+                ),
+                dtype=float,
+            ),
+        }
+    )
+    if "agent_history" in result:
+        history = result["agent_history"]
+        indices = np.searchsorted(history["t"], simulation.t, side="right") - 1
+        frame["mean_intention"] = history["behavioral_intention"].mean(axis=1)[indices]
+    return frame
+
+
+def add_parameter_text_box(
+    ax: plt.Axes,
+    params: dict[str, Any],
+    parameter_names: list[str],
+    loc: str = "upper right",
+) -> None:
+    lines = []
+    for parameter_name in parameter_names:
+        if parameter_name not in params:
+            continue
+        value = params[parameter_name]
+        value_text = format_value_for_display(value)
+        lines.append(f"{parameter_name} = {value_text}")
+    if not lines:
+        return
+    anchored_text = AnchoredText(
+        "\n".join(lines), loc=loc, prop={"size": 9}, frameon=True, borderpad=0.8
+    )
+    anchored_text.patch.set_alpha(0.9)
+    ax.add_artist(anchored_text)
+
+
+def _finalize_run_plot(
+    fig: plt.Figure,
+    output_path: Path,
+    *,
+    store_file: bool,
+    show: bool,
+) -> None:
+    if store_file:
+        fig.savefig(output_path, dpi=300)
+    if show:
+        try:
+            from IPython.display import display
+
+            display(fig)
+        except ImportError:
+            plt.show()
+    plt.close(fig)
+
+
+def save_temperature_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(frame["year"], frame["T"], label="Temperature")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Temperature Anomaly (celsius)")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_ylim(top=max(5, float(np.nanmax(frame["T"])) + 0.25))
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    _finalize_run_plot(
+        fig, run_dir / "temperature.png", store_file=store_file, show=show
+    )
+
+
+def save_x_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(frame["year"], frame["x"], label="x",
+            drawstyle="steps-post" if params.get("agent_decision_model") == "annual_intention_threshold" else "default")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Fraction of mitigators (X)")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_ylim(-0.1, 1.1)
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    _finalize_run_plot(fig, run_dir / "x.png", store_file=store_file, show=show)
+
+
+def save_x_phase_space_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    t_values = pd.to_numeric(frame["t"], errors="coerce").to_numpy(dtype=float)
+    x_values = pd.to_numeric(frame["x"], errors="coerce").to_numpy(dtype=float)
+    valid = np.isfinite(t_values) & np.isfinite(x_values)
+    t_values = t_values[valid]
+    x_values = x_values[valid]
+    if t_values.size < 2 or np.any(np.diff(t_values) <= 0):
+        return
+
+    stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
+    if stepwise:
+        # An instantaneous jump has no finite dx/dt. Plot annual differences
+        # instead of output-grid-dependent gradient spikes.
+        years_mask = t_values == np.floor(t_values)
+        t_values, x_values = t_values[years_mask], x_values[years_mask]
+        if t_values.size < 2:
+            return
+        dx_dt = np.concatenate(([0.0], np.diff(x_values) / np.diff(t_values)))
+    else:
+        dx_dt = np.gradient(x_values, t_values)
+    years = TIME_ZERO_YEAR + t_values
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.plot(dx_dt, x_values, color="0.75", linewidth=0.8, zorder=1)
+
+    # Limit the colored markers for long simulations while retaining the full trajectory line.
+    marker_indices = np.linspace(0, t_values.size - 1, min(t_values.size, 5000), dtype=int)
+    trajectory = ax.scatter(
+        dx_dt[marker_indices],
+        x_values[marker_indices],
+        c=years[marker_indices],
+        cmap="viridis",
+        s=8,
+        linewidths=0,
+        zorder=2,
+    )
+    ax.scatter(dx_dt[0], x_values[0], color="green", marker="o", s=55, label="Start", zorder=3)
+    ax.scatter(dx_dt[-1], x_values[-1], color="red", marker="X", s=65, label="End", zorder=3)
+    ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
+    ax.set_xlabel("Annual change in x" if stepwise else "Rate of change dx/dt")
+    ax.set_ylabel("Fraction of mitigators x(t)")
+    ax.set_ylim(-0.1, 1.1)
+    ax.set_title(f"{run_label} | Phase space")
+    ax.legend(loc="lower right")
+    add_parameter_text_box(ax, params, sweep_parameters)
+    colorbar = fig.colorbar(trajectory, ax=ax)
+    colorbar.set_label("Time (year)")
+    fig.tight_layout()
+    _finalize_run_plot(
+        fig, run_dir / "x_phase_space.png", store_file=store_file, show=show
+    )
+
+
+def save_social_norm_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    series = frame["social_norm_term"].to_numpy(dtype=float)
+    if np.all(np.isnan(series)):
+        series = np.zeros_like(series)
+    stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
+    norm_scale = 1.0 if stepwise else params["social_norm_factor"]
+    ax.plot(frame["year"], norm_scale * series, label="Social norm", linestyle="-",
+            drawstyle="steps-post" if stepwise else "default")
+    ax.plot(frame["year"], params["temperature_factor"] * frame["f_T"],
+            label="Temperature benefit", linestyle="--")
+    threshold = params["beta"] + params["psi"] if stepwise else params["beta"]
+    ax.axhline(threshold, label="Expected mean cost + action threshold" if stepwise else "Beta (cost threshold)",
+               linestyle=":", color="black")
+    ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Contribution to mitigation incentive")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    _finalize_run_plot(
+        fig, run_dir / "mitigation_incentives.png", store_file=store_file, show=show
+    )
+
+
+def save_f_T_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(frame["year"], frame["f_T"], label="f_T")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Temperature benefit f_T")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    _finalize_run_plot(fig, run_dir / "f_T.png", store_file=store_file, show=show)
+
+
+def save_auxiliary_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(frame["year"], frame["x"], label="x", linewidth=2)
+    ax.plot(frame["year"], frame["x_p"], label="x_p", linestyle="--")
+    ax.plot(frame["year"], frame["x_ref"], label="x_ref", linestyle=":")
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel("Auxiliary states")
+    ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    ax.set_ylim(0, 1)
+    ax.set_title(run_label)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
+    add_parameter_text_box(ax, params, sweep_parameters)
+    fig.tight_layout()
+    _finalize_run_plot(
+        fig, run_dir / "auxiliary_states.png", store_file=store_file, show=show
+    )
+
+
+def get_group_parameter_names(group: ExperimentGroup) -> list[str]:
+    return list(dict.fromkeys(list(group.sweep_parameters) + list(group.static_parameters)))
+
+
+def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_parameters) -> None:
+    ensure_directory(run_dir)
+    resolved_params = dict(result.get("parameters", params))
+    frame = simulation_to_dataframe(result, resolved_params)
+    frame.to_csv(run_dir / "time_series.csv", index=False, sep=";")
+    save_json(run_dir / "parameters.json", resolved_params)
+    if "agent_history" in result:
+        np.savez_compressed(run_dir / "agent_history.npz", **result["agent_history"])
+    save_json(
+        run_dir / "metadata.json",
+        {
+            "run_label": run_label,
+            "parameters_file": "parameters.json",
+            "metrics": metrics,
+            **({"agent_history_file": "agent_history.npz"} if "agent_history" in result else {}),
+        },
+    )
+    save_temperature_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_x_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_x_phase_space_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_social_norm_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
+        frame["x_ref"] == frame["x_ref"].iloc[0]
+    ):
+        save_auxiliary_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+
+
+def save_run_time_series_only(run_dir: Path, params: dict[str, Any], result: dict[str, Any]) -> None:
+    ensure_directory(run_dir)
+    resolved_params = dict(result.get("parameters", params))
+    simulation_to_dataframe(result, resolved_params).to_csv(
+        run_dir / "time_series.csv",
+        index=False,
+        sep=";",
+    )
+    save_json(run_dir / "parameters.json", resolved_params)
+    if "agent_history" in result:
+        np.savez_compressed(run_dir / "agent_history.npz", **result["agent_history"])
+
+
+def append_failure_record(run_dir: Path, run_label: str, error: Exception) -> None:
+    save_json(
+        run_dir / "failure.json",
+        {
+            "run_label": run_label,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "traceback": traceback.format_exc(),
+        },
+    )
+
+
+def run_single_combination(
+    base_params: dict[str, Any],
+    sweep_values: dict[str, Any],
+    group: ExperimentGroup,
+    run_root: Path,
+    scenario_name: str,
+    overwrite: bool = False,
+    save_outputs_per_run: bool = False,
+    current_run: int | None = None,
+    total_runs: int | None = None,
+) -> dict[str, Any]:
+    if any("theta" in overrides for overrides in
+           (group.fixed_overrides, group.static_parameters, sweep_values)):
+        raise ValueError("theta is derived for Dynamic2; sweep tau and rho instead.")
+    params = resolve_parameters({**base_params, **group.fixed_overrides,
+                                 **group.static_parameters, **sweep_values})
+    run_name = create_run_name(scenario_name, sweep_values)
+    run_dir = run_root / sanitize_name(group.name) / sanitize_name(scenario_name) / run_name
+    ensure_directory(run_dir)
+
+    time_series_path = run_dir / "time_series.csv"
+    parameters_path = run_dir / "parameters.json"
+    if time_series_path.exists() and parameters_path.exists() and not overwrite:
+        existing_frame = pd.read_csv(time_series_path, sep=";")
+        required_columns = {"t", "T", "x", "social_norm_term", "f_T"}
+        if required_columns.issubset(existing_frame.columns):
+            saved_params = load_json(parameters_path)
+            if params.get("social_norm") in DELAY_NORMS:
+                if ("rho" not in saved_params
+                        or any(saved_params.get(key) != params[key] for key in ("tau", "rho", "theta"))):
+                    raise ValueError("Saved Dynamic2 results use different tau/rho/theta parameters. "
+                                     "Use a new output directory or explicitly enable overwrite.")
+            if params.get("ABM", False) and saved_params.get("agent_decision_model") != "annual_intention_threshold":
+                raise ValueError("Saved agent results use the replaced model. Use a new "
+                                 "output directory or explicitly enable overwrite.")
+            if params.get("ABM", False):
+                if not {"eta", "phi", "psi"}.issubset(saved_params):
+                    raise ValueError("Saved agent parameters use outdated names. "
+                                     "Use a new output directory or enable overwrite.")
+                history_path = run_dir / "agent_history.npz"
+                if not history_path.exists():
+                    raise ValueError("Saved agent results lack the separate BI/actual-behaviour "
+                                     "history. Use a new output directory or enable overwrite.")
+                with np.load(history_path) as history:
+                    if not {"behavioral_intention", "actual_behavior"}.issubset(history.files):
+                        raise ValueError("Saved agent history uses outdated field names. "
+                                         "Use a new output directory or enable overwrite.")
+            existing_metrics = compute_metrics_from_saved_time_series(
+                existing_frame,
+                params=saved_params,
+            )
+            if existing_metrics.get("x_bounds_valid", False):
+                return {
+                    "status": "skipped",
+                    "group": group.name,
+                    "scenario": scenario_name,
+                    "run_name": run_name,
+                    "run_dir": str(run_dir),
+                    **sweep_values,
+                    **existing_metrics,
+                }
+
+    try:
+        if (
+            current_run is not None
+            and total_runs is not None
+            and current_run > 0
+            and total_runs > 0
+        ):
+            print(f"[{current_run}/{total_runs}] Running {group.name} | {scenario_name} | {run_name}")
+        elif current_run is None and total_runs is None:
+            print(f"Running {group.name} | {scenario_name} | {run_name}")
+
+        result = simulate(
+            params,
+            simulation_time=group.simulation_time,
+            n_agents=group.n_agents,
+            coupling_interval=group.coupling_interval,
+            output_points_per_year=group.output_points_per_year,
+            seed=group.seed,
+            solver=group.solver,
+            dt=group.dt,
+        )
+        metrics = compute_run_metrics(result, params)
+        if save_outputs_per_run:
+            save_run_outputs(
+                run_dir,
+                f"{group.name} | {scenario_name}",
+                params,
+                result,
+                metrics,
+                get_group_parameter_names(group),
+            )
+        else:
+            save_run_time_series_only(run_dir, params, result)
+
+        return {
+            "status": "ok",
+            "group": group.name,
+            "scenario": scenario_name,
+            "run_name": run_name,
+            "run_dir": str(run_dir),
+            **sweep_values,
+            **metrics,
+        }
+    except Exception as error:
+        append_failure_record(run_dir, f"{group.name} | {scenario_name} | {run_name}", error)
+        return {
+            "status": "failed",
+            "group": group.name,
+            "scenario": scenario_name,
+            "run_name": run_name,
+            "run_dir": str(run_dir),
+            **sweep_values,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+        }
+
+
+def _classify_saved_run(record: pd.Series) -> str | None:
+    if record.get("status") not in {"ok", "skipped"}:
+        return None
+    x_bounds_valid = record.get("x_bounds_valid")
+    if pd.notna(x_bounds_valid) and not bool(x_bounds_valid):
+        return None
+    run_dir = record.get("run_dir")
+    if not isinstance(run_dir, str):
+        return None
+    time_series_path = Path(run_dir) / "time_series.csv"
+    if not time_series_path.exists():
+        return None
+    frame = pd.read_csv(time_series_path, sep=";", usecols=["x"])
+    trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
+    if trajectory.size == 0:
+        return None
+    return classify(trajectory)
+
+
+def save_phase_map_for_two_parameters(
+    summary_df: pd.DataFrame,
+    group_dir: Path,
+    x_param: str,
+    y_param: str,
+) -> None:
+    required_columns = {"run_dir", "scenario", x_param, y_param}
+    if not required_columns.issubset(summary_df.columns):
+        return
+
+    phase_df = summary_df.copy()
+    phase_df["phase"] = phase_df.apply(_classify_saved_run, axis=1)
+    phase_df = phase_df.dropna(subset=["phase"])
+    if phase_df.empty:
+        return
+
+    phase_to_idx = {label: idx for idx, label in enumerate(PHASE_ORDER)}
+    cmap = matplotlib.colors.ListedColormap([PHASE_COLORS[label] for label in PHASE_ORDER])
+    cmap.set_bad((0.0, 0.0, 0.0, 0.0))
+
+    for scenario_name, scenario_phases in phase_df.groupby("scenario", sort=False):
+        pivot = scenario_phases.pivot_table(
+            index=y_param, columns=x_param, values="phase", aggfunc="first"
+        ).sort_index(axis=0).sort_index(axis=1)
+        if pivot.empty:
+            continue
+
+        phase_array = np.full(pivot.shape, np.nan, dtype=float)
+        for row_index in range(pivot.shape[0]):
+            for column_index in range(pivot.shape[1]):
+                label = pivot.iat[row_index, column_index]
+                if label in phase_to_idx:
+                    phase_array[row_index, column_index] = phase_to_idx[label]
+        phase_array = np.ma.masked_invalid(phase_array)
+
+        fig, ax = plt.subplots(figsize=(10, 7))
+        image = ax.imshow(
+            phase_array,
+            origin="lower",
+            aspect="auto",
+            cmap=cmap,
+            vmin=0,
+            vmax=len(PHASE_ORDER) - 1,
+        )
+        ax.set_xticks(range(len(pivot.columns)))
+        ax.set_xticklabels(
+            [format_value_for_display(value) for value in pivot.columns], rotation=45, ha="right"
+        )
+        ax.set_yticks(range(len(pivot.index)))
+        ax.set_yticklabels([format_value_for_display(value) for value in pivot.index])
+        ax.set_xlabel(x_param)
+        ax.set_ylabel(y_param)
+        ax.set_title(f"{scenario_name}: phase map over {x_param} and {y_param}")
+        cbar = fig.colorbar(image, ax=ax, ticks=list(range(len(PHASE_ORDER))))
+        cbar.ax.set_yticklabels(PHASE_ORDER)
+        cbar.set_label("Phase regime")
+        fig.tight_layout()
+        safe_scenario = sanitize_name(scenario_name)
+        fig.savefig(
+            group_dir / f"comparison_phase_map_{safe_scenario}_{x_param}_vs_{y_param}.png",
+            dpi=300,
+        )
+        plt.close(fig)
+
+
+def save_heatmap_for_two_parameters(summary_df, group_dir, metric_name, x_param, y_param) -> None:
+    heatmap_data = summary_df[[x_param, y_param, metric_name]].copy()
+    for column in (x_param, y_param, metric_name):
+        heatmap_data[column] = pd.to_numeric(heatmap_data[column], errors="coerce")
+    heatmap_data = heatmap_data.dropna(subset=[x_param, y_param, metric_name])
+    if heatmap_data.empty:
+        return
+
+    pivot = heatmap_data.pivot_table(
+        index=y_param, columns=x_param, values=metric_name, aggfunc="mean"
+    ).sort_index(axis=0).sort_index(axis=1)
+    if pivot.empty:
+        return
+    fig, ax = plt.subplots(figsize=(10, 7))
+    image = ax.imshow(pivot.to_numpy(dtype=float), origin="lower", aspect="auto")
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels([format_value_for_display(v) for v in pivot.columns], rotation=45, ha="right")
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels([format_value_for_display(v) for v in pivot.index])
+    ax.set_xlabel(x_param)
+    ax.set_ylabel(y_param)
+    ax.set_title(f"{metric_name} over {x_param} and {y_param}")
+    fig.colorbar(image, ax=ax, label=metric_name)
+    fig.tight_layout()
+    fig.savefig(group_dir / f"comparison_{metric_name}_heatmap.png", dpi=300)
+    plt.close(fig)
+
+
+def save_metric_vs_parameters(summary_df, group_dir, metric_name, sweep_parameters) -> None:
+    if not sweep_parameters:
+        return
+    fig, axes = plt.subplots(
+        len(sweep_parameters), 1, figsize=(12, 4 * len(sweep_parameters)), squeeze=False
+    )
+    for axis, parameter_name in zip(axes.flatten(), sweep_parameters):
+        axis.scatter(
+            pd.to_numeric(summary_df[parameter_name], errors="coerce"),
+            pd.to_numeric(summary_df[metric_name], errors="coerce"),
+            alpha=0.65,
+        )
+        axis.set_xlabel(parameter_name)
+        axis.set_ylabel(metric_name)
+        axis.set_title(f"{metric_name} vs {parameter_name}")
+        axis.grid(True, alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(group_dir / f"comparison_{metric_name}_vs_parameters.png", dpi=300)
+    plt.close(fig)
+
+
+def save_correlation_heatmap(summary_df: pd.DataFrame, group_dir: Path) -> None:
+    numeric_df = summary_df.select_dtypes(include=[np.number]).copy()
+    if numeric_df.shape[1] < 2:
+        return
+    correlation = numeric_df.corr(numeric_only=True)
+    fig, ax = plt.subplots(
+        figsize=(max(8, 0.65 * len(correlation.columns)), max(6, 0.65 * len(correlation.columns)))
+    )
+    image = ax.imshow(correlation.to_numpy(), vmin=-1, vmax=1, cmap="coolwarm")
+    ax.set_xticks(range(len(correlation.columns)))
+    ax.set_xticklabels(correlation.columns, rotation=45, ha="right")
+    ax.set_yticks(range(len(correlation.index)))
+    ax.set_yticklabels(correlation.index)
+    ax.set_title("Correlation heatmap")
+    fig.colorbar(image, ax=ax, label="Pearson correlation")
+    fig.tight_layout()
+    fig.savefig(group_dir / "comparison_correlation_heatmap.png", dpi=300)
+    plt.close(fig)
+
+
+def save_overlaid_time_series_plot(
+    summary_df,
+    group_dir,
+    metric_name,
+    output_name,
+    ylabel,
+    sweep_parameters,
+    y_limits=None,
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    plotted_lines = 0
+    maximum_value = -np.inf
+    last_year = None
+    for _, record in summary_df.iterrows():
+        run_dir = record.get("run_dir")
+        if not isinstance(run_dir, str):
+            continue
+        time_series_path = Path(run_dir) / "time_series.csv"
+        if not time_series_path.exists():
+            continue
+        frame = pd.read_csv(time_series_path, sep=";")
+        if metric_name not in frame.columns or "year" not in frame.columns:
+            continue
+        values = pd.to_numeric(frame[metric_name], errors="coerce")
+        if values.isna().all():
+            continue
+        label = ", ".join(
+            f"{p}={format_value_for_display(record[p])}"
+            for p in sweep_parameters
+            if p in record.index
+        ) or str(record.get("scenario", "run"))
+        parameters_path = Path(run_dir) / "parameters.json"
+        params = load_json(parameters_path) if parameters_path.exists() else {}
+        stepwise = (params.get("agent_decision_model") == "annual_intention_threshold"
+                    and metric_name in {"x", "social_norm_term", "mean_intention"})
+        ax.plot(frame["year"], values, label=label,
+                drawstyle="steps-post" if stepwise else "default")
+        plotted_lines += 1
+        maximum_value = max(maximum_value, float(values.max()))
+        last_year = float(frame["year"].iloc[-1])
+
+    if plotted_lines == 0:
+        plt.close(fig)
+        return
+
+    ax.set_xlabel("Time (year)")
+    ax.set_ylabel(ylabel)
+    ax.set_xlim(1900, last_year)
+    if y_limits is not None:
+        ax.set_ylim(*y_limits)
+    elif metric_name == "T":
+        ax.set_ylim(top=max(5, maximum_value + 0.25))
+    if metric_name == "social_norm_term":
+        ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
+    ax.set_title("All parameter combinations")
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    fig.tight_layout()
+    fig.savefig(group_dir / output_name, dpi=300)
+    plt.close(fig)
+
+
+def save_x_parameter_surface_animation(
+    summary_df: pd.DataFrame,
+    group_dir: Path,
+    x_param: str,
+    y_param: str,
+    scenario_name: str,
+    max_frames: int = 240,
+) -> None:
+    required_columns = {"run_dir", x_param, y_param, "scenario"}
+    if not required_columns.issubset(summary_df.columns):
+        return
+    scenario_df = summary_df[summary_df["scenario"] == scenario_name].copy()
+    trajectories = {}
+    for _, record in scenario_df.iterrows():
+        time_series_path = Path(str(record.get("run_dir", ""))) / "time_series.csv"
+        if not time_series_path.exists():
+            continue
+        frame = pd.read_csv(time_series_path, sep=";", usecols=["year", "x"])
+        if frame.empty:
+            continue
+        trajectories[(float(record[x_param]), float(record[y_param]))] = (
+            frame["year"].to_numpy(dtype=float),
+            frame["x"].to_numpy(dtype=float),
+        )
+    if not trajectories:
+        return
+
+    x_values = np.array(sorted({key[0] for key in trajectories}), dtype=float)
+    y_values = np.array(sorted({key[1] for key in trajectories}), dtype=float)
+    if len(x_values) < 2 or len(y_values) < 2:
+        return
+    lengths = {len(values[0]) for values in trajectories.values()}
+    if len(lengths) != 1:
+        return
+
+    reference_years = next(iter(trajectories.values()))[0]
+    surface = np.full((len(y_values), len(x_values), len(reference_years)), np.nan)
+    x_indices = {value: i for i, value in enumerate(x_values)}
+    y_indices = {value: i for i, value in enumerate(y_values)}
+    for (px, py), (_, trajectory) in trajectories.items():
+        surface[y_indices[py], x_indices[px], :] = trajectory
+    if np.isnan(surface).any():
+        return
+
+    frame_indices = np.unique(
+        np.linspace(0, len(reference_years) - 1, min(max_frames, len(reference_years)), dtype=int)
+    )
+    X, Y = np.meshgrid(x_values, y_values)
+    safe_name = sanitize_name(scenario_name)
+
+    def configure_axes(axis, frame_index):
+        axis.set_xlabel(x_param)
+        axis.set_ylabel(y_param)
+        axis.set_zlabel("x")
+        axis.set_zlim(-0.1, 1.1)
+        axis.set_title(
+            f"{scenario_name}: x over {x_param} and {y_param} | year {reference_years[frame_index]:.1f}"
+        )
+
+    final_fig = plt.figure(figsize=(11, 8))
+    final_axis = final_fig.add_subplot(111, projection="3d")
+    final_axis.plot_surface(X, Y, surface[:, :, -1], cmap="viridis", vmin=0, vmax=1, edgecolor="none")
+    configure_axes(final_axis, len(reference_years) - 1)
+    final_fig.tight_layout()
+    final_fig.savefig(group_dir / f"x_surface_{safe_name}.png", dpi=300)
+    plt.close(final_fig)
+
+    animation_fig = plt.figure(figsize=(11, 8))
+    animation_axis = animation_fig.add_subplot(111, projection="3d")
+
+    def update(frame_index):
+        animation_axis.clear()
+        animation_axis.plot_surface(
+            X, Y, surface[:, :, frame_index], cmap="viridis", vmin=0, vmax=1, edgecolor="none"
+        )
+        configure_axes(animation_axis, frame_index)
+        return (animation_axis,)
+
+    animation = FuncAnimation(animation_fig, update, frames=frame_indices, blit=False)
+    video_path = group_dir / f"x_surface_{safe_name}.mp4"
+    try:
+        animation.save(video_path, writer=FFMpegWriter(fps=12, bitrate=1800), dpi=120)
+    except (FileNotFoundError, RuntimeError) as error:
+        print(f"Could not create {video_path}: {error}")
+    finally:
+        plt.close(animation_fig)
+
+
+def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group: ExperimentGroup) -> None:
+    summary_df.to_csv(group_dir / "summary_metrics.csv", index=False, sep=";")
+    sweep_parameters = list(group.sweep_parameters.keys())
+
+    save_correlation_heatmap(summary_df, group_dir)
+    for metric_name in KEY_METRICS:
+        if metric_name in summary_df.columns:
+            save_metric_vs_parameters(summary_df, group_dir, metric_name, sweep_parameters)
+
+    save_overlaid_time_series_plot(
+        summary_df, group_dir, "x", "x.png", "Fraction of mitigators (X)", sweep_parameters, (-0.1, 1.1)
+    )
+    save_overlaid_time_series_plot(
+        summary_df, group_dir, "T", "temperature.png", "Temperature Anomaly (celsius)", sweep_parameters
+    )
+    save_overlaid_time_series_plot(
+        summary_df, group_dir, "social_norm_term", "social_norm.png", "Social norm value", sweep_parameters
+    )
+    save_overlaid_time_series_plot(
+        summary_df, group_dir, "f_T", "f_T.png", "Temperature benefit f_T", sweep_parameters
+    )
+
+    if len(sweep_parameters) == 2:
+        for scenario_name in summary_df.get("scenario", pd.Series(dtype=str)).dropna().unique():
+            save_x_parameter_surface_animation(
+                summary_df, group_dir, sweep_parameters[0], sweep_parameters[1], scenario_name
+            )
+        save_phase_map_for_two_parameters(
+            summary_df, group_dir, sweep_parameters[0], sweep_parameters[1]
+        )
+        for metric_name in KEY_METRICS:
+            if metric_name in summary_df.columns:
+                save_heatmap_for_two_parameters(
+                    summary_df, group_dir, metric_name, sweep_parameters[0], sweep_parameters[1]
+                )
+
+
+def save_approach_comparison_plot(summary_df: pd.DataFrame, group_dir: Path, scenario_name: str) -> None:
+    scenario_summary = summary_df[summary_df["scenario"] == scenario_name].copy()
+    if scenario_summary.empty:
+        return
+    candidates = [
+        "max_temperature",
+        "final_temperature",
+        "final_x",
+        "final_social_norm",
+        "time_to_peak_temperature",
+    ]
+    metrics = [metric for metric in candidates if metric in scenario_summary.columns]
+    if not metrics:
+        return
+    fig, axes = plt.subplots(len(metrics), 1, figsize=(12, 3.5 * len(metrics)), squeeze=False)
+    for axis, metric_name in zip(axes.flatten(), metrics):
+        values = pd.to_numeric(scenario_summary[metric_name], errors="coerce").dropna().to_numpy()
+        if values.size:
+            axis.boxplot(values, vert=True)
+        axis.set_ylabel(metric_name)
+        axis.set_xticks([1])
+        axis.set_xticklabels([sanitize_name(scenario_name)], rotation=15, ha="right")
+        axis.grid(True, axis="y", alpha=0.2)
+    fig.suptitle(f"{scenario_name}: summary across all parameter combinations")
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(group_dir / f"approach_summary_{sanitize_name(scenario_name)}.png", dpi=300)
+    plt.close(fig)
+
+
+def save_overall_comparison_plots(all_summaries: pd.DataFrame, run_root: Path) -> None:
+    if all_summaries.empty:
+        return
+    candidates = ["max_temperature", "final_temperature", "final_x", "final_social_norm"]
+    metrics = [metric for metric in candidates if metric in all_summaries.columns]
+    if not metrics:
+        return
+    fig, axes = plt.subplots(len(metrics), 1, figsize=(12, 4 * len(metrics)), squeeze=False)
+    for axis, metric_name in zip(axes.flatten(), metrics):
+        grouped = []
+        labels = []
+        for group_name, subset in all_summaries.groupby("group"):
+            values = pd.to_numeric(subset[metric_name], errors="coerce").dropna().to_numpy()
+            if values.size:
+                grouped.append(values)
+                labels.append(group_name)
+        if grouped:
+            axis.boxplot(grouped, tick_labels=labels, vert=True)
+        axis.set_title(f"{metric_name} by group")
+        axis.tick_params(axis="x", rotation=25)
+        axis.grid(True, axis="y", alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(run_root / "overall_metric_comparison.png", dpi=300)
+    plt.close(fig)
+
+
+def save_scenario_comparison_bar_charts(
+    scenario_comparison: pd.DataFrame,
+    run_root: Path,
+) -> None:
+    """Save one horizontal bar chart for each scenario column in the comparison CSV."""
+    for scenario_name in scenario_comparison.columns:
+        values = pd.to_numeric(scenario_comparison[scenario_name], errors="coerce")
+        valid = values.notna()
+        if not valid.any():
+            continue
+
+        metric_names = scenario_comparison.index[valid].astype(str).tolist()
+        numeric_values = values[valid].to_numpy(dtype=float)
+        fig_height = max(6.0, 0.45 * len(metric_names))
+        fig, ax = plt.subplots(figsize=(12, fig_height))
+        bars = ax.barh(metric_names, numeric_values)
+        ax.bar_label(
+            bars,
+            labels=[format_value_for_display(value) for value in numeric_values],
+            padding=3,
+            fontsize=8,
+        )
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_xlabel("Value")
+        ax.set_title(f"Scenario comparison: {scenario_name}")
+        ax.grid(True, axis="x", alpha=0.2)
+        ax.invert_yaxis()
+        fig.tight_layout()
+        fig.savefig(
+            run_root / f"scenario_comparison_{sanitize_name(scenario_name)}.png",
+            dpi=300,
+        )
+        plt.close(fig)
+
+
+def _mean_std(series: pd.Series) -> tuple[float, float]:
+    numeric = pd.to_numeric(series, errors="coerce").dropna()
+    if numeric.empty:
+        return float("nan"), float("nan")
+    mean = float(numeric.mean())
+    std = float(numeric.std(ddof=1)) if len(numeric) > 1 else 0.0
+    return mean, std
+
+
+def build_scenario_comparison_table(all_runs: pd.DataFrame) -> pd.DataFrame:
+    """Summarize each social-norm scenario across all completed parameter combinations."""
+    if all_runs.empty or "scenario" not in all_runs.columns:
+        return pd.DataFrame()
+
+    usable = all_runs[all_runs["status"].isin(["ok", "skipped"])].copy()
+    if usable.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    for scenario_name, scenario_runs in usable.groupby("scenario", sort=False):
+        success = scenario_runs["elimination_success"].fillna(False).astype(bool)
+        bool_x95 = scenario_runs["bool_x95"].fillna(False).astype(bool)
+        successful_runs = scenario_runs[success]
+
+        final_x_mean, final_x_std = _mean_std(scenario_runs["final_x"])
+        max_temperature_mean, max_temperature_std = _mean_std(scenario_runs["max_temperature"])
+        final_temperature_mean, final_temperature_std = _mean_std(scenario_runs["final_temperature"])
+        cumulative_emissions_mean, cumulative_emissions_std = _mean_std(
+            scenario_runs["cumulative_emissions"]
+        )
+        time_to_elimination_mean, time_to_elimination_std = _mean_std(
+            successful_runs["time_to_elimination"]
+        )
+
+        phase_counts: dict[str, int] = {phase: 0 for phase in PHASE_ORDER}
+        for _, record in scenario_runs.iterrows():
+            phase = _classify_saved_run(record)
+            if phase is not None:
+                phase_counts[phase] = phase_counts.get(phase, 0) + 1
+
+        row = {
+            "scenario": scenario_name,
+            "n_runs": int(len(scenario_runs)),
+            "elimination_threshold": ELIMINATION_THRESHOLD,
+            "elimination_success_rate": float(success.mean()),
+            "bool_x95_rate": float(bool_x95.mean()),
+            "time_to_elimination_mean_successful": time_to_elimination_mean,
+            "time_to_elimination_std_successful": time_to_elimination_std,
+            "final_x_mean": final_x_mean,
+            "final_x_std": final_x_std,
+            "cumulative_emissions_mean": cumulative_emissions_mean,
+            "cumulative_emissions_std": cumulative_emissions_std,
+            "max_temperature_mean": max_temperature_mean,
+            "max_temperature_std": max_temperature_std,
+            "final_temperature_mean": final_temperature_mean,
+            "final_temperature_std": final_temperature_std,
+        }
+        for phase in PHASE_ORDER:
+            row[f"phase_share_{sanitize_name(phase)}"] = phase_counts.get(phase, 0) / len(scenario_runs)
+        rows.append(row)
+
+    comparison = pd.DataFrame(rows)
+    return comparison.sort_values(
+        ["elimination_success_rate", "cumulative_emissions_mean", "max_temperature_mean"],
+        ascending=[False, True, True],
+        kind="stable",
+    ).reset_index(drop=True)
+
+
+def load_default_groups() -> list[ExperimentGroup]:
+    return DEFAULT_EXPERIMENT_GROUPS
+
+
+def _resolve_worker_count(workers: int | None) -> int:
+    if workers is not None:
+        if workers < 1:
+            raise ValueError("workers must be at least 1")
+        return workers
+    return max(1, (os.cpu_count() or 1) - 1)
+
+
+def _ignore_sigint_in_worker() -> None:
+    """Let the main process handle Ctrl+C; workers are terminated explicitly."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def _terminate_executor_workers(executor: ProcessPoolExecutor) -> None:
+    """Immediately terminate running worker processes during an interrupted batch run."""
+    processes = list(getattr(executor, "_processes", {}).values())
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+    for process in processes:
+        process.join(timeout=1.0)
+
+
+def _run_parallel_job(job: tuple[Any, ...]) -> dict[str, Any]:
+    (
+        base_params,
+        sweep_values,
+        group,
+        run_root,
+        scenario_name,
+        overwrite,
+        save_outputs_per_run,
+    ) = job
+    return run_single_combination(
+        base_params=base_params,
+        sweep_values=sweep_values,
+        group=group,
+        run_root=run_root,
+        scenario_name=scenario_name,
+        overwrite=overwrite,
+        save_outputs_per_run=save_outputs_per_run,
+        current_run=-1,
+        total_runs=-1,
+    )
+
+
+def _format_completion_log(record, completed_runs, total_runs, elapsed_seconds, now=None):
+    """Estimate remaining job time from aggregate throughput (all workers).
+
+    Includes computation and per-run output, but not final summary plots.
+    Startup, skipped jobs and differing parameter runtimes can skew the estimate.
+    """
+    remaining = max(0, total_runs - completed_runs)
+    eta_seconds = math.ceil(max(0., elapsed_seconds) * remaining / completed_runs)
+    hours, remainder = divmod(eta_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    stamp = (now or datetime.now()).strftime("%H:%M:%S")
+    status = {"failed": "Failed", "skipped": "Skipped"}.get(record.get("status"), "Completed")
+    return (
+        f"[{stamp}] [{completed_runs}/{total_runs}] {status} "
+        f"{record.get('group')} | {record.get('scenario')} | {record.get('run_name')} "
+        f"| ETA ~{hours:02d}:{minutes:02d}:{seconds:02d}"
+    )
+
+
+def run_groups(
+    selected_group_names: list[str] | None = None,
+    output_root: Path = DEFAULT_OUTPUT_ROOT,
+    overwrite: bool = False,
+    save_outputs_per_run: bool = False,
+    workers: int | None = None,
+) -> Path:
+    run_root = make_output_root(output_root)
+    available_scenarios = load_scenarios()
+    groups = load_default_groups()
+    if selected_group_names:
+        selected = set(selected_group_names)
+        groups = [group for group in groups if group.name in selected]
+
+    worker_count = _resolve_worker_count(workers)
+
+    save_json(
+        run_root / "manifest.json",
+        {
+            "created_at": datetime.now().isoformat(),
+            "selected_groups": [group.name for group in groups],
+            "available_scenarios": list(available_scenarios.keys()),
+            "workers": worker_count,
+            "elimination_threshold": ELIMINATION_THRESHOLD,
+            "groups": [
+                {
+                    "name": group.name,
+                    "scenarios": group.scenarios,
+                    "sweep_parameters": group.sweep_parameters,
+                    "static_parameters": group.static_parameters,
+                    "fixed_overrides": group.fixed_overrides,
+                    "simulation_time": group.simulation_time,
+                    "n_agents": group.n_agents,
+                    "coupling_interval": group.coupling_interval,
+                    "output_points_per_year": group.output_points_per_year,
+                    "seed": group.seed,
+                    "solver": group.solver,
+                    "dt": group.dt,
+                }
+                for group in groups
+            ],
+        },
+    )
+
+    jobs: list[tuple[Any, ...]] = []
+    group_scenarios: dict[str, list[str]] = {}
+
+    for group in groups:
+        group_dir = ensure_directory(run_root / sanitize_name(group.name))
+        scenarios_to_run = [scenario for scenario in group.scenarios if scenario in available_scenarios]
+        group_scenarios[group.name] = scenarios_to_run
+        missing_scenarios = [scenario for scenario in group.scenarios if scenario not in available_scenarios]
+        if missing_scenarios:
+            save_json(
+                group_dir / "missing_scenarios.json",
+                {"missing_scenarios": missing_scenarios, "available_scenarios": list(available_scenarios)},
+            )
+
+        sweep_combinations = build_sweep_combinations(group.sweep_parameters)
+        for scenario_name in scenarios_to_run:
+            base_params = available_scenarios[scenario_name]
+            for sweep_values in sweep_combinations:
+                jobs.append(
+                    (
+                        base_params,
+                        sweep_values,
+                        group,
+                        run_root,
+                        scenario_name,
+                        overwrite,
+                        save_outputs_per_run,
+                    )
+                )
+
+    total_runs = len(jobs)
+    all_records: list[dict[str, Any]] = []
+    jobs_started_at = time.monotonic()
+
+    if worker_count == 1:
+        for current_run, job in enumerate(jobs, start=1):
+            (
+                base_params,
+                sweep_values,
+                group,
+                job_run_root,
+                scenario_name,
+                job_overwrite,
+                job_save_outputs,
+            ) = job
+            record = run_single_combination(
+                base_params=base_params,
+                sweep_values=sweep_values,
+                group=group,
+                run_root=job_run_root,
+                scenario_name=scenario_name,
+                overwrite=job_overwrite,
+                save_outputs_per_run=job_save_outputs,
+                current_run=current_run,
+                total_runs=total_runs,
+            )
+            all_records.append(record)
+            print(_format_completion_log(
+                record, current_run, total_runs, time.monotonic() - jobs_started_at
+            ), flush=True)
+    else:
+        print(f"Running {total_runs} simulations with {worker_count} worker processes")
+        executor = ProcessPoolExecutor(
+            max_workers=worker_count,
+            initializer=_ignore_sigint_in_worker,
+        )
+        future_to_job = {}
+        try:
+            future_to_job = {executor.submit(_run_parallel_job, job): job for job in jobs}
+            for completed_runs, future in enumerate(as_completed(future_to_job), start=1):
+                record = future.result()
+                all_records.append(record)
+                print(_format_completion_log(
+                    record, completed_runs, total_runs, time.monotonic() - jobs_started_at
+                ), flush=True)
+        except KeyboardInterrupt:
+            print("\nBatch run interrupted. Terminating worker processes...")
+            _terminate_executor_workers(executor)
+            executor.shutdown(wait=True, cancel_futures=False)
+            raise
+        else:
+            executor.shutdown(wait=True)
+
+    all_group_summaries: list[pd.DataFrame] = []
+    for group in groups:
+        group_dir = ensure_directory(run_root / sanitize_name(group.name))
+        group_records = [record for record in all_records if record.get("group") == group.name]
+        if not group_records:
+            continue
+
+        group_summary = pd.DataFrame(group_records)
+        sort_columns = ["scenario"] + [
+            parameter_name
+            for parameter_name in group.sweep_parameters
+            if parameter_name in group_summary.columns
+        ]
+        group_summary = group_summary.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+
+        save_group_comparison_plots(group_summary, group_dir, group)
+        for scenario_name in group_scenarios[group.name]:
+            save_approach_comparison_plot(group_summary, group_dir, scenario_name)
+        all_group_summaries.append(group_summary)
+
+    combined_summary = (
+        pd.concat(all_group_summaries, ignore_index=True) if all_group_summaries else pd.DataFrame()
+    )
+    if not combined_summary.empty:
+        combined_summary.to_csv(run_root / "all_runs_summary.csv", index=False, sep=";")
+        scenario_comparison = build_scenario_comparison_table(combined_summary)
+        if not scenario_comparison.empty:
+            simulation_end_year = TIME_ZERO_YEAR + groups[0].simulation_time
+            scenario_comparison_output = (
+                scenario_comparison.drop(columns=["n_runs", "elimination_threshold"])
+                .rename(
+                    columns={
+                        "final_x_mean": f"x_mean_at_{simulation_end_year}",
+                        "final_x_std": f"x_std_at_{simulation_end_year}",
+                        "final_temperature_mean": f"temperature_mean_at_{simulation_end_year}",
+                        "final_temperature_std": f"temperature_std_at_{simulation_end_year}",
+                    }
+                )
+                .set_index("scenario")
+                .T
+            )
+            scenario_comparison_output.to_csv(
+                run_root / "scenario_comparison.csv",
+                index=True,
+                index_label="metric",
+                sep=";",
+            )
+            save_scenario_comparison_bar_charts(scenario_comparison_output, run_root)
+        save_overall_comparison_plots(combined_summary, run_root)
+
+    save_json(run_root / "run_index.json", {"records": all_records})
+    return run_root
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run parameter sweeps and save CSVs plus plots for each combination."
+    )
+    parser.add_argument(
+        "--groups",
+        nargs="*",
+        default=None,
+        help="Optional list of experiment group names to run. If omitted, all default groups are selected.",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_ROOT,
+        help="Base output directory for batch results.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Re-run combinations even if a completed run directory already exists.",
+    )
+    parser.add_argument(
+        "--save-outputs-per-run",
+        action="store_true",
+        help="Save time series and plots for each individual run, in addition to summary metrics.",
+        default=False,
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Number of parallel worker processes. Default: CPU count minus one. Use 1 for serial execution.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    try:
+        run_root = run_groups(
+            selected_group_names=args.groups if args.groups else None,
+            output_root=args.output_root,
+            overwrite=args.overwrite,
+            save_outputs_per_run=args.save_outputs_per_run,
+            workers=args.workers,
+        )
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+    print(f"Batch run completed: {run_root}")
+
+
+if __name__ == "__main__":
+    main()
