@@ -32,7 +32,6 @@ SUPPORTED_NORMS = (
     "Descriptive, injunctive, dynamic",
     "dynamic social norm2",
     "Descriptive, injunctive, dynamic2",
-    "Injunctive, dynamic2",
 )
 
 ABM_NORMS = {"Observation-based / intention motivation"}
@@ -43,7 +42,6 @@ DYNAMIC_ODE_NORMS = {
 DELAY_NORMS = {
     "dynamic social norm2",
     "Descriptive, injunctive, dynamic2",
-    "Injunctive, dynamic2",
 }
 
 
@@ -89,9 +87,8 @@ def _parameter_names_for_norm(norm: str) -> set[str]:
         },
         "dynamic social norm2": {"c_dyn", "tau", "rho"},
         "Descriptive, injunctive, dynamic2": {
-            "c_inj", "x_target", "c_dyn", "tau", "rho"
+            "c_desc", "c_inj", "x_target", "c_dyn", "tau", "rho"
         },
-        "Injunctive, dynamic2": {"c_inj", "x_target", "c_dyn", "tau", "rho"},
     }
     return common | by_norm.get(norm, set())
 
@@ -125,13 +122,8 @@ def _social_norm_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
         return s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
     if norm == "Descriptive, injunctive, dynamic2":
         return (
-            (2 * x - 1)
+            s["c_desc"] * (2 * x - 1)
             + s["c_inj"] * (s["x_target"] - x)
-            + s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
-        )
-    if norm == "Injunctive, dynamic2":
-        return (
-            s["c_inj"] * (s["x_target"] - x)
             + s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
         )
     raise ValueError(f"Unsupported social norm: {norm}")

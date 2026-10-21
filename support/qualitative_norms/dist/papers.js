@@ -111,10 +111,6 @@
       references: [foundation, review, ...trendBackground],
       note: 'Für diese additive Kombination und den konkreten Delay-Term wurde keine direkte Paperzuordnung gefunden. Die Links belegen Modellgrundlage und konzeptuellen Hintergrund.',
     },
-    injunctive2: {
-      references: [foundation, review, ...trendBackground],
-      note: 'Für diese Kombination aus Zielwert- und Delay-Term wurde keine direkte Paperzuordnung gefunden. Die Links belegen Modellgrundlage und konzeptuellen Hintergrund.',
-    },
     agents: {
       references: [
         reference('prawitz', 'Direkte Code-Referenz der BI-Regel', 'model/agent.py: evaluate_intentions; Anara: Review, Abschnitt 4.3.',

@@ -206,6 +206,7 @@ RANKING_PARAMETER_COLORS = dict(zip(
      "#008A9A", "#A76387", "#687EAA", "#AB763D", "#73635A", "#858C42"],
 ))
 RANKING_PARAMETER_COLORS["rho"] = "#507D42"
+RANKING_PARAMETER_COLORS["c_desc"] = "#735AA6"
 RANKING_PLOT_STEMS = ("ranking_balken_gruppen_gesamt", "ranking_balken_zielvariablen")
 RANKING_OVERVIEW_FILENAME = "ranking_balken_alle_normen.svg"
 RANKING_STYLE = {
@@ -394,10 +395,17 @@ def _ranking_social_norm_term(norm, names):
     import sympy as sp
     from analysis.symbolic_analysis import DELAY_NORMS, DYNAMIC_ODE_NORMS, symbolic_social_norm_term
 
-    term = symbolic_social_norm_term(norm)
+    # Archived formulas keep their original descriptive coefficient.
+    archived_injunctive = norm == "Injunctive, dynamic2"
+    current_norm = "Descriptive, injunctive, dynamic2" if archived_injunctive else norm
+    term = symbolic_social_norm_term(current_norm)
     symbols = {symbol.name: symbol for symbol in term.free_symbols}
     sym = lambda name: symbols.get(name, sp.Symbol(name, real=True))
     descriptive = 2 * sym("x") - 1
+    if archived_injunctive:
+        term = term.subs(sym("c_desc"), 0)
+    elif norm == "Descriptive, injunctive, dynamic2" and "c_desc" not in names:
+        term = term.subs(sym("c_desc"), 1)
     # Historical saved approval runs still describe the two-factor model.
     if norm == "Observation based / approval (punish only one behaviour)" and "alpha" in names:
         term *= sym("alpha")
@@ -414,7 +422,7 @@ def _ranking_social_norm_term(norm, names):
         else:
             dynamic = sym("c_dyn") * (sym("x_p") - sym("x_ref")) / sym("x_ref")
             term = term - dynamic + dynamic / sym("tau_STref")
-    if "theta" in names and "rho" not in names and norm in DELAY_NORMS:
+    if "theta" in names and "rho" not in names and current_norm in DELAY_NORMS:
         term = term.subs(sym("tau") * sym("rho"), sym("theta"))
     return term
 
@@ -430,15 +438,17 @@ def _ranking_formula_content(metadata, parameters):
     norm = parameters.get("social_norm") or metadata.get("social_norm")
     if norm is None:
         norm = load_scenarios().get(scenario, {}).get("social_norm")
-    if norm not in SUPPORTED_NORMS:
+    archived_injunctive = norm == "Injunctive, dynamic2"
+    if norm not in SUPPORTED_NORMS and not archived_injunctive:
         return [], ["Für dieses gespeicherte Szenario ist keine Formel hinterlegt."]
 
     names = set(parameters) | set(metadata.get("problem", {}).get("names", []))
     legacy = bool(names & {"delta", "tau_STref"})
     legacy |= norm == "Observation based / approval (punish only one behaviour)" and "alpha" in names
     legacy |= norm == "Static injunctive" and "c_inj" in names
+    legacy |= archived_injunctive or (norm == "Descriptive, injunctive, dynamic2" and "c_desc" not in names)
     independent_theta = "theta" in names and "rho" not in names
-    legacy |= norm in DELAY_NORMS and independent_theta
+    legacy |= (norm in DELAY_NORMS or archived_injunctive) and independent_theta
     notes = ["Formel des gespeicherten Modells (historische Parameterdefinition)."
              if legacy else "Formel des aktuellen Modells."]
     temperature = (r"f_T(T)=\frac{f_{\mathrm{max}}}"
@@ -474,6 +484,7 @@ def _ranking_formula_content(metadata, parameters):
             "x_p": r"x_p", "x_ref": r"x_{\mathrm{ref}}",
             "x_target": r"x_{\mathrm{target}}", "c_dyn": r"c_{\mathrm{dyn}}",
             "c_inj": r"c_{\mathrm{inj}}", "tau_STref": r"\tau_{\mathrm{STref}}",
+            "c_desc": r"c_{\mathrm{desc}}",
             "x_tau": r"x(t-\tau)",
             "x_tau_theta": r"x(t-\tau-\theta)" if independent_theta else r"x(t-\tau-\tau\rho)",
         }
@@ -492,13 +503,15 @@ def _ranking_formula_content(metadata, parameters):
                         r"\dot{x}_{\mathrm{ref}}=\frac{x_p-x_{\mathrm{ref}}}{\tau_{\mathrm{ref}}}")
             codes += ["τ_xp = tau_xp", "τ_ref = tau_ref"]
             notes.append("Bei |x_ref| < 10⁻¹² wird der dynamische Beitrag null gesetzt.")
-        if norm in DELAY_NORMS:
+        if norm in DELAY_NORMS or archived_injunctive:
             if independent_theta:
                 rows.insert(2, r"\theta\;\mathrm{ist\ ein\ freier\ Parameter}")
                 codes += ["τ = tau", "θ = theta"]
             else:
                 rows.insert(2, r"\theta=\tau\rho,\quad \tau>0,\quad \rho>1")
                 codes += ["τ = tau", "ρ = rho"]
+        if norm == "Descriptive, injunctive, dynamic2" and "c_desc" in names:
+            codes.append("c_desc wie im Code")
         if norm in {"dynamic social norm2", "Descriptive, injunctive, dynamic",
                     "Descriptive, injunctive, dynamic2", "Injunctive, dynamic2"}:
             codes.append("c_dyn wie im Code")

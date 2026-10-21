@@ -9,8 +9,7 @@ from model.solvers import ADAPTIVE_SOLVERS, get_solver
 import model.agent as agent
 from utils.paths import CONFIG_DIR, DATA_DIR
 
-DELAY_NORMS = {"dynamic social norm2", "Descriptive, injunctive, dynamic2",
-               "Injunctive, dynamic2"}
+DELAY_NORMS = {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
 DYNAMIC_ODE_NORMS = {"dynamic social norm", "Descriptive, injunctive, dynamic"}
 
 emissions_path = DATA_DIR / "global.1751_2017.csv"
@@ -300,7 +299,12 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         """Time derivative of temperature anomaly T from radiative imbalance."""
         return (p["a_E"] / p["c"]) * (F_d(state["C_at"], state["T"]) - p["sigma"] * (state["T"] + p["T_0"]) ** 4) * 3.14 * 10**7 
 
-    # important note: in the bury paper they use this function with T_f like this: f(T_F). However, here we've simplified the model to use T instead of T_F. T_F was defined like this: T_f(t) = T(t) + t_f/t_p (T(t) - T(t-t_p)))
+    # Bury et al. (2019), Eq. (8): T_f(t) = T(t) + (t_f/t_p)*(T(t)-T(t-t_p)).
+    # https://doi.org/10.1371/journal.pcbi.1007000
+    # Vereinfachung: Entscheidungen reagieren auf die aktuelle Temperatur T(t),
+    # ohne Trendextrapolation. Das entspricht t_f = 0 und damit T_f(t) = T(t).
+    # t_f/t_p sind nicht implementiert; eine Temperaturhistorie wird nicht benötigt.
+    # t_f (Prognosehorizont) ist NICHT das UI-Kürzel tf für temperature_factor.
     def f_T(T):
         """Temperature-dependent benefit function for social dynamics."""
         if constant_temperature_costs:
@@ -391,15 +395,9 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
                 x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
                 dynamic_term = (x_tau - x_tau_theta) / p["theta"]
-                descriptive_term = 2 * state["x"] - 1
+                descriptive_term = p["c_desc"] * (2 * state["x"] - 1)
                 injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
                 return descriptive_term + injunctive_term + p["c_dyn"] * dynamic_term
-            case "Injunctive, dynamic2":
-                x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
-                x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
-                dynamic_term = (x_tau - x_tau_theta) / p["theta"]
-                injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
-                return injunctive_term + p["c_dyn"] * dynamic_term
             case _:
                 raise ValueError(f"Unknown social norm type: {p['social_norm']}")
                
@@ -640,11 +638,8 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         dynamic_term = float(p["c_dyn"]) * trend_series
         if social_norm_mode == "dynamic social norm2":
             social_norm_history = dynamic_term
-        elif social_norm_mode == "Injunctive, dynamic2":
-            injunctive_term = float(p["c_inj"]) * (float(p["x_target"]) - x_series)
-            social_norm_history = injunctive_term + dynamic_term
         else:
-            descriptive_term = 2.0 * x_series - 1.0
+            descriptive_term = float(p["c_desc"]) * (2.0 * x_series - 1.0)
             injunctive_term = float(p["c_inj"]) * (float(p["x_target"]) - x_series)
             social_norm_history = descriptive_term + injunctive_term + dynamic_term
     else:

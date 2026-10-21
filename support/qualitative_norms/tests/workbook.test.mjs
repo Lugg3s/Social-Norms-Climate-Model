@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 await import('../dist/model-data.js');
 await import('../dist/papers.js');
 const { NORMS, NORM_FIELDS, PARAM_FIELDS, emptyWorkbook, validateWorkbook, progress, markdown } = globalThis.NormWorkbook;
-test('all ten distinct active norms start with empty qualitative fields', () => {
+test('all nine distinct active norms start with empty qualitative fields', () => {
   const book = emptyWorkbook();
-  assert.equal(NORMS.length, 10);
-  assert.equal(new Set(NORMS.map(model => model.key)).size, 10);
+  assert.equal(NORMS.length, 9);
+  assert.equal(new Set(NORMS.map(model => model.key)).size, 9);
   for (const model of NORMS) {
     assert.deepEqual(NORM_FIELDS.map(key => book.notes[model.key][key]), ['', '', '']);
     assert.equal(progress(book, model).filled, 0);
@@ -70,5 +70,26 @@ test('static c_inj notes migrate to sf while combined-norm c_inj notes stay sepa
   assert.ok(!('c_inj' in restored.notes['static-injunctive'].parameters));
   assert.match(restored.notes['static-injunctive'].parameters.social_norm_factor.explanation, /Meine alte Notiz/);
   assert.equal(restored.notes.combined.parameters.c_inj.explanation, 'Meine kombinierte Norm');
+  assert.deepEqual(validateWorkbook(restored), restored);
+});
+
+test('combined delay norm has c_desc and imports earlier workbook notes without loss', () => {
+  const model = NORMS.find(model => model.key === 'combined2');
+  assert.ok(model.parameters.includes('c_desc'));
+  assert.match(model.formula, /desc/);
+  assert.ok(!NORMS.some(model => model.key === 'injunctive2'));
+  const book = emptyWorkbook();
+  delete book.notes.combined2.parameters.c_desc;
+  book.notes.combined2.meaning = 'Meine bisherige kombinierte Norm';
+  book.notes.injunctive2 = structuredClone(book.notes.combined2);
+  book.notes.injunctive2.meaning = 'Meine bisherige Norm ohne deskriptiven Anteil';
+  book.notes.injunctive2.parameters.c_dyn.larger = 'Meine bisherige Erwartung';
+  const restored = validateWorkbook(book);
+  assert.deepEqual(Object.values(restored.notes.combined2.parameters.c_desc), ['', '', '']);
+  assert.match(restored.notes.combined2.meaning, /Meine bisherige kombinierte Norm/);
+  assert.match(restored.notes.combined2.meaning, /c_desc = 0/);
+  assert.match(restored.notes.combined2.meaning, /Meine bisherige Norm ohne deskriptiven Anteil/);
+  assert.match(restored.notes.combined2.parameters.c_dyn.larger, /Meine bisherige Erwartung/);
+  assert.ok(!('injunctive2' in restored.notes));
   assert.deepEqual(validateWorkbook(restored), restored);
 });

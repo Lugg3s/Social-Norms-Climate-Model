@@ -39,7 +39,7 @@
   const PARAMS = {
     social_norm_factor: 'sf', temperature_factor: 'tf',
     beta: 'β', kappa: 'κ', x0: 'x₀', f_max: 'fₘₐₓ', omega: 'ω', T_c: 'T꜀',
-    N: 'N', c_inj: 'cᵢₙⱼ', x_target: 'xₜₐᵣɡₑₜ', c_dyn: 'c_dᵧₙ',
+    N: 'N', c_desc: 'c_desc', c_inj: 'cᵢₙⱼ', x_target: 'xₜₐᵣɡₑₜ', c_dyn: 'c_dᵧₙ',
     tau_ref: 'τᵣₑ𝒻', tau_xp: 'τₓₚ', tau: 'τ', rho: 'ρ',
     network_size: 'network_size', eta: 'η', phi: 'φ', psi: 'ψ', n_agents: 'n_agents',
   };
@@ -65,10 +65,8 @@
     norm('combined', 'Descriptive, injunctive, dynamic', [descriptive, row(op('+'), injunctive), row(op('+'), dynamic)],
       ['c_inj', 'x_target', 'c_dyn', 'tau_ref', 'tau_xp'], ['x_p', 'x_ref'], perceptual, refGuard),
     norm('dynamic2', 'dynamic social norm2', dynamic2, ['c_dyn', 'tau', 'rho'], ['theta'], delayDefinition, history),
-    norm('combined2', 'Descriptive, injunctive, dynamic2', [descriptive, row(op('+'), injunctive), row(op('+'), dynamic2)],
-      ['c_inj', 'x_target', 'c_dyn', 'tau', 'rho'], ['theta'], delayDefinition, history),
-    norm('injunctive2', 'Injunctive, dynamic2', [injunctive, row(op('+'), dynamic2)],
-      ['c_inj', 'x_target', 'c_dyn', 'tau', 'rho'], ['theta'], delayDefinition, history),
+    norm('combined2', 'Descriptive, injunctive, dynamic2', [times(sub('c', 'desc'), par(descriptive)), row(op('+'), injunctive), row(op('+'), dynamic2)],
+      ['c_desc', 'c_inj', 'x_target', 'c_dyn', 'tau', 'rho'], ['theta'], delayDefinition, history),
   ];
   const ai = sub('A', 'i'), bi = sub('BI', 'i'), qi = sub('q', 'i'), actual = sub('actual_behavior', 'i');
   const cases = entries => row(op('{'), `<mtable columnalign="left left">${entries.map(([value, condition]) =>
@@ -121,6 +119,8 @@
       if (!note || !note.parameters) throw new Error(`Notizen für „${model.name}“ fehlen.`);
       for (const key of NORM_FIELDS) clean.notes[model.key][key] = string(note[key]);
       for (const name of [...model.parameters, ...model.variables]) {
+        // Older workbooks predate this note field; model inputs have no fallback.
+        if (model.key === 'combined2' && name === 'c_desc' && !Object.hasOwn(note.parameters, name)) continue;
         if (!note.parameters[name]) throw new Error(`Der Bereich ${name} fehlt.`);
         for (const key of PARAM_FIELDS) clean.notes[model.key].parameters[name][key] = string(note.parameters[name][key]);
       }
@@ -134,6 +134,21 @@
             target[key] += `${target[key].trim() ? '\n\n' : ''}Frühere Notiz zu ${retired} (jetzt in sf zusammengefasst):\n${previous}`;
           }
         }
+      }
+    }
+    // Preserve the user's retired norm notes, labelled with their original context.
+    const previous = input.notes.injunctive2;
+    if (previous) {
+      if (!previous.parameters) throw new Error('Parameter der früheren Norm fehlen.');
+      const target = clean.notes.combined2;
+      const append = (object, key, value) => {
+        const text = string(value);
+        if (text.trim()) object[key] += `${object[key].trim() ? '\n\n' : ''}Frühere Notiz zu Injunctive, dynamic2 (entspricht c_desc = 0):\n${text}`;
+      };
+      for (const key of NORM_FIELDS) append(target, key, previous[key]);
+      for (const [name, fields] of Object.entries(previous.parameters)) {
+        if (!Object.hasOwn(target.parameters, name)) throw new Error(`Unbekannter früherer Parameter ${name}.`);
+        for (const key of PARAM_FIELDS) append(target.parameters[name], key, fields[key]);
       }
     }
     return clean;

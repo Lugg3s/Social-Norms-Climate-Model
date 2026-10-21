@@ -18,8 +18,9 @@ and symbolic analyses in `analysis/`. Shared infrastructure is in `utils/` and
 general plotting in `visualization/`. `config/` and `data/` contain model inputs.
 `main.ipynb` and `INTERESTING_FINDINGS.md` stay at the repository root.
 
-Tests, the qualitative workbook, profiling tools/results and supplementary
-notes are grouped in `support/`. Simulation results stay in `plots/`; explicitly
+Tests, the qualitative workbook and profiling tools/results are grouped in
+`support/`. Research notes remain in `ToDos.md`, `FURTHER_ANALYSES.md` and
+`INTERESTING_FINDINGS.md` at the repository root. Simulation results stay in `plots/`; explicitly
 selected external result folders are unchanged. Repository-owned input and
 default output paths are resolved centrally in `utils/paths.py`.
 
@@ -69,6 +70,39 @@ params.update(tau=3, rho=2)
 result = simulate(params)
 ```
 
+## Temperature perception: no forecast extrapolation
+
+The temperature-dependent behavioural response uses the current anomaly `T(t)`.
+For the temperature-projection mechanism in Bury et al. (2019), this corresponds
+mathematically to a forecast horizon **`t_f = 0`**:
+
+```text
+Paper, Eq. (8): T_f(t) = T(t) + (t_f/t_p)*(T(t) - T(t-t_p))
+This implementation: t_f = 0 => T_f(t) = T(t)
+f_T(T(t)) = f_max / (1 + exp(-omega*(T(t) - T_c)))
+```
+
+This retains the simplification already documented in the model code:
+individuals respond to current warming, without extrapolating its recent trend
+into the future. Consequently, the implementation needs neither forecast
+parameters nor delayed temperature observations. This is a modelling assumption,
+not an empirically calibrated zero-year horizon. The repository does not record
+a further historical justification for choosing this simplification.
+
+In the paper, `t_p` is the past observation window (the quoted ten years), while
+`t_f` is the future forecast horizon. Neither is an active parameter here; no
+`t_f = 0` configuration value is inserted. The ordinary temperature response is
+scaled by `temperature_factor` in both the ODE and agent decisions. The separate
+`--constant-temperature-costs` mode replaces that response with 1.
+
+**Notation:** the workbook display alias `tf` means `temperature_factor`, not
+the paper's `t_f`. `temperature_factor` is not being set to zero. The social
+memory parameters `tau_ref`, `tau_xp`, `tau` and `rho` do not implement a
+temperature forecast. The paper's forecast-horizon sensitivity results therefore
+do not directly describe this implementation.
+
+Source: [Bury, Bauch & Anand (2019), Methods, temperature projection, Eq. (8)](https://doi.org/10.1371/journal.pcbi.1007000).
+
 ## Social norm strength
 
 `social_norm_factor` controls the overall strength of the social-norm contribution
@@ -77,10 +111,45 @@ in the replicator scenarios. The agent intention scenario uses its own
 `2*x - 1`; `c_inj` and `c_dyn` weight the injunctive and dynamic components
 relative to it in combined norms.
 
+`Descriptive, injunctive, dynamic2` has its own descriptive weight `c_desc`:
+
+```text
+S = c_desc*(2*x - 1) + c_inj*(x_target - x)
+    + c_dyn*(x(t-tau) - x(t-tau-theta))/theta
+```
+
+`c_desc = 1` preserves the previous combined equation. `c_desc = 0` reproduces
+the former `Injunctive, dynamic2`, which is no longer a separate scenario.
+All configured combined-delay variants explicitly set `c_desc = 1`.
+Sensitivity analysis samples `c_desc` over `[0, 1]` as an exploratory project
+range; there is no additional sensitivity case with `c_desc` fixed at zero.
+The combined norm without delays retains its existing descriptive term.
+Archived result formulas retain their original coefficients. New regression
+trees use the parameters listed in their sensitivity run, including `c_desc`;
+old runs cannot provide its influence.
+
 In `dynamic social norm`, the unweighted term is `(x_p - x_ref) / x_ref`.
 The combined ODE norm weights this dynamic component with `c_dyn`. Both use
 the existing zero-reference guard; the adaptation times remain `tau_ref` and
 `tau_xp`.
+
+The relative deviation depends on the reference level, not just the gap in
+percentage points. For example, in the reusable-cup interpretation:
+
+| Perceived share `x_p` | Reference share `x_ref` | Gap | `(x_p - x_ref) / x_ref` |
+| ---: | ---: | ---: | ---: |
+| 20% | 10% | 10 percentage points | 1.0 = 100% relative deviation |
+| 60% | 50% | 10 percentage points | 0.2 = 20% relative deviation |
+
+Thus, the same gap produces a five-times larger dynamic norm contribution in
+the first case, with equal weights. This is a relative deviation between two
+smoothed states, not an annual growth rate.
+
+By contrast, `dynamic2` uses `(x(t-tau) - x(t-tau-theta)) / theta` before
+weighting with `c_dyn`. An increase from 10% to 20% over five years and one
+from 50% to 60% over five years both give `0.02`, or 2 percentage points per
+year. This term measures average absolute change per year over the past window;
+it does not divide by the initial share.
 
 A structural literature analogue for these two timescales is
 [Rajah et al. (2025), FRIDA v2.1, section 3.1.3 and Table A1, p. 6017](https://doi.org/10.5194/gmd-18-5997-2025).
@@ -314,7 +383,7 @@ params.update(tau=h / 2, rho=2)  # Derived theta = tau*rho = h.
 result = simulate(params, solver="RK4", dt=h, simulate_only_x=True)
 ```
 
-Import `simulate` and `resolve_parameters` from `model_equations`. The example
+Import `simulate` and `resolve_parameters` from `model.model_equations`. The example
 uses the reduced model: `simulate_only_x=True` freezes carbon reservoirs but
 retains temperature and social dynamics. The full carbon equations are very
 stiff: RK4 was unstable even at `dt=1e-8` years in baseline testing. Use BDF for
@@ -364,16 +433,18 @@ Run solver and history-update checks with
 
 `python -m support.tools.profile_dynamic_norms` profiles representative baseline and dynamic
 norm cases, serially, using a 400-year horizon, with the sensitivity defaults
-of one-year coupling and 24 output intervals per year. It does
+of 0.1-year coupling and 24 output intervals per year. It does
 not change model equations or solver tolerances. Profiling adds overhead, so
 the reported times are diagnostic rather than production runtime predictions.
 
 Use `--scenarios "Descriptive, injunctive, dynamic2" --zero-boundaries` to
 include the serial zero-boundary checks. To inspect existing sensitivity
-samples, use `--scenarios "Descriptive, injunctive, dynamic2" --samples-file
+samples generated by the current model, use `--scenarios "Descriptive, injunctive, dynamic2" --samples-file
 "path/to/samples.csv" --sample-indices 0 1 10`. The adjacent `parameters.json`
 is used when available. `--simulation-time`, `--coupling-interval`, and
 `--output-points-per-year` control the reproduced simulation settings.
+Samples with removed parameters or earlier delay constraints require the
+matching historical model version; the profiling tool does not migrate them.
 
 Results are saved under `support/profiling_results/<timestamp>/`: each case contains
 `profile.prof`, a readable `profile.txt`, function timings in `functions.csv`,
@@ -474,13 +545,13 @@ For inputs containing multiple norms, the default analysis additionally creates
 inputs). Both groups include their own reports, summary and
 `regressiontrees_alle_normen.svg`. Decision features are the intersection of
 sampled input names across the selected norms, never the norm label. In the
-current ten-norm sensitivity run, these are `temperature_factor` and `beta`;
+current nine-norm sensitivity configuration, these are `temperature_factor` and `beta`;
 the agent model does not sample `kappa` or `social_norm_factor`.
 
 When the selected sources contain the agent norm and at least two other norms,
 both common-input groups are also created without the agent norm under
 `_common_parametes/without_agents/pooled` and
-`_common_parametes/without_agents/per_norm`. The nine current ODE norms share
+`_common_parametes/without_agents/per_norm`. The eight current ODE norms share
 `social_norm_factor`, `temperature_factor`, `beta` and `kappa`. Each variant
 recomputes its input intersection and has separate reports, source manifests and
 SVG overviews labelled "mit Agentennorm" or "ohne Agentennorm". The agent rows
@@ -573,8 +644,9 @@ climate contains `final_temperature` and `cumulative_emissions`; dynamics
 contains `oscillation_occurrence` and `oscillations_per_500_years`.
 `final_x`, `oscillation_amplitude` and `damping_index` are commented out of
 the Sobol selection and ranking groups but remain saved as raw metrics.
-Together with `median_period` and `damping_rate`, they are candidates for
-future regression-tree analyses (see support/docs/ToDos.md).
+Together with `median_period` and `damping_rate`, they are already included in
+the default regression-tree target selection. Open research tasks are recorded
+in [ToDos.md](ToDos.md).
 `simple_mean` averages all seven active ST indices; `grouped_mean` gives equal
 weight to the three groups. Scores differ from runs with earlier target selections. Start a new result folder for this analysis: append mode rejects older
 output definitions. Existing saved rankings remain readable with their original
@@ -612,16 +684,13 @@ run directory and overwrites one violin plot with an overlaid boxplot per
 sensitivity output:
 
 ```text
-violin_boxplot_final_x.png
 violin_boxplot_x_mean.png
 violin_boxplot_final_temperature.png
 violin_boxplot_cumulative_emissions.png
 violin_boxplot_first_time_x95.png
 violin_boxplot_bool_x95.png
 violin_boxplot_oscillation_occurrence.png
-violin_boxplot_oscillation_amplitude.png
 violin_boxplot_oscillations_per_500_years.png
-violin_boxplot_damping_index.png
 ```
 
 Only rows with `status=completed` are plotted. Adding another norm and using
@@ -665,13 +734,13 @@ To regenerate only these bar charts without running simulations:
 
 ```python
 from pathlib import Path
-from sensitivity_plots import create_parameter_ranking_barplots
+from analysis.sensitivity.sensitivity_plots import create_parameter_ranking_barplots
 
 create_parameter_ranking_barplots(Path("plots/sensitivity_results/<run-folder>"))
 ```
 
 `rho` denotes the previously unused Greek letter rho (ρ).
-All three `dynamic2` norms require `tau > 0` and `rho > 1` and derive
+Both `dynamic2` norms require `tau > 0` and `rho > 1` and derive
 `theta = tau*rho`, so `theta > tau` in every simulation. `theta` remains in
 resolved/saved parameters as a derived value; change `tau` and `rho` to set the
 observation window. Changing either recalculates `theta` on the next resolution.

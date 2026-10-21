@@ -23,7 +23,7 @@ def timed_task(seconds):
 
 class TimeoutTests(unittest.TestCase):
     def test_dynamic2_sensitivity_enforces_tau_and_factor_bounds(self):
-        for scenario_name in ["Descriptive, injunctive, dynamic2", "Injunctive, dynamic2"]:
+        for scenario_name in ["Descriptive, injunctive, dynamic2", "dynamic social norm2"]:
             problem = sensitivity.build_problem(scenario_name)
             self.assertNotIn("theta", problem["names"])
             for name, minimum in (("tau", 0), ("rho", 1)):

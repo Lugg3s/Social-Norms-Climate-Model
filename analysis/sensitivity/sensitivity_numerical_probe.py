@@ -21,6 +21,16 @@ def json_safe(value):
     return value
 
 
+def migrate_archived_dynamic2(parameters):
+    """Translate archived probe inputs explicitly, preserving their equation."""
+    parameters = dict(parameters)
+    if parameters["social_norm"] == "Injunctive, dynamic2":
+        parameters.update(social_norm="Descriptive, injunctive, dynamic2", c_desc=0)
+    elif parameters["social_norm"] == "Descriptive, injunctive, dynamic2" and "c_desc" not in parameters:
+        parameters["c_desc"] = 1
+    return parameters
+
+
 def run_probe(task):
     import model.model_equations as model_equations
     import model.solvers as solvers
@@ -73,7 +83,7 @@ def main():
     for scenario,index,case in cases:
         row=next(r for r in selected if r["scenario"]==scenario and r["sample_index"]==index)
         for variant,coupling,density,strict in [("reference",.1,24,False),("dense",.1,100,False),("refined",.05,100,True)]:
-            tasks.append(dict(case=case,scenario=scenario,sample_index=index,parameters=row["parameters"],
+            tasks.append(dict(case=case,scenario=scenario,sample_index=index,parameters=migrate_archived_dynamic2(row["parameters"]),
                               variant=variant,coupling=coupling,density=density,strict=strict,output=str(output)))
     source_paths = {
         "model_equations.py": PROJECT_ROOT / "model" / "model_equations.py",

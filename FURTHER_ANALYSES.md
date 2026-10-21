@@ -1,5 +1,5 @@
 # Beobachtungen in den plots
-![alt text](images/image-1.png)
+![alt text](support/docs/images/image-1.png)
 - Der initiale Fall wird nach ca tau Jahren (hier ca. 40) wieder abgebildet
     - ist also nur sichtbar, wenn der Sprung um 2017 vorhanden ist.
 	- Abstand zwischen Oszillationen wird immer kleiner
@@ -100,7 +100,7 @@ This can distinguish similar final outcomes that arise through very different tr
 
 Use the existing oscillation metrics (`n_oscillations`, `median_period`, `amplitude_ratio`, `damping_rate`, `oscillation_score`) and extend them with an explicit overshoot measure.
 
-For the ODE dynamic formulation, investigate `tau_ref` and `tau_xp`, with `social_norm_factor` controlling overall norm strength. In the combined ODE norm, also investigate `c_dyn` for relative trend strength. For the delay formulation, investigate `tau`, `theta`, and `c_dyn`.
+For the ODE dynamic formulation, investigate `tau_ref` and `tau_xp`, with `social_norm_factor` controlling overall norm strength. In the combined ODE norm, also investigate `c_dyn` for relative trend strength. For the delay formulation, investigate `tau`, `rho`, and `c_dyn`; the window `theta = tau*rho` is derived, not a separate sweep input.
 
 ## 8. Comparison of the two dynamic-norm implementations
 

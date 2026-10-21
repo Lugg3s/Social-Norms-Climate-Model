@@ -78,13 +78,7 @@ NORM_SPECIFIC_PARAMETER_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
         "tau_xp": (0.1, 10.0),
     },
     "Descriptive, injunctive, dynamic2": {
-        "c_inj": (0.0, 10.0),
-        "x_target": (0.0, 1.0),
-        "c_dyn": (0.0, 10.0),
-        "tau": (0.1, 10.0),
-        "rho": (1.1, 10.0),  # theta = tau*rho; rho > 1.
-    },
-    "Injunctive, dynamic2": {
+        "c_desc": (0.0, 1.0),  # Exploratory weight: 0 disables the descriptive term.
         "c_inj": (0.0, 10.0),
         "x_target": (0.0, 1.0),
         "c_dyn": (0.0, 10.0),
@@ -406,6 +400,12 @@ def run_samples(
     return pd.DataFrame(records)
 
 
+def zero_boundary_parameters(problem):
+    """Keep c_desc in Sobol sampling only; no additional fixed-zero case."""
+    return [name for name, bounds in zip(problem["names"], problem["bounds"])
+            if float(bounds[0]) == 0. and name != "c_desc"]
+
+
 def run_zero_boundary_cases(
     base_params: dict[str, Any],
     problem: dict[str, Any],
@@ -413,8 +413,7 @@ def run_zero_boundary_cases(
     diagnostics_dir: Path | None = None,
 ) -> pd.DataFrame:
     """Evaluate exact zero boundaries serially, each with the same hard timeout."""
-    names = [name for name, bounds in zip(problem["names"], problem["bounds"])
-             if float(bounds[0]) == 0.]
+    names = zero_boundary_parameters(problem)
     tasks = [((base_params, [name], np.array([0.]), config), index,
               diagnostics_dir, "boundary", name) for index, name in enumerate(names)]
     records = []

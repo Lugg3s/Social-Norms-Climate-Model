@@ -111,7 +111,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios", nargs="+", default=["baseline", "Dynamic social norm", "Descriptive, injunctive, dynamic2"])
     parser.add_argument("--simulation-time", type=int, default=400)
-    parser.add_argument("--coupling-interval", type=float, default=1.)
+    parser.add_argument("--coupling-interval", type=float, default=0.1)
     parser.add_argument("--output-points-per-year", type=int, default=24)
     parser.add_argument("--max-seconds", type=float, default=60., help="Per-case profiling limit; partial profiles are saved.")
     parser.add_argument("--zero-boundaries", action="store_true", help="Also profile each exact-zero boundary check.")

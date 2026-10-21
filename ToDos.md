@@ -1,6 +1,8 @@
 # Aktuelle ToDos:
+
 SENSI:
 - social_norm_factor für jede Norm so setzen, dass die Wertebereiche für alle Normen gleich ist? Dadurch ists vergleichbarer.
+    - mit Hannah besprechen
 - PIK Cluster
 1. Normen qualitativ beschreiben. Bei Norm 5 weitermachen. Sicherung liegt in downloads
 Idee für einheitliche skalierung
@@ -9,20 +11,12 @@ Idee für einheitliche skalierung
 - social_norm_factor und temperature_factor bleiben frei variierbar, um Norm- und Temperatureinfluss unterschiedlich zu gewichten.
 - Der Normbeitrag lautet dann: social_norm_factor * scale_factor * Normterm. Für die dynamischen Normen mit x_ref muss noch ein sinnvoller Skalierungsmaßstab festgelegt werden.
 1. zielvariablen anpassen
-    - `oscillations_per_500_years`: vermischt Auftreten, Dauer und Frequenz; seltene/extreme Fälle machen Sobol-Indizes instabil; schnelle Schwingungen numerisch prüfen.
-    - `oscillation_amplitude`: auch bei nur einem Halbzyklus positiv; abhängig von Erkennungsschwelle; viele Nullwerte erschweren Sobol-Auswertung.
-    - `damping_index`: 0 bedeutet sowohl nicht bestimmbar als auch keine Dämpfung; nicht bestimmbare Werte als `NaN` kennzeichnen.
-    - `final_x`, `oscillation_amplitude` und `damping_index` sind aus der Sobol-Auswahl und dem Gesamtranking auskommentiert; Rohkennzahlen bleiben gespeichert.
-    - Entscheiden, ob `oscillations_per_500_years` ebenfalls weggelassen oder ersetzt werden soll.
-    - Eindeutige Frequenz-/Amplitudendefinitionen festlegen: vollständige Zyklen, festes Auswertungsfenster und Umgang mit fehlenden Schwingungen.
     - WICHTIG: CHati soll zunächst für kleinere Löufe testen, ob die neuen Zielvariablen dann wirklich belastbar sind, bevor ich wieder 50+ Stunden Simulationen laufen lasse
 1. Sensitivitätsanalyse auch nochmal mit anderen x0-Werten durchführen, um zu prüfen ob sich etwas ändert.
     1. chati fragen welche Möglichkeiten ich habe das zu vergleichen ohne wieder 50 stunden laufen lassen zu müssen
 (file:///c%3A/Users/lukas/OneDrive/Uni/Master/Masterarbeit/Socio-Climate-model/plots/todo_loesungen_2026-09-30/index.html)
 
-1. Mit konstantem temperatur-term auch nochmal sensi laufen lassen
-
-1. Bury Paper nochmal gründlich lesen (ab Results)
+1. Bury Paper nochmal gründlich lesen (ab Discussion)
 1. Sensi mit konstantem temperatur-term laufen lassen
     1. dann sollten die Aussagen über Oszillationen aussagekräftiger sein verglichen zwischen den Normtypen.
 
@@ -52,7 +46,7 @@ Idee für einheitliche skalierung
 1. Bobachtung bei descriptive injunctve dynamic 2:
     1. Der initiale Fall wird nach ca tau Jahren (hier ca. 40) wieder abgebildet
     1. TODO: auch für kleiner tau testen.
-    1. ![alt text](images/image.png)
+    1. ![alt text](support/docs/images/image.png)
 
 1. Zeitschritt vom solver gleichsetzen mit Theta und schauen ob oszillationen noch auftreten (insbesondere auf Folie 34)
     1. das hat bei mir nicht funktioniert 
@@ -123,37 +117,32 @@ Bspw. bei x0=0.9
 
 ### Descriptive, injunctive, dynamic2
 
+`theta = tau*rho` ist abgeleitet. Frühere Checks mit direktem `theta` zählen nicht als Checks der neuen `rho`-Parametrisierung.
+
+`c_desc`, `social_norm_factor`  
+`c_desc`, `c_inj`  
+`c_desc`, `x_target`  
+`c_desc`, `c_dyn`  
+`c_desc`, `tau`  
+`c_desc`, `rho`  
 `social_norm_factor`, `c_inj`  
 `social_norm_factor`, `x_target`  
 `social_norm_factor`, `c_dyn`  
 `social_norm_factor`, `tau`  
-`social_norm_factor`, `theta`  
+`social_norm_factor`, `rho`  
 `c_inj`, `x_target`  
 `c_inj`, `c_dyn` ✅  
 `c_inj`, `tau`  
-`c_inj`, `theta`  
+`c_inj`, `rho`  
 `x_target`, `c_dyn`  
 `x_target`, `tau`  
-`x_target`, `theta`  
+`x_target`, `rho`  
 `c_dyn`, `tau`  
-`c_dyn`, `theta`  
-`tau`, `theta`
-
-### Injunctive, dynamic2
-
-`c_inj`, `x_target`  
-`c_inj`, `c_dyn`  
-`c_inj`, `tau`  
-`c_inj`, `theta`  
-`x_target`, `c_dyn`  
-`x_target`, `tau`  
-`x_target`, `theta`  
-`c_dyn`, `tau`  
-`c_dyn`, `theta`  
-`tau`, `theta` ✅
+`c_dyn`, `rho`  
+`tau`, `rho`
 
 ### Dynamic social norm2
 
 `c_dyn`, `tau`  
-`c_dyn`, `theta`  
-`tau`, `theta` ✅
+`c_dyn`, `rho`  
+`tau`, `rho`

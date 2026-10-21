@@ -88,6 +88,7 @@
     },
     "Descriptive, injunctive, dynamic2": {
         "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_desc": 1,
         "c_inj": 6,
         "x_target": 0.7,
         "c_dyn": 6,
@@ -96,6 +97,7 @@
     },
     "Descriptive, injunctive, dynamic2 (testing)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_desc": 1,
         "c_inj": 60.99077891558409,
         "x_target": 0.48354777600616217,
         "c_dyn": 46.392013505101204,
@@ -106,6 +108,7 @@
     },
     "Descriptive, injunctive, dynamic2 (tau_timestep)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_desc": 1,
         "c_inj": 10,
         "x_target": 0.7,
         "c_dyn": 100,
@@ -114,6 +117,7 @@
     },
     "Descriptive, injunctive, dynamic2 (custom)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_desc": 1,
         "tau": 11.57254,
         "rho": 2,
         "c_dyn": 3,
@@ -122,20 +126,13 @@
     },
     "Descriptive, injunctive, dynamic2 (chaos candidate)": {
         "social_norm": "Descriptive, injunctive, dynamic2",
+        "c_desc": 1,
         "c_inj": 9.683160497336068,
         "c_dyn": 23.60635052690566,
         "tau": 49.20895162814507,
         "rho": 2,
         "kappa": 0.7581846076889143,
         "x_target": 0.375687046498698
-    },
-    "Injunctive, dynamic2": {
-        "social_norm": "Injunctive, dynamic2",
-        "c_inj": 6,
-        "x_target": 0.7,
-        "c_dyn": 6,
-        "tau": 1,
-        "rho": 2
     },
     "dynamic social norm2": {
         "social_norm": "dynamic social norm2",

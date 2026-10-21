@@ -1,6 +1,6 @@
 # Normen-Werkbuch
 
-Private, buildless web interface for qualitative work on the ten distinct active
+Private, buildless web interface for qualitative work on the nine distinct active
 norm types in `model/model_equations.py` / `config/scenarios.json`. All interpretation fields
 start empty. Only the fictional Reusable Cups case and mathematical definitions
 are supplied. Equivalent testing configurations are not separate norm types;
@@ -63,3 +63,8 @@ From `support/qualitative_norms/`, run `npm.cmd run check` and `npm.cmd test`.
 Browser QA uses an isolated
 headless Edge profile through the built-in DevTools protocol, without installing
 dependencies or touching the user's browser profile.
+
+The combined delay norm includes a separate `c_desc` card and coefficient.
+`Injunctive, dynamic2` is no longer a separate entry: it corresponds to
+`c_desc = 0`. On import, earlier notes for that norm are retained, labelled,
+in the combined delay norm. Older workbooks receive a blank c_desc note field.

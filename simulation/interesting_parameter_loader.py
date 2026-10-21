@@ -44,7 +44,6 @@ CSV_SCENARIO_ALIASES = {
     "descriptive_injunctive_dynamic": "Descriptive, injunctive, dynamic",
     "dynamic_social_norm2": "dynamic social norm2",
     "descriptive_injunctive_dynamic2": "Descriptive, injunctive, dynamic2",
-    "injunctive_dynamic2": "Injunctive, dynamic2",
 }
 
 

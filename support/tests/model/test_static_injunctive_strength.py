@@ -12,7 +12,7 @@ from analysis.symbolic_analysis import symbolic_social_norm_term, x
 
 
 STATIC = 'Static injunctive'
-COMBINED = ('Descriptive, injunctive, dynamic', 'Descriptive, injunctive, dynamic2', 'Injunctive, dynamic2')
+COMBINED = ('Descriptive, injunctive, dynamic', 'Descriptive, injunctive, dynamic2')
 
 
 class StaticInjunctiveStrengthTests(unittest.TestCase):

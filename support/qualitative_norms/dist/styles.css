@@ -4,10 +4,10 @@
 .paper-sources{margin-top:22px;border-top:1px solid var(--line);padding-top:18px}.paper-sources h3{font-size:12px;font-weight:600;margin:0 0 11px}.paper-links{display:flex;flex-wrap:wrap;gap:7px}.paper-links a{display:inline-flex;border:1px solid #dce5d4;background:#f4f7ef;border-radius:6px;padding:6px 9px;font-size:10px;line-height:1.5;color:#46653d;overflow-wrap:anywhere}.paper-links a:hover{background:#e9f0e0;border-color:#aabe99}.source-details{margin-top:13px}.source-details summary{font-size:10px;color:#71846b;line-height:1.8}.source-details ul{padding:0;list-style:none;margin:15px 0 0}.source-details li{padding:12px 0;border-bottom:1px solid #edf1e7;font-size:11px;line-height:1.7}.source-details li>a{display:block;color:#3e674b;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}.source-role{display:block;font-size:9px;letter-spacing:.4px;color:#829273;margin-bottom:4px}.source-details p{margin:6px 0 0;font-size:10px;line-height:1.8;color:#829079}.source-details .source-qualification{color:#697c61}.source-mapping-note{padding:12px 14px;border-radius:6px;background:#f4f6f0}.source-details li>a:last-child{margin-top:5px}
 /* The writing column scrolls past a persistent equation reference. */
 .main{max-width:1660px;padding-left:32px;padding-right:32px}
-.norm-workspace{display:grid;grid-template-columns:minmax(330px,.65fr) minmax(0,1.35fr);gap:26px;align-items:start}
+.norm-workspace{display:grid;grid-template-columns:minmax(310px,.6fr) minmax(0,1.4fr);gap:26px;align-items:start}
 .writing-column{grid-column:1;grid-row:1;min-width:0}
 .writing-column>.interpretation{margin-top:0}
-.formula-card{grid-column:2;grid-row:1;position:sticky;top:calc(var(--topbar-height,79px) + 18px);max-height:calc(100dvh - var(--topbar-height,79px) - 36px);min-width:0;display:flex;flex-direction:column;padding:22px;z-index:10;box-shadow:0 7px 26px #203c3309}
+.formula-card{grid-column:2;grid-row:1;position:sticky;top:calc(var(--topbar-height,79px) + 18px);max-height:calc(100dvh - var(--topbar-height,79px) - 36px);min-width:0;display:flex;flex-direction:column;padding:20px;z-index:10;box-shadow:0 7px 26px #203c3309}
 .formula-primary{flex-shrink:0;min-width:0}
 .formula-primary .section-top{align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .formula-primary .main-equation{padding:22px 12px}

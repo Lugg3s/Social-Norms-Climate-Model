@@ -1,7 +1,5 @@
 # Interesting Findings
 
-# Die Formel von Observation based / approval ist ein specialcase von static injunctive mit x_target = 1
-
 # Analyse der Ergebnisse der  Sensitivitätsanalyse
 - Das Agentenmodell wurde nicht betrachtet
 - x_target ist besonders einflussreich bei den injunctive modellen
@@ -43,12 +41,17 @@ Consequently, two observation-based norms can predict opposite social pressure f
 The static injunctive norm is
 
 ```text
-N_inj = c_inj * (x_target - x).
+N_inj = x_target - x; weighted contribution = social_norm_factor * (x_target - x).
 ```
 
 For the current `x_target = 0.7`, the norm promotes mitigation below 0.7 and opposes further increases above 0.7. This differs fundamentally from descriptive imitation: the injunctive norm provides restoring feedback toward a target, while descriptive imitation reinforces whichever behaviour is already in the majority.
 
 ## 4. The combined descriptive-injunctive model has a critical initial boundary at c_inj = 1
+
+Sections 4 and 5 assume a descriptive coefficient of 1: the combined ODE norm,
+or the combined delay norm with `c_desc = 1`. With variable `c_desc` in dynamic2,
+the corresponding boundaries are `c_inj = c_desc` initially (for `x0 = 0.3`,
+`x_target = 0.7`) and `c_inj = 2*c_desc` for the feedback slope.
 
 Ignoring the dynamic component at initialization, where `x = x_p = x_ref`, the combined norm is
 

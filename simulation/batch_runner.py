@@ -135,14 +135,6 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     },
     # ),
     # ExperimentGroup(
-    #     name="injunctive_dynamic2",
-    #     scenarios=["Injunctive, dynamic2"],
-    #     sweep_parameters={
-    #         "tau": DELAY_VALUES,
-    #         "rho": RHO_VALUES,
-    #     },
-    # ),
-    # ExperimentGroup(
     #     name="dynamic_social_norm2",
     #     scenarios=["dynamic social norm2"],
     #     sweep_parameters={"tau": DELAY_VALUES, "rho": RHO_VALUES},
@@ -788,6 +780,10 @@ def run_single_combination(
                 if ("rho" not in saved_params
                         or any(saved_params.get(key) != params[key] for key in ("tau", "rho", "theta"))):
                     raise ValueError("Saved Dynamic2 results use different tau/rho/theta parameters. "
+                                     "Use a new output directory or explicitly enable overwrite.")
+            if params["social_norm"] == "Descriptive, injunctive, dynamic2":
+                if saved_params.get("c_desc") != params["c_desc"]:
+                    raise ValueError("Saved combined Dynamic2 results use missing/different c_desc. "
                                      "Use a new output directory or explicitly enable overwrite.")
             if params.get("ABM", False) and saved_params.get("agent_decision_model") != "annual_intention_threshold":
                 raise ValueError("Saved agent results use the replaced model. Use a new "
