@@ -42,6 +42,8 @@ class TimeoutTests(unittest.TestCase):
                     for output in sensitivity.SENSITIVITY_OUTPUTS
                 })
                 frame["status"] = ["completed", "completed", "failed"]
+                for output in ("bool_x95", "oscillation_occurrence"):
+                    frame[output] = [0, 1, 99]  # Failed runs must not affect either plot.
                 frame.to_csv(scenario_dir / "simulation_outputs.csv", sep=";", index=False)
 
             paths = create_goal_variable_violin_boxplots(root, sensitivity.SENSITIVITY_OUTPUTS)

@@ -23,6 +23,7 @@ class AgentSensitivityTests(unittest.TestCase):
                              simulation_time=218, base_sample_size=4, seed=42,
                              score_mode="simple_mean", sample_timeout_minutes=1,
                              constant_temperature_costs=False,
+                             save_time_series=True,
                              append_existing_folder=None, output_root=Path(folder))
             with patch.object(sensitivity, "parse_args", return_value=args), \
                  patch.object(sensitivity, "_run_scenarios") as run:
@@ -56,7 +57,7 @@ class AgentSensitivityTests(unittest.TestCase):
             self.assertEqual(events[0]["parameters"]["network_size"], 128)
             self.assertEqual(events[0]["sampled_parameters"]["network_size"], 127.7)
             outcome = {"elapsed_seconds": 60, "worker_pid": 123}
-            timeout = sensitivity._record_timeout((job, 0, directory, "sample", None), outcome)
+            timeout = sensitivity._record_timeout((job, 0, directory, "sample", None, None), outcome)
             self.assertEqual(timeout["parameters"]["network_size"], 128)
 
     def test_agent_run_produces_rankings_and_initialization_metadata(self):

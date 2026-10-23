@@ -20,9 +20,11 @@ general plotting in `visualization/`. `config/` and `data/` contain model inputs
 
 Tests, the qualitative workbook and profiling tools/results are grouped in
 `support/`. Research notes remain in `ToDos.md`, `FURTHER_ANALYSES.md` and
-`INTERESTING_FINDINGS.md` at the repository root. Simulation results stay in `plots/`; explicitly
-selected external result folders are unchanged. Repository-owned input and
-default output paths are resolved centrally in `utils/paths.py`.
+`INTERESTING_FINDINGS.md` at the repository root. Batch results default to
+`E:\Masterarbeit\Runs`; sensitivity results (including the regression-tree pipeline)
+default to `E:\Masterarbeit\Sensitivity`. Use `--output-root` to select another
+folder. Input and default output paths are defined centrally in `utils/paths.py`.
+Existing results remain in their original folders.
 
 Run these commands from the repository root:
 
@@ -44,6 +46,78 @@ python -m unittest discover -s support/tests -t . -v
 The pytest-style sensitivity-review tests can additionally be run with
 `python -m pytest support/tests/sensitivity/test_sensitivity_review.py`.
 
+## Saved sensitivity trajectories and batch plots
+
+New sensitivity runs save compressed aggregate time series by default, including
+the actual parameters, solver settings, seed and metrics. Each completed sample
+and zero-boundary check publishes its own atomic NPZ in the norm folder's
+`time_series_<attempt>/` directory. `time_series.json` identifies the current
+attempt; older attempts are retained separately. The arrays preserve the exact
+saved output grid and floating-point values. Agent runs include mean intention;
+individual agent histories are not archived. The regression-tree pipeline uses
+the same saving default.
+
+```powershell
+# Normal run: trajectories are saved automatically.
+python -m analysis.sensitivity.sensitivity_analysis --base-sample-size 128 --workers 11
+
+# Opt out of trajectory storage.
+python -m analysis.sensitivity.sensitivity_analysis --base-sample-size 128 --workers 11 --no-save-time-series
+
+# Render all saved runs, including comparison figures, videos and 3D plots.
+python -m analysis.sensitivity.sensitivity_batch_plots --input-root "E:\Masterarbeit\Sensitivity\<run-folder>" --workers 11
+
+# Render only selected samples of one norm.
+python -m analysis.sensitivity.sensitivity_batch_plots --input-root "E:\Masterarbeit\Sensitivity\<run-folder>" --scenarios "Descriptive, injunctive, dynamic2" --sample-indices 834 282 279 284 276
+```
+
+The renderer never calls the simulation and uses the batch runner's drawing
+functions. Results go to `<input-root>/batch_plots/<timestamp>/<norm>/`, with
+individual figures in `sample_000000/`, plot-comparison MP4s in `videos/`, and
+parameter projections in `parameter_pairs/`. It reads NPZs directly without
+creating duplicate CSV trajectories. `--max-samples` limits the number of samples
+per norm; `--no-videos` and `--no-3d` disable those outputs. Use
+`--include-boundary-cases` to add the diagnostic zero-boundary runs.
+
+By default, 3D plots use the first two sampled parameters of each norm.
+`--parameter-pair tau rho` selects another pair; repeat it for additional pairs.
+Sensitivity samples vary several parameters and do not form a regular 2D grid:
+their 3D plots, time animations, phase maps and coloured parameter projections
+show actual sampled points, with the other parameters varying. No continuous
+parameter surface is inferred. Batch sweeps with complete 2D grids still retain
+their surface plots. `--max-video-frames` controls the 3D animation length (240
+frames by default). Plot-comparison videos advance through saved sample IDs;
+3D videos advance through simulation time.
+Pair folders use short names such as `parameter_pairs/pair_01/` to avoid Windows
+path-length limits; their `parameters.json` records both axes. The 3D files are
+`x_3d.png` and `x_3d.mp4` inside the pair folder.
+
+Earlier sensitivity runs without saved trajectories cannot be plotted this way;
+missing time series produce an explicit error and never trigger new simulations.
+
+## Five selected dynamic2 sensitivity runs
+
+The batch group `dynamic2_top5_sensi128` reproduces samples **834, 282, 279,
+284 and 276** from `samplesize_128_2026-10-22_00-24-06`, scenario
+`Descriptive, injunctive, dynamic2`. These are the five selected cases with the
+highest saved oscillation rate; sample 276 was chosen by its index among the
+three tied cases in fifth place.
+
+```powershell
+python -m simulation.batch_runner --groups dynamic2_top5_sensi128 --workers 5 --save-outputs-per-run
+```
+
+The complete source parameters, unrounded case values, source hashes and reference
+metrics are stored in `config/batch_dynamic2_top5_sensi128.json`. Its settings
+match the sensitivity run: 600 years, BDF, 0.1-year coupling, 24 output intervals
+per year, seed 42, and the ordinary temperature-dependent response. Named
+`parameter_sets` produce exactly five runs, not a Cartesian parameter grid.
+Results are saved under `E:\Masterarbeit\Runs\<timestamp>_night_batch\dynamic2_top5_sensi128\`;
+each case has its own `sample_000834` etc. directory with time series and plots.
+With `--save-outputs-per-run`, each run also includes `mitigation.png`: mitigation
+incentives above and the mitigation share `x` below, on a shared time axis.
+The separate `x.png` and `mitigation_incentives.png` plots are also saved.
+
 ## Status
 
 The code is part of ongoing Master's thesis research and is therefore subject to change.
@@ -55,8 +129,8 @@ The model is implemented primarily in Python and uses NumPy, pandas, SciPy, and 
 `load_scenarios()` loads named scenarios using the shared parameters explicitly
 configured in the JSON `baseline` block and each scenario's own values.
 `resolve_parameters(extension)` loads a named scenario or copies a complete
-parameter dictionary, validates values, and calculates derived parameters such
-as `theta = tau*rho`. It does not fill missing model inputs with Python defaults.
+parameter dictionary and validates values, including the observation window
+`tau*rho`. It does not fill missing model inputs with Python defaults.
 A dictionary is used as supplied; missing keys are not restored from `baseline`.
 Missing inputs raise native `KeyError` exceptions when accessed by the model.
 
@@ -115,7 +189,7 @@ relative to it in combined norms.
 
 ```text
 S = c_desc*(2*x - 1) + c_inj*(x_target - x)
-    + c_dyn*(x(t-tau) - x(t-tau-theta))/theta
+    + c_dyn*(x(t-tau) - x(t-tau-tau*rho))/(tau*rho)
 ```
 
 `c_desc = 1` preserves the previous combined equation. `c_desc = 0` reproduces
@@ -145,7 +219,7 @@ Thus, the same gap produces a five-times larger dynamic norm contribution in
 the first case, with equal weights. This is a relative deviation between two
 smoothed states, not an annual growth rate.
 
-By contrast, `dynamic2` uses `(x(t-tau) - x(t-tau-theta)) / theta` before
+By contrast, `dynamic2` uses `(x(t-tau) - x(t-tau-tau*rho)) / (tau*rho)` before
 weighting with `c_dyn`. An increase from 10% to 20% over five years and one
 from 50% to 60% over five years both give `0.02`, or 2 percentage points per
 year. This term measures average absolute change per year over the past window;
@@ -379,7 +453,7 @@ Classical fixed-step RK4 is also available. `dt` is required, in years:
 ```python
 h = 0.01
 params = resolve_parameters("dynamic social norm2")
-params.update(tau=h / 2, rho=2)  # Derived theta = tau*rho = h.
+params.update(tau=h / 2, rho=2)  # Observation window tau*rho = h.
 result = simulate(params, solver="RK4", dt=h, simulate_only_x=True)
 ```
 
@@ -407,7 +481,7 @@ violations beyond the existing tolerance raise an error asking for a smaller
 
 For batch comparisons, set `solver="RK4", dt=h` on an `ExperimentGroup`;
 defaults are `solver="BDF", dt=None`. Batch metadata records both settings,
-and direct simulation results include `solver_settings`. Keep `theta` fixed
+and direct simulation results include `solver_settings`. Keep `tau` and `rho` fixed
 while refining `dt` to test numerical convergence separately from changing the
 model's observation window.
 
@@ -522,7 +596,9 @@ New sensitivity runs use the corrected definition.
 
 Every timestamped result folder contains `summary.csv`, reports and a source-hash
 manifest. `regressiontrees_alle_normen.svg` embeds all saved trees in one vector
-overview: one section per norm and one column per target. Unfitted targets show
+overview: one section per norm, with at most two targets side by side and further
+targets below. The SVG retains the original trees' physical size instead of
+compressing the whole overview to a fixed width. Unfitted targets show
 their status and available row/block counts. Parameter and target names are
 preserved; no trees are refitted for the overview. This SVG is created automatically
 by the standalone tree analysis and by `analysis/sensitivity/sensitivity_pipeline.py`.
@@ -583,6 +659,9 @@ To add the overview to an existing tree result folder without repeating analysis
 ```powershell
 python -m analysis.regression_trees.regression_tree_plots --input-root "E:\Masterarbeit\Sensitivity\<run-folder>\regression_trees\<timestamp>"
 ```
+
+Use `--columns 1` for a single tree per row. This only rebuilds the overview
+from saved SVGs and reports; it does not refit trees or run simulations.
 
 For a small reproducible **synthetic known-rule example** (128 rows, no climate
 simulation), run:
@@ -680,8 +759,11 @@ scenario that is already present stops with an error. The overall top-parameter
 file is rebuilt from all scenario result folders.
 
 After each sensitivity run, the runner also scans all scenario folders in the
-run directory and overwrites one violin plot with an overlaid boxplot per
-sensitivity output:
+run directory and refreshes one distribution plot per sensitivity output.
+`bool_x95` and `oscillation_occurrence` use vertical bars showing only the
+percentage of positive outcomes (1), with the valid completed sample count `n`
+per norm. Other outputs use violin plots with overlaid boxplots.
+The existing filenames are retained, including for the two binary bar charts:
 
 ```text
 violin_boxplot_x_mean.png
@@ -723,7 +805,7 @@ response and auxiliary perception/delay equations. Agent sections show continuou
 BI, the binary action threshold, fixed cost distribution and peer proportion.
 Code-name legends connect Greek symbols to the ranking parameters. Saved legacy
 parameters (`delta`, `tau_STref`, or an independent `theta`) retain their original
-formula and are labelled as historical; current delay norms show `theta=tau*rho`.
+formula and are labelled as historical; current delay norms use `tau*rho` directly.
 The individual SVGs are
 embedded as vectors with unique element IDs; all bars, labels, and annotations
 are preserved. This self-contained overview is rebuilt from all analysed norm
@@ -740,10 +822,11 @@ create_parameter_ranking_barplots(Path("plots/sensitivity_results/<run-folder>")
 ```
 
 `rho` denotes the previously unused Greek letter rho (ρ).
-Both `dynamic2` norms require `tau > 0` and `rho > 1` and derive
-`theta = tau*rho`, so `theta > tau` in every simulation. `theta` remains in
-resolved/saved parameters as a derived value; change `tau` and `rho` to set the
-observation window. Changing either recalculates `theta` on the next resolution.
+Both `dynamic2` norms require `tau > 0` and `rho > 1` and use the observation
+window `tau*rho` directly, so the window is greater than `tau` in every simulation.
+There is no separate `theta` parameter in newly resolved/saved model parameters.
+When loading earlier inputs with `tau` and `rho`, their redundant derived
+`theta` entry is discarded without changing the original input dictionary.
 Legacy inputs containing only `theta` must use `rho = theta/tau`; combinations
 with `theta <= tau` cannot be reproduced under the new constraint.
 
@@ -753,7 +836,7 @@ do not establish the behaviour of the changed scenarios. Historical CSV entries
 and saved results are retained. The interesting-set runner rejects historical
 `theta` overrides rather than silently changing their dynamics; use valid `rho`
 entries for new runs. Batch reuse rejects results with missing/different `rho`,
-`tau`, or derived `theta`.
+or `tau`; older results with the same `tau` and `rho` remain reusable.
 
 The `dynamic2` sensitivity definitions sample `tau` from `[0.1, 10]`, `rho` from
 `[1.1, 10]`, and `c_dyn` from `[0, 10]`. These are exploratory project ranges.

@@ -67,7 +67,7 @@ def _resolve_extension(extension):
 
 
 def resolve_parameters(extension):
-    """Load/copy parameters, validate their values and calculate derived values.
+    """Load/copy parameters and validate their values.
 
     No fallback parameter values are inserted. Missing inputs raise native
     KeyError exceptions when the model accesses them.
@@ -99,16 +99,16 @@ def resolve_parameters(extension):
             raise ValueError("Dynamic2 parameter a has been renamed to rho; update the parameter key.")
         tau_delay = float(parameters["tau"])
         if not np.isfinite(tau_delay) or tau_delay <= 0:
-            raise ValueError("Dynamic2 requires finite tau > 0 so that theta = tau*rho > tau.")
+            raise ValueError("Dynamic2 requires finite tau > 0.")
         factor = float(parameters["rho"])
         if not np.isfinite(factor) or factor <= 1:
             raise ValueError("Dynamic2 requires finite rho > 1.")
-        theta_delay = tau_delay * factor
-        if not np.isfinite(theta_delay) or theta_delay <= tau_delay:
-            raise ValueError("Dynamic2 requires finite theta = tau*rho > tau.")
+        if not np.isfinite(tau_delay * factor) or tau_delay * factor <= tau_delay:
+            raise ValueError("Dynamic2 requires a finite observation window tau*rho > tau.")
         parameters["tau"] = tau_delay
-        parameters["rho"] = factor  # rho (ρ): Verhältnis theta/tau, strikt > 1.
-        parameters["theta"] = theta_delay  # Abgeleitetes Zeitfenster; kein freier Parameter.
+        parameters["rho"] = factor  # ρ > 1: Beobachtungsfenster tau*rho ist größer als tau.
+        # Older saved inputs contain this redundant derived value.
+        parameters.pop("theta", None)
     is_agent_norm = parameters["social_norm"] == "Observation-based / intention motivation"
     if bool(parameters["ABM"]) != is_agent_norm:
         raise ValueError("The observation-based intention norm requires ABM=True; "
@@ -209,8 +209,8 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     social_norm_mode = str(p["social_norm"])
     is_delay_dynamic_mode = social_norm_mode in DELAY_NORMS
     tau_delay = float(p["tau"]) if is_delay_dynamic_mode else 0.0
-    theta_delay = float(p["theta"]) if is_delay_dynamic_mode else 0.0
-    delay_window = max(0.0, tau_delay) + max(0.0, theta_delay)
+    observation_window = tau_delay * p["rho"] if is_delay_dynamic_mode else 0.0
+    delay_window = tau_delay + observation_window
     rng = np.random.default_rng(seed)
     agents = None
     if use_agent_model:
@@ -388,13 +388,13 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
                 return descriptive_term + injunctive_term + dynamic_term              
             case "dynamic social norm2":
                 x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
-                x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
-                dynamic_term = (x_tau - x_tau_theta) / p["theta"]
+                x_tau_window = evaluate_delayed_x(t - p["tau"] - p["tau"] * p["rho"], t, float(state["x"]))
+                dynamic_term = (x_tau - x_tau_window) / (p["tau"] * p["rho"])
                 return p["c_dyn"] * dynamic_term
             case "Descriptive, injunctive, dynamic2":
                 x_tau = evaluate_delayed_x(t - p["tau"], t, float(state["x"]))
-                x_tau_theta = evaluate_delayed_x(t - p["tau"] - p["theta"], t, float(state["x"]))
-                dynamic_term = (x_tau - x_tau_theta) / p["theta"]
+                x_tau_window = evaluate_delayed_x(t - p["tau"] - p["tau"] * p["rho"], t, float(state["x"]))
+                dynamic_term = (x_tau - x_tau_window) / (p["tau"] * p["rho"])
                 descriptive_term = p["c_desc"] * (2 * state["x"] - 1)
                 injunctive_term = p["c_inj"] * (p["x_target"] - state["x"])
                 return descriptive_term + injunctive_term + p["c_dyn"] * dynamic_term
@@ -632,8 +632,8 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
     elif social_norm_mode in DELAY_NORMS:
         x_series = simulation_states[5, :].astype(float)
         x_tau = np.interp(simulation_times - tau_delay, simulation_times, x_series, left=x_series[0], right=x_series[-1])
-        x_tau_theta = np.interp(simulation_times - tau_delay - theta_delay, simulation_times, x_series, left=x_series[0], right=x_series[-1])
-        trend_series = (x_tau - x_tau_theta) / theta_delay
+        x_tau_window = np.interp(simulation_times - tau_delay - observation_window, simulation_times, x_series, left=x_series[0], right=x_series[-1])
+        trend_series = (x_tau - x_tau_window) / observation_window
 
         dynamic_term = float(p["c_dyn"]) * trend_series
         if social_norm_mode == "dynamic social norm2":

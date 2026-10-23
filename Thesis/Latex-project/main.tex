@@ -1,0 +1,34 @@
+% !TeX program = pdflatex
+\documentclass[english]{thesis_master}
+
+\usepackage[utf8]{inputenc}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{assets/}{figures/}}
+
+\input{metadata}
+\hypersetup{pdftitle={\thesispdftitle},pdfauthor={\thesispdfauthor}}
+
+\begin{document}
+
+\generatetitle
+\cleardoublepage
+\input{chapters/abstract}
+
+\cleardoublepage
+\tableofcontents
+
+\startTextChapters
+\input{chapters/introduction}
+\input{chapters/related_work}
+\input{chapters/theory}
+\input{chapters/model}
+\input{chapters/methods}
+\input{chapters/results}
+\input{chapters/discussion}
+
+% Enable this once the first citations have been added to references.bib.
+% \bibliography{references}
+
+\input{frontmatter/declaration}
+
+\end{document}

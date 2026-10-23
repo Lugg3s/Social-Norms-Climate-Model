@@ -105,7 +105,7 @@
     },
     dynamic2: {
       references: [foundation, review, ...trendBackground],
-      note: 'Für den konkreten Delay-Term c_dyn · [x(t−τ) − x(t−τ−θ)] / θ wurde keine direkte Paperzuordnung gefunden. Die dynamischen Paper sind als konzeptueller Hintergrund verlinkt.',
+      note: 'Für den konkreten Delay-Term c_dyn · [x(t−τ) − x(t−τ−τρ)] / (τρ) wurde keine direkte Paperzuordnung gefunden. Die dynamischen Paper sind als konzeptueller Hintergrund verlinkt.',
     },
     combined2: {
       references: [foundation, review, ...trendBackground],

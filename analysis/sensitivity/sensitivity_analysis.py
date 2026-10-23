@@ -21,11 +21,12 @@ from SALib.sample import sobol as sobol_sample
 from model.model_equations import load_scenarios, resolve_parameters, simulate
 from analysis.simulation_metrics import ELIMINATION_THRESHOLD, compute_run_metrics
 from utils.bounded_process_map import bounded_map
-from utils.paths import PLOTS_DIR
+from utils.paths import SENSITIVITY_RESULTS_DIR
+from simulation.time_series import save_time_series
 
 
 DEFAULT_SIMULATION_TIME = 600
-DEFAULT_OUTPUT_ROOT = PLOTS_DIR / "sensitivity_results"
+DEFAULT_OUTPUT_ROOT = SENSITIVITY_RESULTS_DIR
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
 DEFAULT_OUTPUT_POINTS_PER_YEAR = 24
@@ -83,12 +84,12 @@ NORM_SPECIFIC_PARAMETER_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
         "x_target": (0.0, 1.0),
         "c_dyn": (0.0, 10.0),
         "tau": (0.1, 10.0),
-        "rho": (1.1, 10.0),  # theta = tau*rho; rho > 1.
+        "rho": (1.1, 10.0),  # Beobachtungsfenster tau*rho; rho > 1.
     },
     "dynamic social norm2": {
         "c_dyn": (0.0, 10.0),
         "tau": (0.1, 10.0),
-        "rho": (1.1, 10.0),  # theta = tau*rho; rho > 1.
+        "rho": (1.1, 10.0),  # Beobachtungsfenster tau*rho; rho > 1.
     },
 }
 
@@ -137,6 +138,7 @@ class SensitivityConfig:
     score_mode: str = "simple_mean"
     sample_timeout_minutes: float = 20.0
     constant_temperature_costs: bool = False
+    save_time_series: bool = True
 
     def __post_init__(self):
         if not np.isfinite(self.sample_timeout_minutes) or self.sample_timeout_minutes <= 0:
@@ -198,7 +200,7 @@ def _resolve_sample_parameters(scenario_params, parameter_names, sample):
     return resolve_parameters(params)
 
 
-def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
+def _run_sample(job: tuple[Any, ...], *, time_series_path=None, time_series_context=None) -> dict[str, Any]:
     scenario_params, parameter_names, sample, config = job
     params = _resolve_sample_parameters(scenario_params, parameter_names, sample)
     result = simulate(
@@ -213,7 +215,11 @@ def _run_sample(job: tuple[Any, ...]) -> dict[str, float]:
     )
     metrics = compute_run_metrics(result, params)
     sensitivity_outputs = _prepare_sensitivity_outputs(metrics, config.simulation_time)
-    return {**metrics, **sensitivity_outputs, SIMULATION_SUCCESS_OUTPUT: 1}
+    outputs = {**metrics, **sensitivity_outputs, SIMULATION_SUCCESS_OUTPUT: 1}
+    if time_series_path is not None:
+        save_time_series(time_series_path, result, outputs, time_series_context)
+        outputs["time_series_file"] = f"{time_series_path.parent.name}/{time_series_path.name}"
+    return outputs
 
 
 def _run_tracked_sample(
@@ -222,6 +228,7 @@ def _run_tracked_sample(
     diagnostics_dir: Path | None,
     phase: str = "sample",
     boundary_parameter: str | None = None,
+    time_series_dir: Path | None = None,
 ) -> dict[str, float]:
     """Persist actual worker start/finish events in one file per simulation.
 
@@ -229,9 +236,17 @@ def _run_tracked_sample(
     recorded: the job may still be running or its process may have stopped.
     The parent process enforces deadlines and records hard timeouts separately.
     """
-    if diagnostics_dir is None:
-        return _run_sample(job)
     scenario_params, parameter_names, sample, config = job
+    def compute():
+        if config.save_time_series and time_series_dir is not None:
+            return _run_sample(job, time_series_path=time_series_dir / f"{phase}_{sample_index:06d}.npz",
+                               time_series_context={"phase": phase, "sample_index": sample_index,
+                                                    "boundary_parameter": boundary_parameter,
+                                                    "n_agents": ABM_AGENT_COUNT,
+                                                    "config": vars(config)})
+        return _run_sample(job)
+    if diagnostics_dir is None:
+        return compute()
     overrides = {name: float(value) for name, value in zip(parameter_names, sample)}
     parameters = _resolve_sample_parameters(scenario_params, parameter_names, sample)
     diagnostics_dir.mkdir(parents=True, exist_ok=True)
@@ -254,7 +269,7 @@ def _run_tracked_sample(
                      sampled_parameters=overrides, config=vars(config)), mode="w")
     _log_sample_detail(f"[{datetime.now():%H:%M:%S}] Started {label} | PID {os.getpid()}")
     try:
-        result = _run_sample(job)
+        result = compute()
     except BaseException as error:
         status = "interrupted" if isinstance(error, (KeyboardInterrupt, SystemExit)) else "failed"
         elapsed = monotonic() - started_clock
@@ -327,7 +342,7 @@ def _execute_sample_task(task):
 
 
 def _record_timeout(task, outcome):
-    job, index, diagnostics_dir, phase, boundary_parameter = task
+    job, index, diagnostics_dir, phase, boundary_parameter, _ = task
     base_params, names, sample, config = job
     overrides = {name: float(value) for name, value in zip(names, sample)}
     record = {
@@ -360,9 +375,10 @@ def run_samples(
     config: SensitivityConfig,
     failure_path: Path | None = None,
     diagnostics_dir: Path | None = None,
+    time_series_dir: Path | None = None,
 ) -> pd.DataFrame:
     tasks = [((scenario_params, problem["names"], sample, config), index,
-              diagnostics_dir, "sample", None) for index, sample in enumerate(samples)]
+              diagnostics_dir, "sample", None, time_series_dir) for index, sample in enumerate(samples)]
     records = [None] * len(tasks)
     started_at = monotonic()
     results = bounded_map(_execute_sample_task, tasks, config.workers,
@@ -411,11 +427,12 @@ def run_zero_boundary_cases(
     problem: dict[str, Any],
     config: SensitivityConfig,
     diagnostics_dir: Path | None = None,
+    time_series_dir: Path | None = None,
 ) -> pd.DataFrame:
     """Evaluate exact zero boundaries serially, each with the same hard timeout."""
     names = zero_boundary_parameters(problem)
     tasks = [((base_params, [name], np.array([0.]), config), index,
-              diagnostics_dir, "boundary", name) for index, name in enumerate(names)]
+              diagnostics_dir, "boundary", name, time_series_dir) for index, name in enumerate(names)]
     records = []
     results = bounded_map(_execute_sample_task, tasks, 1, config.sample_timeout_minutes * 60)
     try:
@@ -620,7 +637,19 @@ def run_sensitivity_analysis(
     )
     print(f"  Per-simulation diagnostics: {diagnostics_dir}", flush=True)
 
-    boundary_cases = run_zero_boundary_cases(base_params, problem, config, diagnostics_dir)
+    time_series_dir = (scenario_dir / diagnostics_dir.name.replace("sample_diagnostics_", "time_series_")
+                       if config.save_time_series else None)
+    time_series_info = {"enabled": config.save_time_series, "scenario": scenario_name,
+                        "directory": time_series_dir.name if time_series_dir is not None else None,
+                        "format": "compressed NPZ; numeric arrays and self-contained JSON metadata",
+                        "individual_agent_histories": False}
+    (scenario_dir / "time_series.json").write_text(json.dumps(time_series_info, indent=2), encoding="utf-8")
+    if time_series_dir is not None:
+        time_series_dir.mkdir(exist_ok=False)
+        print(f"  Aggregate time series: {time_series_dir}", flush=True)
+
+    boundary_cases = run_zero_boundary_cases(base_params, problem, config, diagnostics_dir,
+                                             time_series_dir=time_series_dir)
     print(f"  Zero-boundary checks completed: {len(boundary_cases)}", flush=True)
     if not boundary_cases.empty:
         boundary_cases.to_csv(scenario_dir / "zero_boundary_cases.csv", index=False, sep=";")
@@ -632,6 +661,7 @@ def run_sensitivity_analysis(
         config,
         failure_path=scenario_dir / "failed_sample.csv",
         diagnostics_dir=diagnostics_dir,
+        time_series_dir=time_series_dir,
     )
     print("  Calculating Sobol indices and parameter ranking...", flush=True)
     simulation_outputs = outputs.reset_index(drop=True).copy()
@@ -719,6 +749,7 @@ def run_sensitivity_analysis(
         ),
         "parameters_file": "parameters.json",
         "diagnostics": diagnostics_info,
+        "time_series": time_series_info,
         "sample_timeout_minutes": config.sample_timeout_minutes,
         "analysis": analysis_info,
         "samples_file": "samples.csv",
@@ -814,9 +845,12 @@ def parse_args() -> argparse.Namespace:
         "--constant-temperature-costs", action="store_true",
         help="Use f_T(T)=1 in all ODE/agent decisions, scaled by temperature_factor; climate still evolves.",
     )
+    parser.add_argument("--no-save-time-series", action="store_false", dest="save_time_series",
+                        default=True, help="Disable compressed aggregate trajectories (saved by default).")
     parser.add_argument("--sample-timeout-minutes", type=float, default=20.0,
                         help="Wall-clock limit per simulation, including boundary checks (default: 20 minutes).")
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT,
+                        help=f"Base output directory for sensitivity results (default: {DEFAULT_OUTPUT_ROOT}).")
     parser.add_argument(
         "--append-existing-folder",
         type=Path,
@@ -931,6 +965,7 @@ def main() -> None:
         score_mode=args.score_mode,
         sample_timeout_minutes=args.sample_timeout_minutes,
         constant_temperature_costs=args.constant_temperature_costs,
+        save_time_series=args.save_time_series,
     )
 
     if args.append_existing_folder is not None:

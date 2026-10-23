@@ -93,3 +93,26 @@ test('combined delay norm has c_desc and imports earlier workbook notes without 
   assert.ok(!('injunctive2' in restored.notes));
   assert.deepEqual(validateWorkbook(restored), restored);
 });
+
+test('delay norms use tau*rho and preserve former theta notes, including retired norm notes', () => {
+  const book = emptyWorkbook();
+  for (const key of ['dynamic2', 'combined2']) {
+    const model = NORMS.find(item => item.key === key);
+    assert.ok(!model.variables.includes('theta'));
+    assert.doesNotMatch(model.formula + model.auxiliary.join(''), /θ/);
+    assert.match(model.formula, />ρ<\/mi>/);
+    book.notes[key].parameters.rho.explanation = 'Meine rho-Notiz';
+    book.notes[key].parameters.theta = { explanation: 'Mein Zeitfenster', larger: 'Längeres Fenster', smaller: '' };
+  }
+  book.notes.injunctive2 = structuredClone(book.notes.combined2);
+  book.notes.injunctive2.parameters.theta.explanation = 'Alte Norm: Zeitfenster';
+  const restored = validateWorkbook(book);
+  for (const key of ['dynamic2', 'combined2']) {
+    assert.ok(!('theta' in restored.notes[key].parameters));
+    assert.match(restored.notes[key].parameters.rho.explanation, /Meine rho-Notiz/);
+    assert.match(restored.notes[key].parameters.rho.explanation, /Mein Zeitfenster/);
+    assert.match(restored.notes[key].parameters.rho.larger, /Längeres Fenster/);
+  }
+  assert.match(restored.notes.combined2.parameters.rho.explanation, /Alte Norm: Zeitfenster/);
+  assert.deepEqual(validateWorkbook(restored), restored);
+});

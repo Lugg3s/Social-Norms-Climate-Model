@@ -24,7 +24,8 @@ import numpy as np
 import pandas as pd
 
 from model.model_equations import DELAY_NORMS, SimulationResult, load_scenarios, resolve_parameters, simulate
-from utils.paths import PLOTS_DIR
+from utils.paths import CONFIG_DIR, RUNS_DIR
+from simulation.time_series import load_record_time_series
 from analysis.simulation_metrics import (
     compute_metrics_from_saved_time_series,
     compute_oscillation_metrics,
@@ -34,7 +35,7 @@ from analysis.simulation_metrics import (
 
 TIME_ZERO_YEAR = 1800
 DEFAULT_SIMULATION_TIME = 1500
-DEFAULT_OUTPUT_ROOT = PLOTS_DIR
+DEFAULT_OUTPUT_ROOT = RUNS_DIR
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 ELIMINATION_THRESHOLD = 0.95
 
@@ -53,6 +54,8 @@ class ExperimentGroup:
     seed: int = 42
     solver: str = "BDF"
     dt: float | None = None
+    parameter_sets: dict[str, dict[str, Any]] | None = None
+    constant_temperature_costs: bool = False
 
 GLOBAL_SWEEP_VALUES = [0, 0.5, 1, 2, 3, 5, 10]
 X0_SWEEP_VALUES = [0, 0.2, 0.5, 0.8, 1]
@@ -61,21 +64,35 @@ TAU_SWEEP_VALUES = [0.5, 1, 2, 3, 5, 7, 10]
 STRENGTH_VALUES = [0, 0.1, 0.3, 1, 3, 10, 30, 100]
 POSITIVE_TIME_VALUES = [0.25, 0.5, 1, 2, 5, 10, 25, 50, 100]
 DELAY_VALUES = [0.5, 1, 2, 5, 10, 25, 50, 100]
-RHO_VALUES = [1.1, 1.5, 2, 3, 5, 10]  # theta = tau*rho > tau.
+RHO_VALUES = [1.1, 1.5, 2, 3, 5, 10]  # Beobachtungsfenster tau*rho > tau.
 BELIEF_VALUES = [-1, -0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5, 1]  # Signed N; zero is neutral.
 APPROVAL_VALUES = [0, 0.1, 0.25, 0.5, 1, 2, 3]
 
 
 # Active experiments. Historical experiment definitions can be re-enabled here as needed.
+_DYNAMIC2_TOP5 = json.loads((CONFIG_DIR / "batch_dynamic2_top5_sensi128.json").read_text(encoding="utf-8"))
 DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     ExperimentGroup(
-        name="Descriptive, injunctive, dynamic2 (chaos)",
-        scenarios=["Descriptive, injunctive, dynamic2 (chaos candidate)"],
-        sweep_parameters={
-            "c_inj": np.round(np.arange(0, 30, 2), 1).tolist(),
-            "c_dyn": np.round(np.arange(0, 30, 2), 1).tolist(),
-        },
+        name="dynamic2_top5_sensi128",
+        scenarios=["Descriptive, injunctive, dynamic2"],
+        sweep_parameters={},
+        parameter_sets=_DYNAMIC2_TOP5["parameter_sets"],
+        fixed_overrides=_DYNAMIC2_TOP5["base_parameters"],
+        simulation_time=_DYNAMIC2_TOP5["settings"]["simulation_time"],
+        coupling_interval=_DYNAMIC2_TOP5["settings"]["coupling_interval"],
+        output_points_per_year=_DYNAMIC2_TOP5["settings"]["output_points_per_year"],
+        seed=_DYNAMIC2_TOP5["settings"]["seed"],
+        solver=_DYNAMIC2_TOP5["settings"]["solver"],
+        constant_temperature_costs=_DYNAMIC2_TOP5["settings"]["constant_temperature_costs"],
     ),
+    # ExperimentGroup(
+    #     name="Descriptive, injunctive, dynamic2 (chaos)",
+    #     scenarios=["Descriptive, injunctive, dynamic2 (chaos candidate)"],
+    #     sweep_parameters={
+    #         "c_inj": np.round(np.arange(0, 30, 2), 1).tolist(),
+    #         "c_dyn": np.round(np.arange(0, 30, 2), 1).tolist(),
+    #     },
+    # ),
 
 
     # Agents based
@@ -455,6 +472,25 @@ def build_sweep_combinations(sweep_parameters: dict[str, list[Any]]) -> list[dic
     return [dict(zip(parameter_names, combo)) for combo in product(*parameter_values)]
 
 
+def build_group_combinations(group: ExperimentGroup) -> list[dict[str, Any]]:
+    """Named cases are complete overrides, never a Cartesian product."""
+    if group.parameter_sets is None:
+        return build_sweep_combinations(group.sweep_parameters)
+    if group.sweep_parameters:
+        raise ValueError("Use either parameter_sets or sweep_parameters in one group")
+    labels = [sanitize_name(name) for name in group.parameter_sets]
+    if len(labels) != len(set(labels)):
+        raise ValueError("Parameter-set names must have unique output directory names")
+    return [dict(parameters) for parameters in group.parameter_sets.values()]
+
+
+def group_run_name(group: ExperimentGroup, scenario_name: str, values: dict[str, Any]) -> str:
+    if group.parameter_sets is not None:
+        return next(sanitize_name(name) for name, parameters in group.parameter_sets.items()
+                    if parameters == values)
+    return create_run_name(scenario_name, values)
+
+
 def make_output_root(base_output_root: Path = DEFAULT_OUTPUT_ROOT) -> Path:
     timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
     return ensure_directory(base_output_root / f"{timestamp}_night_batch")
@@ -629,10 +665,8 @@ def save_x_phase_space_plot(
     )
 
 
-def save_social_norm_plot(
-    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
-) -> None:
-    fig, ax = plt.subplots(figsize=(14, 6))
+def _plot_mitigation_incentives(ax, frame, params) -> None:
+    """Use identical incentive curves and reference lines in both plot formats."""
     series = frame["social_norm_term"].to_numpy(dtype=float)
     if np.all(np.isnan(series)):
         series = np.zeros_like(series)
@@ -644,18 +678,47 @@ def save_social_norm_plot(
             label="Temperature benefit", linestyle="--")
     threshold = params["beta"] + params["psi"] if stepwise else params["beta"]
     ax.axhline(threshold, label="Expected mean cost + action threshold" if stepwise else "Beta (cost threshold)",
-               linestyle=":", color="black")
-    ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
-    ax.set_xlabel("Time (year)")
+               linestyle=":", color="black", linewidth=2.0)
+    ax.axhline(0, color="0.6", linewidth=1.2, linestyle="-", label="Zero reference", zorder=0)
     ax.set_ylabel("Contribution to mitigation incentive")
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+
+
+def save_social_norm_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    _plot_mitigation_incentives(ax, frame, params)
+    ax.set_xlabel("Time (year)")
     ax.set_xlim(1900, float(frame["year"].iloc[-1]))
     ax.set_title(run_label)
-    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     add_parameter_text_box(ax, params, sweep_parameters)
     fig.tight_layout()
     _finalize_run_plot(
         fig, run_dir / "mitigation_incentives.png", store_file=store_file, show=show
     )
+
+
+def save_mitigation_plot(
+    frame, run_dir, run_label, params, sweep_parameters, *, store_file=True, show=False
+) -> None:
+    """Align mitigation incentives and actual mitigation share on one time axis."""
+    fig, (incentives_ax, x_ax) = plt.subplots(
+        2, 1, figsize=(14, 9), sharex=True, gridspec_kw={"height_ratios": [2, 1]}
+    )
+    _plot_mitigation_incentives(incentives_ax, frame, params)
+    incentives_ax.set_title(run_label)
+    add_parameter_text_box(incentives_ax, params, sweep_parameters)
+    stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
+    x_ax.plot(frame["year"], frame["x"], label="x",
+              drawstyle="steps-post" if stepwise else "default")
+    x_ax.set_ylabel("Fraction of mitigators x")
+    x_ax.set_xlabel("Time (year)")
+    x_ax.set_ylim(-0.1, 1.1)
+    x_ax.set_xlim(1900, float(frame["year"].iloc[-1]))
+    x_ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    fig.tight_layout()
+    _finalize_run_plot(fig, run_dir / "mitigation.png", store_file=store_file, show=show)
 
 
 def save_f_T_plot(
@@ -694,7 +757,8 @@ def save_auxiliary_plot(
 
 
 def get_group_parameter_names(group: ExperimentGroup) -> list[str]:
-    return list(dict.fromkeys(list(group.sweep_parameters) + list(group.static_parameters)))
+    cases = [name for parameters in (group.parameter_sets or {}).values() for name in parameters]
+    return list(dict.fromkeys(list(group.sweep_parameters) + cases + list(group.static_parameters)))
 
 
 def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_parameters) -> None:
@@ -714,14 +778,21 @@ def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_paramete
             **({"agent_history_file": "agent_history.npz"} if "agent_history" in result else {}),
         },
     )
-    save_temperature_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
-    save_x_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
-    save_x_phase_space_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
-    save_social_norm_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+    save_run_plots(frame, run_dir, run_label, resolved_params, sweep_parameters)
+
+
+def save_run_plots(frame, run_dir, run_label, params, parameter_names):
+    """The same per-run figures for batch output and archived sensitivity data."""
+    save_temperature_plot(frame, run_dir, run_label, params, parameter_names)
+    save_x_plot(frame, run_dir, run_label, params, parameter_names)
+    save_x_phase_space_plot(frame, run_dir, run_label, params, parameter_names)
+    save_social_norm_plot(frame, run_dir, run_label, params, parameter_names)
+    save_mitigation_plot(frame, run_dir, run_label, params, parameter_names)
+    save_f_T_plot(frame, run_dir, run_label, params, parameter_names)
     if not np.all(frame["x_p"] == frame["x_p"].iloc[0]) or not np.all(
         frame["x_ref"] == frame["x_ref"].iloc[0]
     ):
-        save_auxiliary_plot(frame, run_dir, run_label, resolved_params, sweep_parameters)
+        save_auxiliary_plot(frame, run_dir, run_label, params, parameter_names)
 
 
 def save_run_time_series_only(run_dir: Path, params: dict[str, Any], result: dict[str, Any]) -> None:
@@ -762,10 +833,10 @@ def run_single_combination(
 ) -> dict[str, Any]:
     if any("theta" in overrides for overrides in
            (group.fixed_overrides, group.static_parameters, sweep_values)):
-        raise ValueError("theta is derived for Dynamic2; sweep tau and rho instead.")
+        raise ValueError("theta has been removed; sweep tau and rho instead.")
     params = resolve_parameters({**base_params, **group.fixed_overrides,
                                  **group.static_parameters, **sweep_values})
-    run_name = create_run_name(scenario_name, sweep_values)
+    run_name = group_run_name(group, scenario_name, sweep_values)
     run_dir = run_root / sanitize_name(group.name) / sanitize_name(scenario_name) / run_name
     ensure_directory(run_dir)
 
@@ -778,8 +849,8 @@ def run_single_combination(
             saved_params = load_json(parameters_path)
             if params.get("social_norm") in DELAY_NORMS:
                 if ("rho" not in saved_params
-                        or any(saved_params.get(key) != params[key] for key in ("tau", "rho", "theta"))):
-                    raise ValueError("Saved Dynamic2 results use different tau/rho/theta parameters. "
+                        or any(saved_params.get(key) != params[key] for key in ("tau", "rho"))):
+                    raise ValueError("Saved Dynamic2 results use different tau/rho parameters. "
                                      "Use a new output directory or explicitly enable overwrite.")
             if params["social_norm"] == "Descriptive, injunctive, dynamic2":
                 if saved_params.get("c_desc") != params["c_desc"]:
@@ -835,12 +906,13 @@ def run_single_combination(
             seed=group.seed,
             solver=group.solver,
             dt=group.dt,
+            constant_temperature_costs=group.constant_temperature_costs,
         )
         metrics = compute_run_metrics(result, params)
         if save_outputs_per_run:
             save_run_outputs(
                 run_dir,
-                f"{group.name} | {scenario_name}",
+                f"{group.name} | {scenario_name} | {run_name}",
                 params,
                 result,
                 metrics,
@@ -881,10 +953,10 @@ def _classify_saved_run(record: pd.Series) -> str | None:
     run_dir = record.get("run_dir")
     if not isinstance(run_dir, str):
         return None
-    time_series_path = Path(run_dir) / "time_series.csv"
-    if not time_series_path.exists():
+    try:
+        frame, _ = load_record_time_series(record)
+    except FileNotFoundError:
         return None
-    frame = pd.read_csv(time_series_path, sep=";", usecols=["x"])
     trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
     if trajectory.size == 0:
         return None
@@ -896,6 +968,7 @@ def save_phase_map_for_two_parameters(
     group_dir: Path,
     x_param: str,
     y_param: str,
+    *, scatter: bool = False, output_name: str | None = None,
 ) -> None:
     required_columns = {"run_dir", "scenario", x_param, y_param}
     if not required_columns.issubset(summary_df.columns):
@@ -912,6 +985,20 @@ def save_phase_map_for_two_parameters(
     cmap.set_bad((0.0, 0.0, 0.0, 0.0))
 
     for scenario_name, scenario_phases in phase_df.groupby("scenario", sort=False):
+        if scatter:
+            fig, ax = plt.subplots(figsize=(10, 7))
+            for phase in PHASE_ORDER:
+                subset = scenario_phases[scenario_phases["phase"] == phase]
+                if not subset.empty:
+                    ax.scatter(subset[x_param], subset[y_param], label=phase,
+                               color=PHASE_COLORS[phase], s=24, alpha=0.7)
+            ax.set(xlabel=x_param, ylabel=y_param, title=f"{scenario_name}: phase regimes of sampled runs")
+            ax.legend(loc="best")
+            fig.text(0.5, 0.01, "Other sampled parameters vary; each point is one run.", ha="center")
+            fig.tight_layout(rect=(0, 0.04, 1, 1))
+            fig.savefig(group_dir / (output_name or f"comparison_phase_map_{sanitize_name(scenario_name)}_{x_param}_vs_{y_param}.png"), dpi=300)
+            plt.close(fig)
+            continue
         pivot = scenario_phases.pivot_table(
             index=y_param, columns=x_param, values="phase", aggfunc="first"
         ).sort_index(axis=0).sort_index(axis=1)
@@ -956,12 +1043,24 @@ def save_phase_map_for_two_parameters(
         plt.close(fig)
 
 
-def save_heatmap_for_two_parameters(summary_df, group_dir, metric_name, x_param, y_param) -> None:
+def save_heatmap_for_two_parameters(summary_df, group_dir, metric_name, x_param, y_param,
+                                    *, scatter=False, output_name=None) -> None:
     heatmap_data = summary_df[[x_param, y_param, metric_name]].copy()
     for column in (x_param, y_param, metric_name):
         heatmap_data[column] = pd.to_numeric(heatmap_data[column], errors="coerce")
     heatmap_data = heatmap_data.dropna(subset=[x_param, y_param, metric_name])
     if heatmap_data.empty:
+        return
+    if scatter:
+        fig, ax = plt.subplots(figsize=(10, 7))
+        image = ax.scatter(heatmap_data[x_param], heatmap_data[y_param], c=heatmap_data[metric_name],
+                           cmap="viridis", s=24, alpha=0.8)
+        ax.set(xlabel=x_param, ylabel=y_param, title=f"{metric_name}: sampled runs")
+        fig.colorbar(image, ax=ax, label=metric_name)
+        fig.text(0.5, 0.01, "Other sampled parameters vary; each point is one run.", ha="center")
+        fig.tight_layout(rect=(0, 0.04, 1, 1))
+        fig.savefig(group_dir / (output_name or f"comparison_{metric_name}_scatter.png"), dpi=300)
+        plt.close(fig)
         return
 
     pivot = heatmap_data.pivot_table(
@@ -1006,7 +1105,7 @@ def save_metric_vs_parameters(summary_df, group_dir, metric_name, sweep_paramete
 
 
 def save_correlation_heatmap(summary_df: pd.DataFrame, group_dir: Path) -> None:
-    numeric_df = summary_df.select_dtypes(include=[np.number]).copy()
+    numeric_df = summary_df.drop(columns=["sample_index"], errors="ignore").select_dtypes(include=[np.number]).copy()
     if numeric_df.shape[1] < 2:
         return
     correlation = numeric_df.corr(numeric_only=True)
@@ -1042,10 +1141,10 @@ def save_overlaid_time_series_plot(
         run_dir = record.get("run_dir")
         if not isinstance(run_dir, str):
             continue
-        time_series_path = Path(run_dir) / "time_series.csv"
-        if not time_series_path.exists():
+        try:
+            frame, params = load_record_time_series(record)
+        except FileNotFoundError:
             continue
-        frame = pd.read_csv(time_series_path, sep=";")
         if metric_name not in frame.columns or "year" not in frame.columns:
             continue
         values = pd.to_numeric(frame[metric_name], errors="coerce")
@@ -1055,12 +1154,10 @@ def save_overlaid_time_series_plot(
             f"{p}={format_value_for_display(record[p])}"
             for p in sweep_parameters
             if p in record.index
-        ) or str(record.get("scenario", "run"))
-        parameters_path = Path(run_dir) / "parameters.json"
-        params = load_json(parameters_path) if parameters_path.exists() else {}
+        ) or str(record.get("run_name", record.get("scenario", "run")))
         stepwise = (params.get("agent_decision_model") == "annual_intention_threshold"
                     and metric_name in {"x", "social_norm_term", "mean_intention"})
-        ax.plot(frame["year"], values, label=label,
+        ax.plot(frame["year"], values, label=label if plotted_lines < 20 else "_nolegend_",
                 drawstyle="steps-post" if stepwise else "default")
         plotted_lines += 1
         maximum_value = max(maximum_value, float(values.max()))
@@ -1080,7 +1177,8 @@ def save_overlaid_time_series_plot(
     if metric_name == "social_norm_term":
         ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
     ax.set_title("All parameter combinations")
-    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9,
+              title=f"First 20 of {plotted_lines} runs" if plotted_lines > 20 else None)
     fig.tight_layout()
     fig.savefig(group_dir / output_name, dpi=300)
     plt.close(fig)
@@ -1093,47 +1191,50 @@ def save_x_parameter_surface_animation(
     y_param: str,
     scenario_name: str,
     max_frames: int = 240,
-) -> None:
+    *, scatter: bool = False, make_video: bool = True, fps: float = 12,
+    strict_video_errors: bool = False, output_stem: str | None = None,
+):
     required_columns = {"run_dir", x_param, y_param, "scenario"}
     if not required_columns.issubset(summary_df.columns):
         return
     scenario_df = summary_df[summary_df["scenario"] == scenario_name].copy()
-    trajectories = {}
+    trajectories = []
+    reference_years = None
     for _, record in scenario_df.iterrows():
-        time_series_path = Path(str(record.get("run_dir", ""))) / "time_series.csv"
-        if not time_series_path.exists():
+        try:
+            frame, params = load_record_time_series(record)
+        except FileNotFoundError:
             continue
-        frame = pd.read_csv(time_series_path, sep=";", usecols=["year", "x"])
         if frame.empty:
             continue
-        trajectories[(float(record[x_param]), float(record[y_param]))] = (
-            frame["year"].to_numpy(dtype=float),
-            frame["x"].to_numpy(dtype=float),
-        )
+        years = frame["year"].to_numpy(dtype=float)
+        values = frame["x"].to_numpy(dtype=float)
+        if reference_years is None:
+            reference_years = (np.linspace(years[0], years[-1], min(max_frames, len(years)))
+                               if max_frames > 1 else np.array([years[-1]]))
+        if years[0] > reference_years[0] + 1e-7 or years[-1] < reference_years[-1] - 1e-7:
+            raise ValueError("3D comparisons require trajectories covering the same time interval")
+        if params.get("agent_decision_model") == "annual_intention_threshold":
+            indices = np.searchsorted(years, reference_years, side="right") - 1
+            sampled = values[np.clip(indices, 0, len(values) - 1)]
+        else:
+            sampled = np.interp(reference_years, years, values)
+        trajectories.append((float(record[x_param]), float(record[y_param]), sampled))
     if not trajectories:
         return
-
-    x_values = np.array(sorted({key[0] for key in trajectories}), dtype=float)
-    y_values = np.array(sorted({key[1] for key in trajectories}), dtype=float)
-    if len(x_values) < 2 or len(y_values) < 2:
-        return
-    lengths = {len(values[0]) for values in trajectories.values()}
-    if len(lengths) != 1:
-        return
-
-    reference_years = next(iter(trajectories.values()))[0]
-    surface = np.full((len(y_values), len(x_values), len(reference_years)), np.nan)
-    x_indices = {value: i for i, value in enumerate(x_values)}
-    y_indices = {value: i for i, value in enumerate(y_values)}
-    for (px, py), (_, trajectory) in trajectories.items():
-        surface[y_indices[py], x_indices[px], :] = trajectory
-    if np.isnan(surface).any():
-        return
-
-    frame_indices = np.unique(
-        np.linspace(0, len(reference_years) - 1, min(max_frames, len(reference_years)), dtype=int)
-    )
-    X, Y = np.meshgrid(x_values, y_values)
+    px = np.array([item[0] for item in trajectories])
+    py = np.array([item[1] for item in trajectories])
+    z = np.array([item[2] for item in trajectories])
+    x_values, y_values = np.unique(px), np.unique(py)
+    grid = (not scatter and len(x_values) > 1 and len(y_values) > 1
+            and len(x_values) * len(y_values) == len(trajectories)
+            and len(set(zip(px, py))) == len(trajectories))
+    if grid:
+        X, Y = np.meshgrid(x_values, y_values)
+        surface = np.empty((len(y_values), len(x_values), len(reference_years)))
+        for i, (a, b) in enumerate(zip(px, py)):
+            surface[np.searchsorted(y_values, b), np.searchsorted(x_values, a), :] = z[i]
+    kind = "surface" if grid else "scatter"
     safe_name = sanitize_name(scenario_name)
 
     def configure_axes(axis, frame_index):
@@ -1145,38 +1246,60 @@ def save_x_parameter_surface_animation(
             f"{scenario_name}: x over {x_param} and {y_param} | year {reference_years[frame_index]:.1f}"
         )
 
+    def draw(axis, frame_index):
+        if grid:
+            axis.plot_surface(X, Y, surface[:, :, frame_index], cmap="viridis", vmin=0, vmax=1, edgecolor="none")
+        else:
+            axis.scatter(px, py, z[:, frame_index], c=z[:, frame_index], cmap="viridis",
+                         vmin=0, vmax=1, s=28, alpha=0.8)
+        configure_axes(axis, frame_index)
+
     final_fig = plt.figure(figsize=(11, 8))
     final_axis = final_fig.add_subplot(111, projection="3d")
-    final_axis.plot_surface(X, Y, surface[:, :, -1], cmap="viridis", vmin=0, vmax=1, edgecolor="none")
-    configure_axes(final_axis, len(reference_years) - 1)
-    final_fig.tight_layout()
-    final_fig.savefig(group_dir / f"x_surface_{safe_name}.png", dpi=300)
+    draw(final_axis, len(reference_years) - 1)
+    if scatter:
+        final_fig.text(0.5, 0.02, "Other sampled parameters vary; each point is one run.", ha="center")
+    final_fig.tight_layout(rect=(0, 0.04, 1, 1))
+    stem = output_stem or f"x_{kind}_{safe_name}"
+    image_path = group_dir / f"{stem}.png"
+    final_fig.savefig(image_path, dpi=300)
     plt.close(final_fig)
+    exported = {"kind": kind, "image": str(image_path), "video": None}
+    if not make_video:
+        return exported
 
     animation_fig = plt.figure(figsize=(11, 8))
     animation_axis = animation_fig.add_subplot(111, projection="3d")
 
     def update(frame_index):
         animation_axis.clear()
-        animation_axis.plot_surface(
-            X, Y, surface[:, :, frame_index], cmap="viridis", vmin=0, vmax=1, edgecolor="none"
-        )
-        configure_axes(animation_axis, frame_index)
+        draw(animation_axis, frame_index)
         return (animation_axis,)
 
-    animation = FuncAnimation(animation_fig, update, frames=frame_indices, blit=False)
-    video_path = group_dir / f"x_surface_{safe_name}.mp4"
+    if scatter:
+        animation_fig.text(0.5, 0.02, "Other sampled parameters vary; each point is one run.", ha="center")
+    animation = FuncAnimation(animation_fig, update, frames=range(len(reference_years)), blit=False)
+    video_path = group_dir / f"{stem}.mp4"
     try:
-        animation.save(video_path, writer=FFMpegWriter(fps=12, bitrate=1800), dpi=120)
+        if not FFMpegWriter.isAvailable():
+            import imageio_ffmpeg
+            matplotlib.rcParams["animation.ffmpeg_path"] = imageio_ffmpeg.get_ffmpeg_exe()
+        animation.save(video_path, writer=FFMpegWriter(fps=fps, bitrate=1800), dpi=120)
+        exported["video"] = str(video_path)
     except (FileNotFoundError, RuntimeError) as error:
+        if strict_video_errors:
+            raise
         print(f"Could not create {video_path}: {error}")
     finally:
         plt.close(animation_fig)
+    return exported
 
 
-def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group: ExperimentGroup) -> None:
+def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group: ExperimentGroup,
+                                *, parameter_maps: bool = True, legend_parameters=None) -> None:
     summary_df.to_csv(group_dir / "summary_metrics.csv", index=False, sep=";")
     sweep_parameters = list(group.sweep_parameters.keys())
+    overlay_parameters = sweep_parameters if legend_parameters is None else list(legend_parameters)
 
     save_correlation_heatmap(summary_df, group_dir)
     for metric_name in KEY_METRICS:
@@ -1184,19 +1307,19 @@ def save_group_comparison_plots(summary_df: pd.DataFrame, group_dir: Path, group
             save_metric_vs_parameters(summary_df, group_dir, metric_name, sweep_parameters)
 
     save_overlaid_time_series_plot(
-        summary_df, group_dir, "x", "x.png", "Fraction of mitigators (X)", sweep_parameters, (-0.1, 1.1)
+        summary_df, group_dir, "x", "x.png", "Fraction of mitigators (X)", overlay_parameters, (-0.1, 1.1)
     )
     save_overlaid_time_series_plot(
-        summary_df, group_dir, "T", "temperature.png", "Temperature Anomaly (celsius)", sweep_parameters
+        summary_df, group_dir, "T", "temperature.png", "Temperature Anomaly (celsius)", overlay_parameters
     )
     save_overlaid_time_series_plot(
-        summary_df, group_dir, "social_norm_term", "social_norm.png", "Social norm value", sweep_parameters
+        summary_df, group_dir, "social_norm_term", "social_norm.png", "Social norm value", overlay_parameters
     )
     save_overlaid_time_series_plot(
-        summary_df, group_dir, "f_T", "f_T.png", "Temperature benefit f_T", sweep_parameters
+        summary_df, group_dir, "f_T", "f_T.png", "Temperature benefit f_T", overlay_parameters
     )
 
-    if len(sweep_parameters) == 2:
+    if parameter_maps and len(sweep_parameters) == 2:
         for scenario_name in summary_df.get("scenario", pd.Series(dtype=str)).dropna().unique():
             save_x_parameter_surface_animation(
                 summary_df, group_dir, sweep_parameters[0], sweep_parameters[1], scenario_name
@@ -1477,6 +1600,8 @@ def run_groups(
                     "seed": group.seed,
                     "solver": group.solver,
                     "dt": group.dt,
+                    "parameter_sets": group.parameter_sets,
+                    "constant_temperature_costs": group.constant_temperature_costs,
                 }
                 for group in groups
             ],
@@ -1497,7 +1622,7 @@ def run_groups(
                 {"missing_scenarios": missing_scenarios, "available_scenarios": list(available_scenarios)},
             )
 
-        sweep_combinations = build_sweep_combinations(group.sweep_parameters)
+        sweep_combinations = build_group_combinations(group)
         for scenario_name in scenarios_to_run:
             base_params = available_scenarios[scenario_name]
             for sweep_values in sweep_combinations:
@@ -1634,7 +1759,7 @@ def parse_args() -> argparse.Namespace:
         "--output-root",
         type=Path,
         default=DEFAULT_OUTPUT_ROOT,
-        help="Base output directory for batch results.",
+        help=f"Base output directory for batch results (default: {DEFAULT_OUTPUT_ROOT}).",
     )
     parser.add_argument(
         "--overwrite",

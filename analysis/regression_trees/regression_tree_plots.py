@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 OVERVIEW_FILENAME = "regressiontrees_alle_normen.svg"
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
+SVG_PIXELS_PER_POINT = 96 / 72
 TARGET_UNITS = {
     "x_mean": "Zeitmittel des Mitigationsanteils · %",
     "final_temperature": "Endtemperatur · °C",
@@ -93,8 +94,11 @@ def _counts(report):
             f" · Training: {report.get('train_rows', 0)} · Test: {report.get('test_rows', 0)}")
 
 
-def create_regression_tree_overview(result_dir: Path, output_path: Path | None = None) -> Path:
-    """One norm per section, one target per column; all graphics are embedded."""
+def create_regression_tree_overview(result_dir: Path, output_path: Path | None = None,
+                                    *, columns: int = 2) -> Path:
+    """Wrap targets within each norm and retain the original trees' physical size."""
+    if columns < 1:
+        raise ValueError("columns must be positive")
     result_dir = Path(result_dir)
     manifest_path = result_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
@@ -127,23 +131,34 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
 
     margin, gap, padding = 36, 24, 24
     heading_height, card_header, card_footer, section_gap = 58, 76, 108, 32
-    column_widths = [max([864, *(panel[1] for (norm, name), panel in panels.items()
-                                if name == target)]) + 2 * padding for target in targets]
-    row_heights = {norm: max([240, *(panel[2] for (name, target), panel in panels.items()
-                                     if name == norm)]) for norm in scenarios}
-    width = 2 * margin + sum(column_widths) + gap * (len(targets) - 1)
-    height = 150 + sum(heading_height + card_header + row_heights[norm] + card_footer
-                       + section_gap for norm in scenarios) + 60
+    row_gap = 24
+    columns = min(columns, len(targets))
+    target_rows = [targets[index:index + columns] for index in range(0, len(targets), columns)]
+    target_columns = {target: index % columns for index, target in enumerate(targets)}
+    column_widths = [max([864, *(panel[1] for (norm, target), panel in panels.items()
+                                if target_columns[target] == column)]) + 2 * padding
+                     for column in range(columns)]
+    row_heights = {(norm, row_index): max([240, *(panel[2] for (name, target), panel in panels.items()
+                                                  if name == norm and target in row_targets)])
+                   for norm in scenarios for row_index, row_targets in enumerate(target_rows)}
+    width = 2 * margin + sum(column_widths) + gap * (columns - 1)
+    height = 150 + sum(heading_height + sum(card_header + row_heights[(norm, row_index)] + card_footer
+                                          for row_index in range(len(target_rows)))
+                       + row_gap * (len(target_rows) - 1) + section_gap for norm in scenarios) + 60
     ET.register_namespace("", SVG_NS)
     ET.register_namespace("xlink", XLINK_NS)
     sheet = ET.Element(f"{{{SVG_NS}}}svg", {
         "version": "1.1", "viewBox": f"0 0 {width:g} {height:g}",
-        "width": "1800", "height": f"{1800 * height / width:g}",
+        # Matplotlib viewBox units are points (72/in). Preserve native pt sizes
+        # instead of squeezing the entire multi-target sheet into 1800 pixels.
+        "width": f"{width * SVG_PIXELS_PER_POINT:g}",
+        "height": f"{height * SVG_PIXELS_PER_POINT:g}",
+        "data-target-columns": str(columns),
         "role": "img", "aria-labelledby": "overview_title overview_description",
     })
     _element(sheet, "title", id="overview_title").text = title
     _element(sheet, "desc", id="overview_description").text = (
-        "Ein Abschnitt pro Norm, eine Spalte pro Zielvariable. Vollständige gespeicherte "
+        f"Ein Abschnitt pro Norm, maximal {columns} Zielvariablen nebeneinander. Vollständige gespeicherte "
         "Trees als eingebettete Vektoren. Fehlende Trees werden mit ihrem Status gezeigt. "
         "Zielvariablen und Parameternamen bleiben unverändert."
     )
@@ -153,7 +168,7 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
     norm_count = len(manifest["sources"]) if mode == "pooled_common" else len(scenarios)
     _label(sheet, margin, 80,
            f"{norm_count} Normen · {len(targets)} Zielvariablen · {fitted} Trees"
-           " · zum Lesen der Knoten in die Vektorgrafik hineinzoomen", 20)
+           f" · maximal {columns} Trees nebeneinander in Originalgröße", 20)
     _label(sheet, margin, 112,
            "Ja / Nein: der Bedingung folgen · Blatt: Mittelwert und Standardabweichung der Trainingsläufe"
            " · Perioden-, Amplituden- und Dämpfungsziele: nur gültige schwingende Verläufe", 18, color="#526579")
@@ -165,59 +180,62 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
         section = _element(sheet, "g", id=f"norm_section_{norm_index}")
         section.set("data-scenario", norm)
         _label(section, margin, top + 34, f"{norm_index + 1}. {norm}", 27, True)
-        left = margin
         card_top = top + heading_height
-        card_height = card_header + row_heights[norm] + card_footer
-        for target, column_width in zip(targets, column_widths):
-            report = lookup.get((norm, target), {"status": "not_analyzed"})
-            card = _element(section, "g")
-            card.set("data-target", target)
-            card.set("data-status", report["status"])
-            if report.get("reason"):
-                _element(card, "desc").text = report["reason"]
-            _element(card, "rect", x=f"{left:g}", y=f"{card_top:g}",
-                     width=f"{column_width:g}", height=f"{card_height:g}", rx=14,
-                     fill="#ffffff", stroke="#cad6df", stroke_width=1.2)
-            _label(card, left + padding, card_top + 30, target, 23, True)
-            _label(card, left + padding, card_top + 55, TARGET_UNITS[target], 17, color="#526579")
-            if report["status"] == "fitted":
-                panel, panel_width, _ = panels[(norm, target)]
-                placed = _element(card, "g", transform=(
-                    f"translate({left + (column_width - panel_width) / 2:g} {card_top + card_header:g})"))
-                placed.set("data-tree-panel", f"{norm_index}:{target}")
-                placed.append(panel)
-            else:
-                status = {"insufficient_data": "Kein Tree: zu wenig gültige Daten",
-                          "constant_training_target": "Kein Tree: Zielwert im Training konstant",
-                          "unavailable": "Kein Tree: Zielvariable nicht verfügbar",
-                          "not_analyzed": "Nicht ausgewertet"}.get(report["status"], report["status"])
-                center = left + column_width / 2
-                middle = card_top + card_header + row_heights[norm] / 2
-                _label(card, center, middle - 12, status, 22, True, color="#647689", anchor="middle")
-                _label(card, center, middle + 24, _counts(report), 17, color="#647689", anchor="middle")
-                if "train_blocks" in report:
-                    _label(card, center, middle + 52,
-                           f"Trainingsblöcke: {report['train_blocks']} · Testblöcke: {report['test_blocks']}",
-                           17, color="#647689", anchor="middle")
-            footer = card_top + card_header + row_heights[norm]
-            if report["status"] == "fitted":
-                _label(card, left + padding, footer + 22, _counts(report), 16, color="#526579")
-                _label(card, left + padding, footer + 46,
-                       f"Test-MAE: {_mae(target, report['test_metrics']['mae'])}"
-                       f" · Vergleich (Trainingsmittelwert): {_mae(target, report['baseline_test_metrics']['mae'])}",
-                       16, color="#526579")
-                notes = []
-                if report.get("train_blocks", 0) < 30 or report.get("test_blocks", 0) < 10:
-                    notes.append("Kleine Stichprobe; Ergebnis explorativ")
-                if not report.get("beats_mean_baseline", True):
-                    notes.append("Test-MAE nicht besser als Mittelwert-Vergleich")
-                if notes:
-                    _label(card, left + padding, footer + 74, " · ".join(notes), 16, color="#96601b")
-                if report.get("saved_definition_note"):
-                    _label(card, left + padding, footer + 96, report["saved_definition_note"],
-                           15, color="#96601b")
-            left += column_width + gap
-        top = card_top + card_height + section_gap
+        for row_index, row_targets in enumerate(target_rows):
+            left = margin
+            row_height = row_heights[(norm, row_index)]
+            card_height = card_header + row_height + card_footer
+            for target, column_width in zip(row_targets, column_widths):
+                report = lookup.get((norm, target), {"status": "not_analyzed"})
+                card = _element(section, "g")
+                card.set("data-target", target)
+                card.set("data-status", report["status"])
+                if report.get("reason"):
+                    _element(card, "desc").text = report["reason"]
+                _element(card, "rect", x=f"{left:g}", y=f"{card_top:g}",
+                         width=f"{column_width:g}", height=f"{card_height:g}", rx=14,
+                         fill="#ffffff", stroke="#cad6df", stroke_width=1.2)
+                _label(card, left + padding, card_top + 30, target, 23, True)
+                _label(card, left + padding, card_top + 55, TARGET_UNITS[target], 17, color="#526579")
+                if report["status"] == "fitted":
+                    panel, panel_width, _ = panels[(norm, target)]
+                    placed = _element(card, "g", transform=(
+                        f"translate({left + (column_width - panel_width) / 2:g} {card_top + card_header:g})"))
+                    placed.set("data-tree-panel", f"{norm_index}:{target}")
+                    placed.append(panel)
+                else:
+                    status = {"insufficient_data": "Kein Tree: zu wenig gültige Daten",
+                              "constant_training_target": "Kein Tree: Zielwert im Training konstant",
+                              "unavailable": "Kein Tree: Zielvariable nicht verfügbar",
+                              "not_analyzed": "Nicht ausgewertet"}.get(report["status"], report["status"])
+                    center = left + column_width / 2
+                    middle = card_top + card_header + row_height / 2
+                    _label(card, center, middle - 12, status, 22, True, color="#647689", anchor="middle")
+                    _label(card, center, middle + 24, _counts(report), 17, color="#647689", anchor="middle")
+                    if "train_blocks" in report:
+                        _label(card, center, middle + 52,
+                               f"Trainingsblöcke: {report['train_blocks']} · Testblöcke: {report['test_blocks']}",
+                               17, color="#647689", anchor="middle")
+                footer = card_top + card_header + row_height
+                if report["status"] == "fitted":
+                    _label(card, left + padding, footer + 22, _counts(report), 16, color="#526579")
+                    _label(card, left + padding, footer + 46,
+                           f"Test-MAE: {_mae(target, report['test_metrics']['mae'])}"
+                           f" · Vergleich (Trainingsmittelwert): {_mae(target, report['baseline_test_metrics']['mae'])}",
+                           16, color="#526579")
+                    notes = []
+                    if report.get("train_blocks", 0) < 30 or report.get("test_blocks", 0) < 10:
+                        notes.append("Kleine Stichprobe; Ergebnis explorativ")
+                    if not report.get("beats_mean_baseline", True):
+                        notes.append("Test-MAE nicht besser als Mittelwert-Vergleich")
+                    if notes:
+                        _label(card, left + padding, footer + 74, " · ".join(notes), 16, color="#96601b")
+                    if report.get("saved_definition_note"):
+                        _label(card, left + padding, footer + 96, report["saved_definition_note"],
+                               15, color="#96601b")
+                left += column_width + gap
+            card_top += card_height + row_gap
+        top = card_top - row_gap + section_gap
     _label(sheet, margin, top + 24,
            "Darstellung aus gespeicherten Tree-SVGs und Berichten; keine erneuten Fits oder Simulationen.",
            18, color="#526579")
@@ -231,8 +249,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-root", required=True, type=Path, help="Saved regression-tree result folder")
     parser.add_argument("--output-path", type=Path, help="Default: regressiontrees_alle_normen.svg in the result folder")
+    parser.add_argument("--columns", type=int, default=2,
+                        help="Maximum number of trees side by side per norm (default: 2)")
     args = parser.parse_args()
-    print(f"Saved regression-tree overview: {create_regression_tree_overview(args.input_root, args.output_path)}")
+    print(f"Saved regression-tree overview: {create_regression_tree_overview(args.input_root, args.output_path, columns=args.columns)}")
 
 
 if __name__ == "__main__":

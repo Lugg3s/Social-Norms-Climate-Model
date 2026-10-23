@@ -20,7 +20,7 @@
   const injunctive = times(sub('c', 'inj'), par(row(sub('x', 'target'), op('−'), x)));
   const relative = frac(row(xp, op('−'), xr), xr);
   const delayed = frac(row(row(x, par(row(id('t'), op('−'), id('τ')))), op('−'),
-    row(x, par(row(id('t'), op('−'), id('τ'), op('−'), id('θ'))))), id('θ'));
+    row(x, par(row(id('t'), op('−'), id('τ'), op('−'), times(id('τ'), id('ρ')))))), times(id('τ'), id('ρ')));
   const dynamic = times(sub('c', 'dyn'), relative);
   const dynamic2 = times(sub('c', 'dyn'), delayed);
   // Display aliases only; stored notes retain the Python parameter names.
@@ -35,7 +35,7 @@
     equation(row(xp, par(n(0))), sub('x', '0')),
     equation(row(xr, par(n(0))), sub('x', '0')),
   ];
-  const delayDefinition = [equation(id('θ'), times(id('τ'), id('ρ'))), math(row(id('τ'), op('>'), n(0), op(','), id('ρ'), op('>'), n(1)))];
+  const delayDefinition = [math(row(id('τ'), op('>'), n(0), op(','), id('ρ'), op('>'), n(1)))];
   const PARAMS = {
     social_norm_factor: 'sf', temperature_factor: 'tf',
     beta: 'β', kappa: 'κ', x0: 'x₀', f_max: 'fₘₐₓ', omega: 'ω', T_c: 'T꜀',
@@ -43,7 +43,7 @@
     tau_ref: 'τᵣₑ𝒻', tau_xp: 'τₓₚ', tau: 'τ', rho: 'ρ',
     network_size: 'network_size', eta: 'η', phi: 'φ', psi: 'ψ', n_agents: 'n_agents',
   };
-  const STATES = { x: 'x', t: 't', T: 'T', x_p: 'xₚ', x_ref: 'xᵣₑ𝒻', theta: 'θ',
+  const STATES = { x: 'x', t: 't', T: 'T', x_p: 'xₚ', x_ref: 'xᵣₑ𝒻',
     A_i: 'Aᵢ', BI_i: 'BIᵢ', actual_behavior_i: 'actual_behaviorᵢ', q_i: 'qᵢ', beta_i: 'βᵢ', P_i: 'Pᵢ' };
   const common = ['social_norm_factor', 'temperature_factor', 'beta', 'kappa'];
   const response = ['f_max', 'omega', 'T_c', 'x0'];
@@ -64,9 +64,9 @@
     norm('dynamic', 'Dynamic social norm', relative, ['tau_ref', 'tau_xp'], ['x_p', 'x_ref'], perceptual, refGuard),
     norm('combined', 'Descriptive, injunctive, dynamic', [descriptive, row(op('+'), injunctive), row(op('+'), dynamic)],
       ['c_inj', 'x_target', 'c_dyn', 'tau_ref', 'tau_xp'], ['x_p', 'x_ref'], perceptual, refGuard),
-    norm('dynamic2', 'dynamic social norm2', dynamic2, ['c_dyn', 'tau', 'rho'], ['theta'], delayDefinition, history),
+    norm('dynamic2', 'dynamic social norm2', dynamic2, ['c_dyn', 'tau', 'rho'], [], delayDefinition, history),
     norm('combined2', 'Descriptive, injunctive, dynamic2', [times(sub('c', 'desc'), par(descriptive)), row(op('+'), injunctive), row(op('+'), dynamic2)],
-      ['c_desc', 'c_inj', 'x_target', 'c_dyn', 'tau', 'rho'], ['theta'], delayDefinition, history),
+      ['c_desc', 'c_inj', 'x_target', 'c_dyn', 'tau', 'rho'], [], delayDefinition, history),
   ];
   const ai = sub('A', 'i'), bi = sub('BI', 'i'), qi = sub('q', 'i'), actual = sub('actual_behavior', 'i');
   const cases = entries => row(op('{'), `<mtable columnalign="left left">${entries.map(([value, condition]) =>
@@ -135,6 +135,15 @@
           }
         }
       }
+      if (['dynamic2', 'combined2'].includes(model.key) && note.parameters.theta) {
+        for (const key of PARAM_FIELDS) {
+          const previous = string(note.parameters.theta[key]);
+          if (previous.trim()) {
+            const target = clean.notes[model.key].parameters.rho;
+            target[key] += `${target[key].trim() ? '\n\n' : ''}Frühere Notiz zu theta (Beobachtungsfenster tau*rho):\n${previous}`;
+          }
+        }
+      }
     }
     // Preserve the user's retired norm notes, labelled with their original context.
     const previous = input.notes.injunctive2;
@@ -147,8 +156,12 @@
       };
       for (const key of NORM_FIELDS) append(target, key, previous[key]);
       for (const [name, fields] of Object.entries(previous.parameters)) {
-        if (!Object.hasOwn(target.parameters, name)) throw new Error(`Unbekannter früherer Parameter ${name}.`);
-        for (const key of PARAM_FIELDS) append(target.parameters[name], key, fields[key]);
+        const targetName = name === 'theta' ? 'rho' : name;
+        if (!Object.hasOwn(target.parameters, targetName)) throw new Error(`Unbekannter früherer Parameter ${name}.`);
+        for (const key of PARAM_FIELDS) {
+          const value = string(fields[key]);
+          append(target.parameters[targetName], key, name === 'theta' && value.trim() ? `Notiz zu theta (tau*rho):\n${value}` : value);
+        }
       }
     }
     return clean;

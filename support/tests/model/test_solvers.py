@@ -80,7 +80,7 @@ class SolverTests(unittest.TestCase):
         np.testing.assert_allclose(np.asarray(fixed)[1:], np.asarray(adaptive)[1:],
                                    rtol=2e-4, atol=2e-4)
 
-    def test_theta_equals_dt_output_independence(self):
+    def test_observation_window_equals_dt_output_independence(self):
         params = {**resolve_parameters("dynamic social norm2"), "rho": 2,
                   "tau": 0.005, "c_dyn": 0.1}
         options = dict(extension=params, simulation_time=220, simulate_only_x=True, solver="RK4",

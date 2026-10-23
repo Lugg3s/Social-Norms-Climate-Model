@@ -1,6 +1,14 @@
 # Aktuelle ToDos:
+Related work:
+- Paper raussuchen die auf jeden Fall drin vorkommen sollen
+    - selber und danach von chati kontrollieren lassen
+- Danach die Paper in Themen clustern
+- Dann Text schreiben lassen
 
 SENSI:
+1. warum wurde bei der sensi mit konstantem f(T) nur oszillation bei descriptive, injunctive, dynamic gefunden?
+1. Sensi mit konstantem temperatur-term laufen lassen
+    1. dann sollten die Aussagen über Oszillationen aussagekräftiger sein verglichen zwischen den Normtypen.
 - social_norm_factor für jede Norm so setzen, dass die Wertebereiche für alle Normen gleich ist? Dadurch ists vergleichbarer.
     - mit Hannah besprechen
 - PIK Cluster
@@ -17,8 +25,7 @@ Idee für einheitliche skalierung
 (file:///c%3A/Users/lukas/OneDrive/Uni/Master/Masterarbeit/Socio-Climate-model/plots/todo_loesungen_2026-09-30/index.html)
 
 1. Bury Paper nochmal gründlich lesen (ab Discussion)
-1. Sensi mit konstantem temperatur-term laufen lassen
-    1. dann sollten die Aussagen über Oszillationen aussagekräftiger sein verglichen zwischen den Normtypen.
+
 
 
 # Feedback von Hilker und Hannah

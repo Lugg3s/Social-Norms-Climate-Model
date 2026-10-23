@@ -20,7 +20,7 @@ x = sp.Symbol("x", real=True)
 x_p = sp.Symbol("x_p", real=True)
 x_ref = sp.Symbol("x_ref", real=True)
 x_tau = sp.Symbol("x_tau", real=True)
-x_tau_theta = sp.Symbol("x_tau_theta", real=True)
+x_tau_window = sp.Symbol("x_tau_window", real=True)
 
 SUPPORTED_NORMS = (
     "Observation-based / imitation",
@@ -119,12 +119,12 @@ def _social_norm_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
             + dynamic
         )
     if norm == "dynamic social norm2":
-        return s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
+        return s["c_dyn"] * (x_tau - x_tau_window) / (s["tau"] * s["rho"])
     if norm == "Descriptive, injunctive, dynamic2":
         return (
             s["c_desc"] * (2 * x - 1)
             + s["c_inj"] * (s["x_target"] - x)
-            + s["c_dyn"] * (x_tau - x_tau_theta) / (s["tau"] * s["rho"])
+            + s["c_dyn"] * (x_tau - x_tau_window) / (s["tau"] * s["rho"])
         )
     raise ValueError(f"Unsupported social norm: {norm}")
 
@@ -134,7 +134,7 @@ def _equilibrium_social_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
     if norm in DYNAMIC_ODE_NORMS:
         term = sp.simplify(term.subs({x_p: x, x_ref: x}))
     if norm in DELAY_NORMS:
-        term = sp.simplify(term.subs({x_tau: x, x_tau_theta: x}))
+        term = sp.simplify(term.subs({x_tau: x, x_tau_window: x}))
     return sp.simplify(term)
 
 

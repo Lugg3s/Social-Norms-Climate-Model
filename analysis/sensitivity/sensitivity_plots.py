@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import textwrap
 import warnings
 import xml.etree.ElementTree as ET
 from io import StringIO
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Iterable
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, PercentFormatter
 import numpy as np
 import pandas as pd
 
@@ -27,6 +28,11 @@ OUTPUT_LABELS = {
     "oscillation_amplitude": "Oscillation amplitude",
     "oscillations_per_500_years": "Oscillations per 500 years",
     "damping_index": "Damping index",
+}
+
+BINARY_OUTPUT_LEGENDS = {
+    "bool_x95": "Reached (1)",
+    "oscillation_occurrence": "Detected (1)",
 }
 
 
@@ -87,12 +93,56 @@ def _completed_values(run_root: Path, output_name: str) -> list[tuple[str, np.nd
     return values_by_scenario
 
 
+def _plot_binary_output(
+    values_by_scenario: list[tuple[str, np.ndarray]],
+    output_name: str,
+    output_path: Path,
+) -> None:
+    """Show the observed share of positive outcomes as vertical percentage bars."""
+    for name, values in values_by_scenario:
+        if not np.isin(values, [0, 1]).all():
+            raise ValueError(f"{output_name} contains non-binary values for {name}")
+    positions = np.arange(len(values_by_scenario))
+    yes = np.array([100 * np.count_nonzero(values == 1) / values.size
+                    for _, values in values_by_scenario])
+    figure, axis = plt.subplots(figsize=(max(11, 1.3 * len(positions)), 8))
+    axis.bar(positions, yes, width=0.66, color="#5B7DB1", label=BINARY_OUTPUT_LEGENDS[output_name])
+    for position, proportion, (_, values) in zip(positions, yes, values_by_scenario):
+        inside = proportion >= 95
+        axis.annotate(f"{proportion:.1f}%", (position, proportion),
+                      xytext=(0, -5 if inside else 5), textcoords="offset points",
+                      ha="center", va="top" if inside else "bottom", fontsize=10,
+                      color="white" if inside else "#263238")
+        axis.text(position, 1.015, f"n = {values.size:,}", transform=axis.get_xaxis_transform(),
+                  ha="center", va="bottom", fontsize=9, color="#526579")
+    axis.set_xticks(positions)
+    axis.set_xticklabels([textwrap.fill(name.replace("_", " "), width=32,
+                                       break_long_words=False, break_on_hyphens=False)
+                          for name, _ in values_by_scenario], rotation=35, ha="right")
+    axis.set_xlim(-0.65, len(positions) - 0.35)
+    axis.set_ylim(0, 100)
+    axis.yaxis.set_major_formatter(PercentFormatter(xmax=100))
+    axis.set_xlabel("Social norm")
+    axis.set_ylabel("Share of completed simulations")
+    label = OUTPUT_LABELS[output_name].removesuffix(" (0/1)")
+    axis.set_title(f"{label} by social norm", pad=53)
+    axis.legend(loc="lower center", bbox_to_anchor=(0.5, 1.045), frameon=False)
+    axis.grid(axis="y", alpha=0.25)
+    axis.set_axisbelow(True)
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(figure)
+
+
 def _plot_one_output(
     values_by_scenario: list[tuple[str, np.ndarray]],
     output_name: str,
     output_path: Path,
     time_label: str,
 ) -> None:
+    if output_name in BINARY_OUTPUT_LEGENDS:
+        _plot_binary_output(values_by_scenario, output_name, output_path)
+        return
     distributions = [values for _, values in values_by_scenario]
     positions = np.arange(1, len(distributions) + 1, dtype=float)
     figure, axis = plt.subplots(
@@ -161,11 +211,12 @@ def create_goal_variable_violin_boxplots(
     run_root: Path,
     output_names: Iterable[str],
 ) -> list[Path]:
-    """Create one violin plot with an overlaid boxplot per sensitivity output.
+    """Create distribution plots, with positive-outcome percentage bars for binary outputs.
 
     Only rows with ``status == "completed"`` are included. Existing PNGs with
     the same names are overwritten; folders without simulation outputs are
-    ignored so the function can be called after incremental runs.
+    ignored so the function can be called after incremental runs. The existing
+    ``violin_boxplot_`` filenames are retained for compatibility, including bars.
     """
     run_root = Path(run_root)
     time_label = _simulation_time_label(run_root)
@@ -486,7 +537,7 @@ def _ranking_formula_content(metadata, parameters):
             "c_inj": r"c_{\mathrm{inj}}", "tau_STref": r"\tau_{\mathrm{STref}}",
             "c_desc": r"c_{\mathrm{desc}}",
             "x_tau": r"x(t-\tau)",
-            "x_tau_theta": r"x(t-\tau-\theta)" if independent_theta else r"x(t-\tau-\tau\rho)",
+            "x_tau_window": r"x(t-\tau-\theta)" if independent_theta else r"x(t-\tau-\tau\rho)",
         }
         rows = [
             r"\dot{x}=\kappa x(1-x)\left[-\beta+\mathtt{temperature\_factor}\,f_T(T)"
@@ -508,7 +559,7 @@ def _ranking_formula_content(metadata, parameters):
                 rows.insert(2, r"\theta\;\mathrm{ist\ ein\ freier\ Parameter}")
                 codes += ["τ = tau", "θ = theta"]
             else:
-                rows.insert(2, r"\theta=\tau\rho,\quad \tau>0,\quad \rho>1")
+                rows.insert(2, r"\tau>0,\quad \rho>1")
                 codes += ["τ = tau", "ρ = rho"]
         if norm == "Descriptive, injunctive, dynamic2" and "c_desc" in names:
             codes.append("c_desc wie im Code")

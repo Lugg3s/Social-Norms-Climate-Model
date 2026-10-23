@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
-from analysis.regression_trees.regression_tree_plots import SVG_NS, create_regression_tree_overview
+from analysis.regression_trees.regression_tree_plots import SVG_NS, SVG_PIXELS_PER_POINT, create_regression_tree_overview
 
 
 class RegressionTreeOverviewTests(unittest.TestCase):
@@ -90,6 +90,35 @@ class RegressionTreeOverviewTests(unittest.TestCase):
         (self.root / "Norm_A" / "final_x" / "tree.svg").unlink()
         with self.assertRaises(FileNotFoundError):
             create_regression_tree_overview(self.root)
+
+    def test_targets_wrap_without_shrinking_the_original_tree_fonts(self):
+        targets = ["final_x", "x_mean", "final_temperature", "median_period", "damping_rate"]
+        reports = [{**self.fitted("Norm_A"), "target": target} for target in targets]
+        self.write_results(reports)
+        path = create_regression_tree_overview(self.root)
+        svg = ET.parse(path).getroot()
+        _, _, width, height = map(float, svg.get("viewBox").split())
+        self.assertAlmostEqual(float(svg.get("width")) / width, SVG_PIXELS_PER_POINT, places=4)
+        self.assertAlmostEqual(float(svg.get("height")) / height, SVG_PIXELS_PER_POINT, places=4)
+        self.assertEqual(svg.get("data-target-columns"), "2")
+        cards = [node for node in svg.iter() if node.get("data-target")]
+        boxes = [next(node for node in card if node.tag == f"{{{SVG_NS}}}rect") for card in cards]
+        self.assertEqual(boxes[0].get("y"), boxes[1].get("y"))
+        self.assertEqual(boxes[2].get("y"), boxes[3].get("y"))
+        for earlier, later in [(0, 2), (2, 4)]:
+            self.assertGreater(float(boxes[later].get("y")),
+                               float(boxes[earlier].get("y")) + float(boxes[earlier].get("height")))
+        self.assertEqual(sum(node.get("data-tree-panel") is not None for node in svg.iter()), 5)
+        self.assertTrue(all("scale" not in node.get("transform", "") for node in svg.iter()))
+        for box in boxes:
+            self.assertLessEqual(float(box.get("x")) + float(box.get("width")), width)
+            self.assertLessEqual(float(box.get("y")) + float(box.get("height")), height)
+        single = ET.parse(create_regression_tree_overview(self.root, columns=1)).getroot()
+        single_boxes = [next(child for child in node if child.tag == f"{{{SVG_NS}}}rect")
+                        for node in single.iter() if node.get("data-target")]
+        self.assertEqual(len({node.get("y") for node in single_boxes}), 5)
+        with self.assertRaises(ValueError):
+            create_regression_tree_overview(self.root, columns=0)
 
 
 if __name__ == "__main__":

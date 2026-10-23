@@ -67,8 +67,8 @@ class Dynamic2ConstraintTests(unittest.TestCase):
         for name, params in load_scenarios().items():
             if params.get("social_norm") in DELAY_NORMS:
                 resolved = resolve_parameters(name)
-                self.assertGreater(resolved["theta"], resolved["tau"])
-                self.assertEqual(resolved["theta"], resolved["tau"] * resolved["rho"])
+                self.assertNotIn("theta", resolved)
+                self.assertGreater(resolved["tau"] * resolved["rho"], resolved["tau"])
         for norm in sorted(DELAY_NORMS):
             problem = build_problem(norm)
             self.assertNotIn("theta", problem["names"])
@@ -76,7 +76,8 @@ class Dynamic2ConstraintTests(unittest.TestCase):
             for sample in samples:
                 resolved = resolve_parameters({**resolve_parameters("baseline"), "social_norm": norm,
                                                **dict(zip(problem["names"], sample))})
-                self.assertGreater(resolved["theta"], resolved["tau"])
+                self.assertNotIn("theta", resolved)
+                self.assertGreater(resolved["tau"] * resolved["rho"], resolved["tau"])
 
     def test_invalid_and_legacy_inputs_fail_before_integration(self):
         for norm in sorted(DELAY_NORMS):
@@ -91,14 +92,16 @@ class Dynamic2ConstraintTests(unittest.TestCase):
                 resolve_parameters({**resolve_parameters("baseline"), "social_norm": norm, "tau": 1, "theta": 2})
             with self.assertRaisesRegex(ValueError, "renamed to rho"):
                 resolve_parameters({**resolve_parameters("baseline"), "social_norm": norm, "tau": 1, "a": 3})
-        with self.assertRaisesRegex(ValueError, "finite theta"):
+        with self.assertRaisesRegex(ValueError, "finite observation window"):
             resolve_parameters({**resolve_parameters("baseline"), "social_norm": "dynamic social norm2", "tau": 1e308, "rho": 2})
 
-    def test_derived_window_is_recalculated_after_tau_or_factor_changes(self):
+    def test_window_uses_tau_and_rho_without_retaining_redundant_theta(self):
         params = resolve_parameters("dynamic social norm2")
-        params.update(tau=3, rho=4)
+        params.update(tau=3, rho=4, theta=999)
         resolved = resolve_parameters(params)
-        self.assertEqual(resolved["theta"], 12)
+        self.assertNotIn("theta", resolved)
+        self.assertEqual(resolved["tau"] * resolved["rho"], 12)
+        self.assertEqual(params["theta"], 999)  # Loading old input does not mutate it.
         symbols = {str(s) for s in symbolic_social_norm_term("dynamic social norm2").free_symbols}
         self.assertIn("rho", symbols)
         self.assertIn("tau", symbols)
@@ -120,7 +123,7 @@ class Dynamic2ConstraintTests(unittest.TestCase):
                 params = {**resolve_parameters("baseline"), **params}
                 result = simulate(params, simulation_time=221, coupling_interval=.5,
                                   output_points_per_year=4, simulate_only_x=True, verbose=False)
-                self.assertEqual(result["parameters"]["theta"], .75)
+                self.assertNotIn("theta", result["parameters"])
                 t, x = result["simulation"].t, result["simulation"].x
                 expected = 2 * (np.interp(t-.25, t, x) - np.interp(t-1, t, x)) / .75
                 if norm != "dynamic social norm2":

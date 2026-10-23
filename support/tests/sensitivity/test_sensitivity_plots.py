@@ -258,7 +258,8 @@ class RankingBarplotTests(unittest.TestCase):
     def test_formulas_distinguish_current_delay_factor_from_saved_free_theta(self):
         metadata = {"scenario": "Descriptive, injunctive, dynamic2"}
         current, notes = plots._ranking_formula_content(metadata, {"rho": 2, "theta": 4})
-        self.assertIn(r"\theta=\tau\rho", "\n".join(current))
+        self.assertNotIn(r"\theta", "\n".join(current))
+        self.assertIn(r"x(t-\tau-\tau\rho)", "\n".join(current))
         legacy, legacy_notes = plots._ranking_formula_content(metadata, {"theta": 4, "delta": 1})
         self.assertNotIn(r"\rho", "\n".join(legacy))
         self.assertIn(r"x(t-\tau-\theta)", "\n".join(legacy))
@@ -296,6 +297,45 @@ class RankingBarplotTests(unittest.TestCase):
         self.assertFalse(tree.findall(".//s:image", ns))
         self.assertEqual(len(tree.findall("s:g/s:g[@data-ranking-panel]", ns)), 2)
         self.assertTrue((folder / "parameter_ranking.csv").exists())
+
+
+class BinaryOutputPlotTests(unittest.TestCase):
+    def test_vertical_bars_use_observed_completed_frequencies_and_handle_constant_norms(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases = {'mixed': [1, 1, 1, 0], 'never': [0, 0], 'always': [1, 1, 1]}
+            for name, values in cases.items():
+                folder = root / name
+                folder.mkdir()
+                frame = pd.DataFrame({output: values + [99, np.nan]
+                                      for output in plots.BINARY_OUTPUT_LEGENDS})
+                frame['status'] = ['completed'] * len(values) + ['failed', 'completed']
+                frame.to_csv(folder / 'simulation_outputs.csv', sep=';', index=False)
+            figures = []
+            with patch.object(plt.Figure, 'savefig', autospec=True,
+                              side_effect=lambda fig, *args, **kwargs: figures.append(fig)):
+                paths = plots.create_goal_variable_violin_boxplots(root, plots.BINARY_OUTPUT_LEGENDS)
+            self.assertEqual(len(paths), 2)
+            for fig in figures:
+                axis = fig.axes[0]
+                self.assertEqual(len(axis.containers), 1)
+                yes = axis.containers[0]
+                self.assertEqual(yes.orientation, 'vertical')
+                np.testing.assert_allclose([bar.get_height() for bar in yes], [100, 75, 0])
+                np.testing.assert_allclose([bar.get_y() for bar in yes], [0, 0, 0])
+                self.assertEqual(len(axis.get_legend().get_texts()), 1)
+                self.assertEqual(axis.get_ylim(), (0, 100))
+                self.assertEqual(len(axis.collections), 0)  # No interpolated violin density.
+                labels = {text.get_text() for text in axis.texts}
+                self.assertTrue({'75.0%', '0.0%', '100.0%', 'n = 4', 'n = 3', 'n = 2'} <= labels)
+                self.assertNotIn('25.0%', labels)
+
+    def test_nonbinary_completed_values_are_not_silently_counted_as_yes_or_no(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for output in plots.BINARY_OUTPUT_LEGENDS:
+                with self.subTest(output=output), self.assertRaisesRegex(ValueError, 'non-binary'):
+                    plots._plot_one_output([('invalid', np.array([0., .5, 1.]))], output,
+                                           Path(directory) / 'invalid.png', '')
 
 
 if __name__ == "__main__":
