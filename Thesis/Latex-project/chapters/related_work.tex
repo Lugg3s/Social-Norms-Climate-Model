@@ -2,4 +2,183 @@
 \chapter{Related Work}
 \label{chap:related-work}
 
-% Chapter scope: see Thesis/Chapter-overview.md.
+\section{Modelling social norms and social influence}
+\label{sec:related-norm-modelling}
+
+Social norms enter environmental models through different assumptions about what individuals observe,
+what they consider appropriate and how they respond to others. Prawitz et al.~\cite{prawitz2026review}
+organise these representations in a systematic review of 153 studies on social norms in
+social--ecological systems. They distinguish norms based on observed behaviour from norms based on
+beliefs about what others approve of. They also distinguish how a norm affects decisions: through
+imitation, anticipated approval or a direct influence on behavioural intention. This separates the origin
+of normative information from its application in a decision rule. Within this sample, agent-based models
+are the most common approach, followed by evolutionary game theory. Norms derived from observed behaviour
+dominate, while interactions between norm types and responses to changing behavioural prevalence receive
+less attention. The review also identifies limited empirical quantification of norm mechanisms, which
+complicates the interpretation of model parameters. These findings make the choice of a norm
+representation a substantive part of modelling human behaviour. The broader social-influence literature
+illustrates why this choice matters. Flache et al.~\cite{flache2017influence} distinguish assimilative
+influence, similarity-biased influence and repulsive influence. Individuals may move towards the opinions
+of others, selectively approach similar individuals or move away from dissimilar individuals. Depending
+on these assumptions and the interaction structure, models can produce consensus, separate opinion
+clusters or polarisation. These outcomes concern distributions of individual opinions; they cannot be
+inferred directly from a single aggregate mitigation share. Nevertheless, the comparison demonstrates how
+alternative interaction rules can generate different collective dynamics. M\"uller-Hansen et
+al.~\cite{muellerhansen2017behaviour} extend this modelling question to Earth system models by
+distinguishing individual decision rules, interactions and approaches to aggregation. Agent-based
+representations can retain differences between individuals and their contacts, whereas aggregate models
+describe population-level quantities under assumptions about how individual decisions combine. The
+appropriate representation therefore depends on which mechanisms the research question requires.
+Together, these reviews motivate comparing the information that produces a norm signal and the decision
+rule through which it changes behaviour.
+
+\section{Concrete implementations and interacting norms}
+\label{sec:related-norm-implementations}
+
+Resource-use models provide concrete examples of how social influence affects environmental outcomes.
+Sigdel et al.~\cite{sigdel2019convergence} couple the choice between sustainable and unsustainable
+harvesting to social ostracism and three different ecological resource models. Under strong coupling,
+otherwise different ecological systems can develop similar dynamics, and high social-learning rates can
+generate stable cycles. The result shows that the speed of behavioural adjustment can change the
+qualitative dynamics of the coupled system. Household models make the underlying interactions more
+explicit. James and Rosenberg~\cite{james2022water} represent water use in an agent-based model informed
+by household data from Logan, Utah. Their peer-pressure mechanism compares household consumption with the
+median consumption in the household's social network. In the simulated interventions, peer pressure saved
+more water than encouragement by a water manager, while combining the two strategies produced the largest
+savings. Social influence thus depends on the information available to households and on how that
+information enters their decisions. A separate issue is whether a change in attitude produces a
+corresponding change in action. Torren-Peraire et al.~\cite{torrenperaire2024cultural} represent cultural
+identity, social learning and individual barriers to several low-carbon behaviours. These barriers allow
+attitudes and realised behaviour to differ. Their simulations show that cultural connections and
+confirmation bias affect the spread of low-carbon behaviour, while a minority of green influencers alone
+produces limited emissions reductions. The study also uses Sobol sensitivity analysis to examine how
+uncertain model assumptions contribute to variation in the results. Bechthold et
+al.~\cite{bechthold2025norms} distinguish descriptive norms, concerning observed behaviour, from
+injunctive norms, concerning socially approved behaviour, in a model of renewable resource use. Both
+norms evolve within a social network and interact with resource dynamics. Opposing normative pressures
+can support intermediate outcomes, while group inertia and network structure influence the transition
+between sustainable and unsustainable resource use. Here, norms change endogenously as part of the model;
+this is distinct from a decision rule that explicitly responds to an observed behavioural trend. Bhalla
+et al.~\cite{bhalla2024groundwater} further connect social and institutional norms with trust and
+governance in a model of Tunisian groundwater-user groups. Norms could delay financial collapse in their
+simulations but did not prevent hydrogeological collapse under the investigated conditions. They analyse
+simulation outcomes using XGBoost, an ensemble of boosted decision trees. Across these studies, the
+consequences of social influence depend on interactions with individual barriers, competing norms and
+environmental constraints. A stronger norm can therefore have different effects depending on the
+behaviour it supports and the feedbacks through which that behaviour affects the resource.
+
+\section{Dynamic norm signals and perceived support}
+\label{sec:related-dynamic-norms}
+
+Information about behavioural change can affect decisions even when the current majority follows a
+different practice. Sparkman and Walton~\cite{sparkman2017dynamic} investigate this mechanism in five
+experiments involving sustainable behaviour. Messages indicating that behaviour was changing encouraged
+movement towards the emerging practice, including when that practice remained a minority behaviour. Their
+findings link this response to expectations about future prevalence and inferences about the importance
+of the behaviour to others. Mortensen et al.~\cite{mortensen2019trending} similarly compare growing
+minority norms with static minority information and control conditions. They find greater conformity to a
+growing minority, with expectations of continued growth helping to explain the effect. Both studies
+therefore support distinguishing how common a behaviour currently is from whether it is becoming more
+common. They motivate the inclusion of trend information in a model, but do not establish a unique
+mathematical trend function or a particular perception delay. Perception also matters when the relevant
+signal concerns support for climate action. In a survey across 125 countries, Andre et
+al.~\cite{andre2024support} find widespread support for climate action alongside systematic
+underestimation of other people's willingness to contribute. This provides evidence that perceived
+support can differ from reported support. The survey measures willingness and support, however, so its
+percentages cannot be used directly as observed mitigation shares. A modelling application of dynamic
+norm signals is provided by \'Alvarez-Antelo et al.~\cite{alvarez2025mobility}, who study shifts from air
+to rail travel using system dynamics. Their dynamic norm mechanism responds to the increase in rail use
+relative to its initial level, with a normalisation based on the initial air-travel share. It therefore
+represents accumulated change from a reference situation rather than a recent rate of change. Their
+scenarios show how personal environmental values and combinations of policy measures can affect the speed
+of behavioural change and the resulting emissions. Read together, these studies motivate separate
+treatment of current prevalence, perceived support and behavioural change. They also leave a modelling
+question: how do different mathematical representations of these signals affect the dynamics when
+behaviour and environmental conditions influence each other?
+
+\section{Coupled behaviour--climate models}
+\label{sec:related-coupled-models}
+
+Coupled socio-climate models allow mitigation behaviour to change emissions and allow the resulting
+climate conditions to influence later decisions. Beckage et al.~\cite{beckage2022incorporating} organise
+relevant behavioural processes into cognition, contagion and response: how individuals perceive
+information, how information and behaviour spread socially, and how individuals act. This framework helps
+distinguish mechanisms that can otherwise be combined within a single behavioural response. In an earlier
+model, Beckage et al.~\cite{beckage2018linking} link perceived risks from extreme events and a
+representation of planned behaviour to the C-ROADS climate model. Behavioural feedbacks can increase or
+decrease projected warming, depending on the assumed responses. Within their comparison, uncertainty
+associated with behaviour is comparable in magnitude to uncertainty associated with the physical climate
+system. The form of the behavioural response is therefore consequential for climate projections. Bury et
+al.~\cite{bury2019pathways} provide the direct foundation for the aggregate socio-climate model used in
+this thesis. Their model couples imitation between mitigating and non-mitigating individuals with carbon
+and temperature dynamics. Individuals compare mitigation costs with perceived climate costs, while a
+social-norm term reinforces the behaviour of the majority. Such reinforcement can initially impede
+mitigation when mitigating individuals form a minority, even though the same mechanism supports
+mitigation once it becomes sufficiently widespread. Social learning strongly affects the resulting
+temperature trajectories. In the original model, perceived climate costs depend on a linear extrapolation
+of recent warming, so expectations about future temperature also affect the timing of mitigation. This
+assumption is relevant when interpreting adaptations of the model: responding to the current temperature
+and responding to an extrapolated future temperature are different behavioural rules. Menard et
+al.~\cite{menard2021conflicts} extend this line of work by introducing inequality and social groups with
+different resources. Homophily, the tendency to interact more with similar individuals, changes how
+mitigation strategies spread between groups. Greater inequality and homophily increased peak warming in
+their simulations, and climate change could reinforce social polarisation. This extension demonstrates
+that a population's internal structure can affect outcomes even when the model retains an
+evolutionary-game approach to behavioural change.
+
+More detailed coupled models examine particular consumption decisions or additional social and
+institutional feedbacks. Eker et al.~\cite{eker2019diets} link endogenous dietary change to the FeliX
+integrated assessment model. Their sensitivity analysis identifies social-norm effects and self-efficacy,
+meaning the perceived ability to change behaviour, as major drivers of widespread dietary change. They
+combine sensitivity analysis with scenario discovery to identify conditions under which dietary
+transitions occur. Moore et al.~\cite{moore2022pathways} broaden the coupled system to include public
+opinion, political decisions, technological change and climate feedbacks. Their ensemble of emissions
+pathways depends strongly on climate perceptions, the cost and effectiveness of low-carbon technologies,
+and the responsiveness of political institutions. The comparison with simpler behavioural models is
+therefore partly a comparison of system boundaries: a mitigation response may be represented directly in
+one model and mediated by policy or technology in another. Rajah et al.~\cite{rajah2025frida} investigate
+endogenous dietary change in the fully coupled FRIDA model. Their framework includes personal norms,
+descriptive norms, perceived accessibility and past behaviour. Perceptions and reference levels adjust
+over time, allowing the behavioural response to depend on both the current situation and its
+interpretation against previous conditions. Compared with demand projections driven by gross domestic
+product, the behavioural framework produces lower projected food demand, while some scenarios include
+later reversals. Its adjustment mechanisms provide a precedent for representing perception and reference
+dynamics explicitly, although an adaptation must specify how these mechanisms are translated into its own
+behavioural equations. A related approach to individual decisions and environmental feedbacks appears in
+the InSEEDS preprint by Schwarz et al.~\cite{schwarz2025inseeds}. It couples farmer agents deciding
+whether to adopt conservation tillage with the LPJmL vegetation model. Social networks, ecological
+heterogeneity and behavioural inertia shape adoption, and the effects on soil carbon and yields depend on
+the ecological context. The reported experiments hold the climate constant, so they examine coupled
+human--biosphere processes without a changing climate feeding back into decisions. The study is
+consequently useful for comparing heterogeneous adoption and environmental responses, while its scope
+differs from models with endogenous global climate feedbacks. These examples show why similarities in
+norm terminology do not imply that the surrounding behavioural and environmental mechanisms are
+equivalent.
+
+\section{Comparing formal representations}
+\label{sec:related-model-comparison}
+
+A comparison of norm models requires a way to describe their assumptions consistently. Schl\"uter et
+al.~\cite{schlueter2017framework} address this problem through the Modelling Human Behaviour framework,
+which maps behavioural theories to common elements of decision-making. It supports comparison of what
+individuals perceive, how they evaluate alternatives and how they select an action. This makes
+differences visible even when studies use different terminology or draw on different behavioural
+theories. Muelder and Filatova~\cite{muelder2018formalizations} show that selecting a theory does not
+uniquely determine its implementation. They compare alternative implementations of the theory of planned
+behaviour in an agent-based model of household solar investment. Using the same theoretical foundation
+and empirical data, different formal representations produced qualitatively and quantitatively different
+outcomes. Their findings motivate explicit examination of decision rules and their mathematical
+implementation alongside parameter uncertainty. The studies reviewed in this chapter provide evidence for
+several norm mechanisms and demonstrate their importance in coupled environmental models. However, their
+results come from different behavioural settings, environmental systems and assumptions about perception
+and interaction. Comparing those results alone cannot establish how much a change in norm representation
+alters the dynamics of a particular socio-climate model. This thesis addresses that question by comparing
+selected norm representations within a shared climate-model framework. The comparison examines
+behavioural trajectories, climate outcomes and parameter sensitivities, including the conditions
+associated with qualitatively different simulation results. It includes both aggregate behavioural
+equations and an agent-based decision rule, so the distinction between a change in the norm signal and a
+change in the behavioural architecture remains explicit. Sobol analysis assesses the contribution of
+parameter variation, while regression trees describe parameter combinations associated with different
+outcomes. The purpose is to identify consequences of the specified representations within the
+investigated model and parameter ranges. Such a comparison complements the existing mechanism-specific
+studies without assuming that one formalisation provides a universally valid description of social norms.

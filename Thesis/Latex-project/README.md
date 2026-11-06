@@ -10,6 +10,14 @@ The project uses English and UTF-8. The logo is copied without changes.
 The eight existing thesis sections remain in `chapters/`; no bachelor thesis
 text, results, figures, references or supervisor details have been imported.
 
+## Writing style
+
+Follow [Writing-style-guide.md](../Writing-style-guide.md) when drafting or
+revising thesis text. It preserves the explanatory, concrete and reasoned
+approach of the bachelor thesis in natural academic English. The detailed
+German analysis and source evidence are in
+[Writing-style-analysis.md](../Writing-style-analysis.md).
+
 ## Files to edit
 
 - `metadata.tex`: title, short title for the footer, author, institute/research
@@ -20,8 +28,8 @@ text, results, figures, references or supervisor details have been imported.
 - `chapters/*.tex`: the thesis text, ordered by `main.tex`.
 - `frontmatter/declaration.tex`: space for the applicable declaration and
   signature; the old bachelor declaration has not been copied.
-- `references.bib`: verified references. Uncomment `\bibliography{references}`
-  in `main.tex` once the first `\cite{...}` entries have been added. The class
+- `references.bib`: verified references, included through
+  `\bibliography{references}` in `main.tex`. The class
   retains the original numerical `abbrv` BibTeX style (the bachelor class's
   `alpha` option also selected `abbrv`).
 - `thesis_master.cls`: shared formatting derived from the bachelor class.

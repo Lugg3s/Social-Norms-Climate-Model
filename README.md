@@ -26,6 +26,9 @@ default to `E:\Masterarbeit\Sensitivity`. Use `--output-root` to select another
 folder. Input and default output paths are defined centrally in `utils/paths.py`.
 Existing results remain in their original folders.
 
+The complete command reference, including arguments and defaults for each
+executable script, is maintained in [SCRIPTS.md](SCRIPTS.md).
+
 Run these commands from the repository root:
 
 ```powershell
@@ -35,6 +38,9 @@ python -m analysis.sensitivity.sensitivity_analysis --base-sample-size 64 --work
 # Sensitivity analysis followed by regression trees
 python -m analysis.sensitivity.sensitivity_pipeline --base-sample-size 64 --workers 11
 
+# End-time mitigation share versus a single parameter (one scatterplot per scenario)
+python -m analysis.bifurcation_diagram --scenarios baseline --parameter-name beta --parameter-range 0 5 101 --simulation-time 1000 --workers 11
+
 # Batch simulations and the qualitative workbook
 python -m simulation.batch_runner --help
 python support/qualitative_norms/serve.py
@@ -42,6 +48,14 @@ python support/qualitative_norms/serve.py
 # Python tests (including nested test packages)
 python -m unittest discover -s support/tests -t . -v
 ```
+
+The endpoint sweep saves PNG/SVG plots, CSV results and reproducibility metadata
+under `E:\Masterarbeit\Runs\bifurcation_diagrams\<timestamp>\` by default.
+Each plot varies exactly one parameter and labels the requested end time and
+calendar year. All other parameters and the seed stay fixed within a scenario;
+each run restarts from its configured initial conditions.
+These finite-time endpoint diagrams do not infer equilibrium
+stability or all branches of an oscillating system.
 
 The pytest-style sensitivity-review tests can additionally be run with
 `python -m pytest support/tests/sensitivity/test_sensitivity_review.py`.

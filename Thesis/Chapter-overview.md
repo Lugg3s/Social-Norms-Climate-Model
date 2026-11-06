@@ -1,3 +1,37 @@
+# Length and provisional chapter budgets
+
+Main-text requirement: **10,000–20,000 words**, excluding the title page,
+contents and other lists, tables, figures and appendices.
+Recorded from the user's instruction on 24 October 2026.
+
+Initial working target: **approximately 15,000 words**. Use broad page ranges
+for the main chapters rather than fixed page targets.
+The following allocation is only a rough orientation and need not be adhered
+to. The page ranges were revised by the user on 24 October 2026; the word
+budgets remain provisional planning estimates.
+
+| Chapter | Approximate page range | Approximate main-text words |
+| --- | ---: | ---: |
+| Introduction | 2–4 | 900 |
+| Related Work | 3–6 | 2,200 |
+| Theory | 4–8 | 1,600 |
+| Model | 4–12 | 2,600 |
+| Methods | 6–10 | 1,900 |
+| Results | 6–15 | 3,500 |
+| Discussion | 3–8 | 2,300 |
+| **Total** | **28–63** | **15,000** |
+
+Page estimates include equations, figures and tables within these chapters;
+their occupied space does not count as main-text words. Front matter,
+references, appendices and layout-related blank pages add to the PDF's total
+page count. Plan the Abstract separately at approximately half a page to one
+page. Reassess the page allocation after typesetting representative content.
+
+Give Model, Results and Discussion enough space for the norm comparison.
+Avoid duplicating literature discussion in Theory or repeating the implemented
+model equations there in full. The conclusion and outlook currently belong
+in Discussion; this plan does not add a separate chapter.
+
 # Abstract
 Summarise the research aim and modelling approach.
 Highlight the main findings and their implications.
@@ -7,6 +41,8 @@ Motivate the role of social norms in climate change mitigation.
 Define the research questions, objectives and scope.
 
 # Related Work
+Ordered paper plan with relevance ratings: [Related-work-outline.md](Related-work-outline.md).
+
 Paper, die auf jeden Fall vorkommen sollen:
 - 
 Modelling social norms

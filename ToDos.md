@@ -1,12 +1,11 @@
 # Aktuelle ToDos:
-Related work:
-- Paper raussuchen die auf jeden Fall drin vorkommen sollen
-    - selber und danach von chati kontrollieren lassen
-- Danach die Paper in Themen clustern
-- Dann Text schreiben lassen
+
+- Prio1: die notes in dem betreuer notebook
 
 SENSI:
+- Klassifizierung nach Flache et al. (2017, Abb. 1) prüfen: pro Norm Anteile der Sensi-Läufe mit Konsens, Clustering oder Bi-Polarisierung bestimmen; vorher klären, ob und wie die Kategorien auf aggregiertes x bzw. individuelle Intentionen übertragbar sind ([Paper](https://doi.org/10.18564/jasss.3521)).
 1. warum wurde bei der sensi mit konstantem f(T) nur oszillation bei descriptive, injunctive, dynamic gefunden?
+    1. mit f(T) haben die dynamischen normen solo auch keine oszillation???
 1. Sensi mit konstantem temperatur-term laufen lassen
     1. dann sollten die Aussagen über Oszillationen aussagekräftiger sein verglichen zwischen den Normtypen.
 - social_norm_factor für jede Norm so setzen, dass die Wertebereiche für alle Normen gleich ist? Dadurch ists vergleichbarer.
