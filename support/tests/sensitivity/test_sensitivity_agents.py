@@ -21,6 +21,8 @@ class AgentSensitivityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             args = Namespace(scenarios=None, workers=1, output_points_per_year=2,
                              simulation_time=218, base_sample_size=4, seed=42,
+                             coupling_interval=1, n_agents=1000, solver="BDF", dt=None,
+                             simulate_only_x=False,
                              score_mode="simple_mean", sample_timeout_minutes=1,
                              constant_temperature_costs=False,
                              save_time_series=True,

@@ -11,6 +11,7 @@ This repository contains the computational model developed as part of a Master's
 - `visualization/plotting.py` — visualisation utilities
 - `visualization/make_plot_videos.py` — generation of plot videos
 - `config/scenarios.json` — model parameter scenarios
+- `config/simulation_settings.json` — shared simulation defaults
 - `data/global.1751_2017.csv` — emissions data used by the model
 
 Model code lives in `model/`, run orchestration in `simulation/`, and numerical
@@ -29,6 +30,25 @@ Existing results remain in their original folders.
 The complete command reference, including arguments and defaults for each
 executable script, is maintained in [SCRIPTS.md](SCRIPTS.md).
 
+Shared simulation defaults are defined only in
+[`config/simulation_settings.json`](config/simulation_settings.json): 600 years,
+24 output points per year, a 0.1-year coupling interval, seed 42, 1,000 agents,
+BDF, no fixed `dt`, temperature-dependent costs, and the full coupled model.
+Sensitivity, endpoint sweeps, new batch groups, CSV simulations, profiling,
+direct `simulate()` calls and notebook plotting use the same defaults.
+Missing configuration entries raise an error; Python supplies no fallback values.
+Restart Python processes or the notebook kernel after changing this file.
+
+Explicit CLI arguments override experiment-group settings, which override the
+shared defaults. Archived batch experiments and historical numerical probes retain
+their explicit original settings. All current simulation CLIs expose the shared
+options; `--no-constant-temperature-costs` and `--no-simulate-only-x` explicitly
+disable the corresponding modes even if enabled in the JSON file.
+Run metadata records the effective simulation settings. Notebook plots append
+these settings and model parameters to `simulation_manifest.jsonl`.
+Appending to a sensitivity folder checks the recorded shared settings to avoid
+mixing incompatible configurations.
+
 Run these commands from the repository root:
 
 ```powershell
@@ -39,7 +59,7 @@ python -m analysis.sensitivity.sensitivity_analysis --base-sample-size 64 --work
 python -m analysis.sensitivity.sensitivity_pipeline --base-sample-size 64 --workers 11
 
 # End-time mitigation share versus a single parameter (one scatterplot per scenario)
-python -m analysis.bifurcation_diagram --scenarios baseline --parameter-name beta --parameter-range 0 5 101 --simulation-time 1000 --workers 11
+python -m analysis.bifurcation_diagram --scenarios baseline --parameter-name beta --simulation-time 1000 --workers 11
 
 # Batch simulations and the qualitative workbook
 python -m simulation.batch_runner --help
@@ -50,12 +70,45 @@ python -m unittest discover -s support/tests -t . -v
 ```
 
 The endpoint sweep saves PNG/SVG plots, CSV results and reproducibility metadata
-under `E:\Masterarbeit\Runs\bifurcation_diagrams\<timestamp>\` by default.
+under `E:\Masterarbeit\bifurcation_diagrams\<timestamp>\` by default.
 Each plot varies exactly one parameter and labels the requested end time and
 calendar year. All other parameters and the seed stay fixed within a scenario;
 each run restarts from its configured initial conditions.
 These finite-time endpoint diagrams do not infer equilibrium
 stability or all branches of an oscillating system.
+
+Analysis ranges are defined once per parameter in `config/scenarios.json`, under
+`parameter_ranges.bounds`, and apply to all norms. Each scenario declares its
+behavioural parameters and values under `defaults`, alongside `ABM` and
+`social_norm`. Sobol selects the `defaults` entries with a global or explicit CLI
+range, in their declared order; there is no separate parameter-name list.
+Agent defaults omit unused ODE weights. Shared physical parameters, the
+temperature-cost function's constants and initial conditions live in
+`common_parameters`. Extra scenario defaults may override any shared parameter;
+without a range they stay fixed, and with a global or CLI range they become
+Sobol inputs. A global range alone does not select a shared-only parameter.
+The endpoint diagram looks up the chosen parameter's global range directly.
+`sensitivity_scenarios` lists the nine default scenarios shared by Sobol and
+endpoint diagrams: one standard scenario per norm. Other configured variants
+(such as custom and chaos candidates) are available through explicit `--scenarios`
+selection, which replaces that list. Selection uses this explicit list; it does
+not automatically deduplicate the `social_norm` fields or filter scenario names.
+The previous Sobol bounds and parameter order are preserved. These ranges are
+analysis settings, separate from the fixed model values in each scenario.
+
+The endpoint diagram uses **100 evenly spaced values** from the selected
+parameter's configured range. Change the count with `--num-points`, or override
+the limits with `--parameter-range MIN MAX`; explicit `--parameter-values` also
+remain available. The earlier `MIN MAX COUNT` form is still accepted.
+Sobol and its regression-tree pipeline accept repeatable
+`--parameter-range NAME MIN MAX` overrides. The effective Sobol bounds are saved
+in each result's `metadata.json`, and endpoint metadata stores each scenario's
+actual grid. CLI overrides do not modify the JSON file.
+
+```powershell
+python -m analysis.bifurcation_diagram --scenarios baseline --parameter-range 1 3 --num-points 50
+python -m analysis.sensitivity.sensitivity_analysis --scenarios baseline --parameter-range beta 1 3 --base-sample-size 128 --workers 11
+```
 
 The pytest-style sensitivity-review tests can additionally be run with
 `python -m pytest support/tests/sensitivity/test_sensitivity_review.py`.
@@ -140,8 +193,9 @@ The code is part of ongoing Master's thesis research and is therefore subject to
 
 The model is implemented primarily in Python and uses NumPy, pandas, SciPy, and Jupyter notebooks. Parameter scenarios are defined in `config/scenarios.json`.
 
-`load_scenarios()` loads named scenarios using the shared parameters explicitly
-configured in the JSON `baseline` block and each scenario's own values.
+`load_scenarios()` merges the JSON `common_parameters` block with each named
+scenario's explicit `defaults`, `ABM` and `social_norm`. The `baseline` scenario
+is an ordinary scenario; its behavioural values are not inherited by other norms.
 `resolve_parameters(extension)` loads a named scenario or copies a complete
 parameter dictionary and validates values, including the observation window
 `tau*rho`. It does not fill missing model inputs with Python defaults.
@@ -431,7 +485,8 @@ selection and when selected explicitly. It varies `temperature_factor` and
 excluded because they do not enter agent decisions. All seven active targets use the
 same definitions as the ODE scenarios, respecting annual behaviour steps.
 
-Sensitivity runs use 1,000 agents and the same configured `seed` for every sample.
+Sensitivity runs default to 1,000 agents (configurable centrally or via
+`--n-agents`) and use the same configured `seed` for every sample.
 This makes each parameter-to-output mapping reproducible; the indices are
 conditional on that initialization seed, rather than averages over random
 initializations. Repeat the analysis with different `--seed` values to assess
@@ -545,7 +600,8 @@ profiles. Cumulative function timings include child calls and overlap.
 Use `--constant-temperature-costs` to replace the temperature response by
 `f_T(T) = 1` in every ODE and agent decision. The behavioural contribution becomes
 `temperature_factor`; its Sobol sampling range is unchanged. Climate dynamics
-continue to run. Omitting the flag keeps the usual sigmoid.
+continue to run. Omitting the flag uses the central setting (currently the usual
+sigmoid); `--no-constant-temperature-costs` explicitly selects the sigmoid.
 
 ```powershell
 python -m analysis.sensitivity.sensitivity_analysis --constant-temperature-costs --base-sample-size 64 --workers 11 --output-root "E:\Masterarbeit\Sensitivity"
@@ -553,9 +609,10 @@ python -m analysis.sensitivity.sensitivity_analysis --constant-temperature-costs
 
 The flag also works with `analysis/sensitivity/sensitivity_pipeline.py`. It is recorded in
 `metadata.json` and per-simulation diagnostic configuration and shown in the
-ranking formula graphics. When reconstructing a run from saved parameters, pass
-the recorded `constant_temperature_costs` value to `simulate()`. Append mode
-rejects mixing constant-response and sigmoid scenarios in one result folder.
+ranking formula graphics. When reconstructing a current run from saved parameters,
+pass the full recorded `simulation_settings` dictionary to `simulate()`.
+Append mode rejects differing recorded simulation settings, including the
+constant-response/sigmoid mode, within one result folder.
 
 ### Regression trees from saved simulations
 

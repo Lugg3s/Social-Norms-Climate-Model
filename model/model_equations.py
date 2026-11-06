@@ -8,6 +8,7 @@ import pandas as pd
 from model.solvers import ADAPTIVE_SOLVERS, get_solver
 import model.agent as agent
 from utils.paths import CONFIG_DIR, DATA_DIR
+from simulation.settings import DEFAULTS
 
 DELAY_NORMS = {"dynamic social norm2", "Descriptive, injunctive, dynamic2"}
 DYNAMIC_ODE_NORMS = {"dynamic social norm", "Descriptive, injunctive, dynamic"}
@@ -22,8 +23,18 @@ year_column_numeric = pd.to_numeric(df.iloc[:, 0], errors="coerce").dropna()
 year_array = year_column_numeric.to_numpy(dtype=int)
 simulation_years = year_array[49:]
 
+def _load_configuration():
+    with (CONFIG_DIR / "scenarios.json").open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def load_scenario_defaults(scenario_name):
+    """Return only the parameters explicitly declared in this scenario."""
+    return dict(_load_configuration()[scenario_name]["defaults"])
+
+
 def load_scenarios(include=None, exclude=None):
-    """Load scenarios with their shared parameters explicitly set in JSON.
+    """Merge shared physical parameters with each scenario's explicit defaults.
 
     Args:
         include: Iterable of scenario names to keep. If None, all scenarios are
@@ -31,12 +42,12 @@ def load_scenarios(include=None, exclude=None):
         exclude: Iterable of scenario names to remove after include filtering.
             Pass a one-element list/tuple/set for a single scenario.
     """
-    scenarios_path = CONFIG_DIR / "scenarios.json"
-    with scenarios_path.open("r", encoding="utf-8") as file:
-        configured = json.load(file)
-    common = configured["baseline"]
-    loaded_scenarios = {name: {**common, **values}
-                        for name, values in configured.items() if name != "ignore"}
+    configured = _load_configuration()
+    common = configured["common_parameters"]
+    loaded_scenarios = {name: {**common, **values["defaults"],
+                               "ABM": values["ABM"], "social_norm": values["social_norm"]}
+                        for name, values in configured.items()
+                        if name not in {"ignore", "parameter_ranges", "common_parameters"}}
 
     if include is not None:
         include = set(include)
@@ -187,7 +198,13 @@ def unpack_state(z):
     return dict(zip(STATE_NAMES, z))
 
 
-def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, coupling_interval=0.1, output_points_per_year=100, simulate_only_x=False, verbose=None, solver="BDF", dt=None, constant_temperature_costs=False):
+def simulate(extension="baseline", simulation_time=DEFAULTS.simulation_time,
+             n_agents=DEFAULTS.n_agents, seed=DEFAULTS.seed,
+             coupling_interval=DEFAULTS.coupling_interval,
+             output_points_per_year=DEFAULTS.output_points_per_year,
+             simulate_only_x=DEFAULTS.simulate_only_x, verbose=None,
+             solver=DEFAULTS.solver, dt=DEFAULTS.dt,
+             constant_temperature_costs=DEFAULTS.constant_temperature_costs):
     """Run the coupled climate-social model and return state time series.
 
     solver: "BDF" (default), "LSODA" (both adaptive), or fixed-step "RK4".
@@ -660,6 +677,9 @@ def simulate(extension="baseline", simulation_time=400, n_agents=1000, seed=42, 
         "f_T": np.asarray(f_T(simulation.T), dtype=float),
         "parameters": dict(p),
         "solver_settings": {"solver": solver_name, "dt": dt,
+                            "simulation_time": simulation_time,
+                            "n_agents": n_agents, "seed": seed,
+                            "simulate_only_x": simulate_only_x,
                             "coupling_interval": coupling_interval,
                             "output_points_per_year": output_points_per_year,
                             "constant_temperature_costs": constant_temperature_costs},

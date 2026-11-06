@@ -1,0 +1,1514 @@
+{
+  "date": "2026-11-06",
+  "purpose": "Compare the pre-migration parameter lists/ranges with defaults-derived Sobol definitions.",
+  "sample_check": {
+    "base_sample_size": 4,
+    "seed": 42,
+    "calc_second_order": false,
+    "purpose": "Deterministic design equality check, not a convergence assessment."
+  },
+  "default_sensitivity_scenarios_equal": true,
+  "all_definitions_and_samples_equal": true,
+  "model_difference_explanation": "Only unused kappa and social_norm_factor entries were removed from the agent scenario. Neither parameter enters annual agent decisions. All other effective model values are unchanged.",
+  "scenarios": [
+    {
+      "scenario": "baseline",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 4,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 4,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "61ae965cb1d1538d14495cb6fc8786cd33864b8d006e4d4d2b5bf04cd331632e",
+      "after_sample_sha256": "61ae965cb1d1538d14495cb6fc8786cd33864b8d006e4d4d2b5bf04cd331632e",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Dynamic social norm",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 6,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "tau_ref",
+          "tau_xp"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 6,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "tau_ref",
+          "tau_xp"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "0f1b0204d8eed503fdf3eb3b22de032bf37e6594f626f28922f61294a6ca58e7",
+      "after_sample_sha256": "0f1b0204d8eed503fdf3eb3b22de032bf37e6594f626f28922f61294a6ca58e7",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Observation-based / intention motivation (agents)",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 6,
+        "names": [
+          "temperature_factor",
+          "beta",
+          "network_size",
+          "eta",
+          "phi",
+          "psi"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            1.0,
+            999.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 6,
+        "names": [
+          "temperature_factor",
+          "beta",
+          "network_size",
+          "eta",
+          "phi",
+          "psi"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            1.0,
+            999.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "7869484f8ed275a4538f11bb9df7f474c12553b703cd4541b4bee42d8422b46a",
+      "after_sample_sha256": "7869484f8ed275a4538f11bb9df7f474c12553b703cd4541b4bee42d8422b46a",
+      "removed_model_parameters": [
+        "kappa",
+        "social_norm_factor"
+      ],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Belief-based / intention motivation",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 5,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "N"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            -1.0,
+            1.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 5,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "N"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            -1.0,
+            1.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "84c2efdef5686cebb4028c9cfa36d9c0c1d19846141edc9411b1f0fa1cb241c0",
+      "after_sample_sha256": "84c2efdef5686cebb4028c9cfa36d9c0c1d19846141edc9411b1f0fa1cb241c0",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Observation based / approval (punish only one behaviour)",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 4,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 4,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "61ae965cb1d1538d14495cb6fc8786cd33864b8d006e4d4d2b5bf04cd331632e",
+      "after_sample_sha256": "61ae965cb1d1538d14495cb6fc8786cd33864b8d006e4d4d2b5bf04cd331632e",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Static injunctive",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 5,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "x_target"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 5,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "x_target"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "20b8906e5029165750b6978dbdee9fbdbd1f9edb0d39eca3c19bffb79b5e679c",
+      "after_sample_sha256": "20b8906e5029165750b6978dbdee9fbdbd1f9edb0d39eca3c19bffb79b5e679c",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 9,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau_ref",
+          "tau_xp"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 9,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau_ref",
+          "tau_xp"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "1a7300864b4b562b8cf85625c5a64683238691cb4df52639b4fa8df29fd5c468",
+      "after_sample_sha256": "1a7300864b4b562b8cf85625c5a64683238691cb4df52639b4fa8df29fd5c468",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic (transient oscillations)",
+      "in_default_sensitivity": false,
+      "before": {
+        "num_vars": 9,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau_ref",
+          "tau_xp"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 9,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau_ref",
+          "tau_xp"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "1a7300864b4b562b8cf85625c5a64683238691cb4df52639b4fa8df29fd5c468",
+      "after_sample_sha256": "1a7300864b4b562b8cf85625c5a64683238691cb4df52639b4fa8df29fd5c468",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic2",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "after_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic2 (testing)",
+      "in_default_sensitivity": false,
+      "before": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "after_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic2 (tau_timestep)",
+      "in_default_sensitivity": false,
+      "before": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "after_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic2 (custom)",
+      "in_default_sensitivity": false,
+      "before": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "after_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "Descriptive, injunctive, dynamic2 (chaos candidate)",
+      "in_default_sensitivity": false,
+      "before": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 10,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_desc",
+          "c_inj",
+          "x_target",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "after_sample_sha256": "bc2d00083a5e5e0a3ede3caedb27ba0bb68f43f84e1c32496c494979c06f0262",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    },
+    {
+      "scenario": "dynamic social norm2",
+      "in_default_sensitivity": true,
+      "before": {
+        "num_vars": 7,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "after": {
+        "num_vars": 7,
+        "names": [
+          "social_norm_factor",
+          "temperature_factor",
+          "beta",
+          "kappa",
+          "c_dyn",
+          "tau",
+          "rho"
+        ],
+        "bounds": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            5.0
+          ],
+          [
+            0.0,
+            0.5
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            0.1,
+            10.0
+          ],
+          [
+            1.1,
+            10.0
+          ]
+        ],
+        "sample_scaled": true
+      },
+      "added_sensitivity_parameters": [],
+      "removed_sensitivity_parameters": [],
+      "parameter_order_equal": true,
+      "bounds_equal": true,
+      "sample_arrays_equal": true,
+      "before_sample_sha256": "17622becac5a07367ac4494d2e319166262d5b714fb9c374ca4278b037a73a1c",
+      "after_sample_sha256": "17622becac5a07367ac4494d2e319166262d5b714fb9c374ca4278b037a73a1c",
+      "removed_model_parameters": [],
+      "added_model_parameters": [],
+      "changed_model_values": {}
+    }
+  ],
+  "trajectory_checks": [
+    {
+      "scenario": "baseline",
+      "state_arrays_exactly_equal": true,
+      "settings": {
+        "simulation_time": 218,
+        "n_agents": 100,
+        "seed": 7,
+        "coupling_interval": 1,
+        "output_points_per_year": 1,
+        "verbose": false
+      }
+    },
+    {
+      "scenario": "Observation-based / intention motivation (agents)",
+      "state_arrays_exactly_equal": true,
+      "settings": {
+        "simulation_time": 218,
+        "n_agents": 100,
+        "seed": 7,
+        "coupling_interval": 1,
+        "output_points_per_year": 1,
+        "verbose": false
+      }
+    }
+  ]
+}

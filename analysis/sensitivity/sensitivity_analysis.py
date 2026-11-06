@@ -19,79 +19,24 @@ from SALib.analyze import sobol
 from SALib.sample import sobol as sobol_sample
 
 from model.model_equations import load_scenarios, resolve_parameters, simulate
+from analysis.parameter_ranges import (
+    default_sensitivity_scenarios, get_parameter_ranges, parse_range_overrides,
+)
 from analysis.simulation_metrics import ELIMINATION_THRESHOLD, compute_run_metrics
 from utils.bounded_process_map import bounded_map
 from utils.paths import SENSITIVITY_RESULTS_DIR
 from simulation.time_series import save_time_series
+from simulation.settings import DEFAULTS, add_simulation_arguments, simulation_kwargs
 
 
-DEFAULT_SIMULATION_TIME = 600
+DEFAULT_SIMULATION_TIME = DEFAULTS.simulation_time
 DEFAULT_OUTPUT_ROOT = SENSITIVITY_RESULTS_DIR
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
-DEFAULT_OUTPUT_POINTS_PER_YEAR = 24
+DEFAULT_OUTPUT_POINTS_PER_YEAR = DEFAULTS.output_points_per_year
 OSCILLATION_WINDOW_YEARS = 500.0
 OSCILLATION_MIN_COMPLETE_CYCLES = 2
-ABM_AGENT_COUNT = 1000
-
-COMMON_PARAMETER_BOUNDS: dict[str, tuple[float, float]] = {
-    "social_norm_factor": (0.0, 5.0),
-    "temperature_factor": (0.0, 5.0),
-    "beta": (0.0, 5.0),
-    "kappa": (0.0, 0.5),   
-}
-
-# Parameter ranges are intentionally broad enough to contain all values currently
-# documented in interesting_parameter_sets.csv. Time-scale lower bounds follow the
-# sensitivity-analysis convention discussed for this project.
-# In masterarbeit begründen, wieso ich die Grenzen der sensi so gewählt habe
-NORM_SPECIFIC_PARAMETER_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
-    "baseline": {
-    },
-    "Dynamic social norm": {
-        "tau_ref": (0.1, 10.0),
-        "tau_xp": (0.1, 10.0),
-    },
-    "Belief-based / intention motivation": {
-        # N = 0 ist neutral.  N < 0 bedeutet nicht-mitigieren wird begünstigt. N > 0 begünstigt mitigieren.
-        # Alternative hier wäre von 0 bis 1 variieren und die Formel umzuändern in N-0.5
-        # N ist ein vorzeichenbehafteter Normeinfluss, keine Wahrscheinlichkeit.
-        # [-1, 1] ist eine Projektannahme, kein Literatur-/Kalibrierungsintervall.
-        "N": (-1.0, 1.0),
-    },
-    "Observation-based / intention motivation (agents)": {
-        "network_size": (1, ABM_AGENT_COUNT - 1),  # Rounded peer count; excludes the agent itself.
-        "eta": (0.0, 1.0),
-        "phi": (0.0, 1.0),
-        "psi": (0.0, 1.0),
-    },
-    "Observation based / approval (punish only one behaviour)": {
-        # Approval strength is controlled solely by social_norm_factor.
-    },
-    "Static injunctive": {
-        "x_target": (0.0, 1.0),
-    },
-    "Descriptive, injunctive, dynamic": {
-        "c_inj": (0.0, 10.0),
-        "x_target": (0.0, 1.0),
-        "c_dyn": (0.0, 10.0),
-        "tau_ref": (0.1, 10.0),
-        "tau_xp": (0.1, 10.0),
-    },
-    "Descriptive, injunctive, dynamic2": {
-        "c_desc": (0.0, 1.0),  # Exploratory weight: 0 disables the descriptive term.
-        "c_inj": (0.0, 10.0),
-        "x_target": (0.0, 1.0),
-        "c_dyn": (0.0, 10.0),
-        "tau": (0.1, 10.0),
-        "rho": (1.1, 10.0),  # Beobachtungsfenster tau*rho; rho > 1.
-    },
-    "dynamic social norm2": {
-        "c_dyn": (0.0, 10.0),
-        "tau": (0.1, 10.0),
-        "rho": (1.1, 10.0),  # Beobachtungsfenster tau*rho; rho > 1.
-    },
-}
+ABM_AGENT_COUNT = DEFAULTS.n_agents
 
 SENSITIVITY_OUTPUTS = [
     # "final_x",  # Kandidat für Regression Trees.
@@ -132,31 +77,26 @@ class SensitivityConfig:
     simulation_time: int = DEFAULT_SIMULATION_TIME
     base_sample_size: int = DEFAULT_BASE_SAMPLE_SIZE
     workers: int = 1
-    seed: int = 42
-    coupling_interval: float = 0.1
+    seed: int = DEFAULTS.seed
+    coupling_interval: float = DEFAULTS.coupling_interval
     output_points_per_year: int = DEFAULT_OUTPUT_POINTS_PER_YEAR
     score_mode: str = "simple_mean"
     sample_timeout_minutes: float = 20.0
-    constant_temperature_costs: bool = False
+    constant_temperature_costs: bool = DEFAULTS.constant_temperature_costs
+    n_agents: int = DEFAULTS.n_agents
+    solver: str = DEFAULTS.solver
+    dt: float | None = DEFAULTS.dt
+    simulate_only_x: bool = DEFAULTS.simulate_only_x
     save_time_series: bool = True
+    parameter_ranges: dict[str, list[float]] | None = None
 
     def __post_init__(self):
         if not np.isfinite(self.sample_timeout_minutes) or self.sample_timeout_minutes <= 0:
             raise ValueError("sample-timeout-minutes must be finite and positive")
 
 
-def build_problem(scenario_name: str) -> dict[str, Any]:
-    if scenario_name not in NORM_SPECIFIC_PARAMETER_BOUNDS:
-        raise KeyError(f"No sensitivity parameter definition for scenario: {scenario_name}")
-
-    parameter_bounds = {
-        **COMMON_PARAMETER_BOUNDS,
-        **NORM_SPECIFIC_PARAMETER_BOUNDS[scenario_name],
-    }
-    if scenario_name == "Observation-based / intention motivation (agents)":
-        # Actual x comes from annual decisions; neither parameter enters BI.
-        parameter_bounds.pop("social_norm_factor")
-        parameter_bounds.pop("kappa")
+def build_problem(scenario_name: str, parameter_ranges=None) -> dict[str, Any]:
+    parameter_bounds = get_parameter_ranges(scenario_name, parameter_ranges)
     return {
         "num_vars": len(parameter_bounds),
         "names": list(parameter_bounds.keys()),
@@ -205,12 +145,7 @@ def _run_sample(job: tuple[Any, ...], *, time_series_path=None, time_series_cont
     params = _resolve_sample_parameters(scenario_params, parameter_names, sample)
     result = simulate(
         extension=params,
-        simulation_time=config.simulation_time,
-        n_agents=ABM_AGENT_COUNT,
-        seed=config.seed,
-        coupling_interval=config.coupling_interval,
-        output_points_per_year=config.output_points_per_year,
-        constant_temperature_costs=config.constant_temperature_costs,
+        **simulation_kwargs(config),
         verbose=False,
     )
     metrics = compute_run_metrics(result, params)
@@ -242,7 +177,7 @@ def _run_tracked_sample(
             return _run_sample(job, time_series_path=time_series_dir / f"{phase}_{sample_index:06d}.npz",
                                time_series_context={"phase": phase, "sample_index": sample_index,
                                                     "boundary_parameter": boundary_parameter,
-                                                    "n_agents": ABM_AGENT_COUNT,
+                                                    "n_agents": config.n_agents,
                                                     "config": vars(config)})
         return _run_sample(job)
     if diagnostics_dir is None:
@@ -566,7 +501,7 @@ def run_sensitivity_analysis(
     scenarios = load_scenarios()
     if scenario_name not in scenarios:
         raise KeyError(f"Unknown scenario: {scenario_name}")
-    problem = build_problem(scenario_name)
+    problem = build_problem(scenario_name, config.parameter_ranges)
     scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
     scenario_dir.mkdir(parents=True, exist_ok=True)
 
@@ -723,6 +658,7 @@ def run_sensitivity_analysis(
     metadata = {
         "scenario": scenario_name,
         "problem": problem,
+        "simulation_settings": simulation_kwargs(config),
         "simulation_time": config.simulation_time,
         "base_sample_size": config.base_sample_size,
         "number_of_model_runs": int(len(samples)),
@@ -759,7 +695,7 @@ def run_sensitivity_analysis(
         "parameter_reconstruction_note": (
             "Reconstruct each model input as parameters.json updated with the "
             "sample-specific values from samples.csv for the same sample_index. "
-            "Pass constant_temperature_costs from this metadata as a simulate() argument."
+            "Pass all entries of simulation_settings as simulate() keyword arguments."
         ),
         "elimination_time_definition": {
             "method": "zero_if_not_reached",
@@ -803,7 +739,7 @@ def run_sensitivity_analysis(
     }
     if base_params["ABM"]:
         metadata["agent_initialization"] = {
-            "n_agents": ABM_AGENT_COUNT,
+            "n_agents": config.n_agents,
             "seed": config.seed,
             "mode": "fixed_seed_for_all_samples",
             "interpretation": "Sobol indices are conditional on this initialization seed; no averaging over seeds.",
@@ -815,8 +751,11 @@ def run_sensitivity_analysis(
     return scenario_dir
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Sobol sensitivity analysis for social-norm scenarios.")
+    parser.add_argument("--parameter-range", nargs=3, action="append", dest="parameter_ranges",
+                        metavar=("NAME", "MIN", "MAX"),
+                        help="Override a JSON parameter range for selected scenarios; repeat for more parameters.")
     parser.add_argument(
         "--scenarios",
         nargs="+",
@@ -826,25 +765,10 @@ def parse_args() -> argparse.Namespace:
             "scenarios from scenarios.json are used."
         ),
     )
-    parser.add_argument("--simulation-time", type=int, default=DEFAULT_SIMULATION_TIME)
+    add_simulation_arguments(parser)
     parser.add_argument("--base-sample-size", type=int, default=DEFAULT_BASE_SAMPLE_SIZE)
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=None,
-        help="Parallel worker processes. Default: CPU count minus one; use 1 for serial execution.",
-    )
-    parser.add_argument(
-        "--output-points-per-year",
-        type=int,
-        default=DEFAULT_OUTPUT_POINTS_PER_YEAR,
-        help="Stored solver evaluation points per simulated year.",
-    )
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument(
-        "--constant-temperature-costs", action="store_true",
-        help="Use f_T(T)=1 in all ODE/agent decisions, scaled by temperature_factor; climate still evolves.",
-    )
+    parser.add_argument("--workers", type=int, default=None,
+                        help="Parallel workers; default: CPU count minus one.")
     parser.add_argument("--no-save-time-series", action="store_false", dest="save_time_series",
                         default=True, help="Disable compressed aggregate trajectories (saved by default).")
     parser.add_argument("--sample-timeout-minutes", type=float, default=20.0,
@@ -863,7 +787,7 @@ def parse_args() -> argparse.Namespace:
         default="simple_mean",
         help="Rule used to combine output-specific total-order Sobol indices.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def _log_sample_detail(message):
@@ -918,7 +842,8 @@ def _scenario_directory(run_root: Path, scenario_name: str) -> Path:
     return run_root / scenario_name.replace("/", "_").replace(" ", "_")
 
 
-def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_temperature_costs=False) -> None:
+def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_temperature_costs=False,
+                               simulation_settings=None) -> None:
     for scenario_name in scenario_names:
         scenario_dir = _scenario_directory(run_root, scenario_name)
         if scenario_dir.exists() and any(scenario_dir.iterdir()):
@@ -939,6 +864,15 @@ def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_tempe
         if metadata.get("constant_temperature_costs", False) != constant_temperature_costs:
             raise ValueError("Existing sensitivity results use a different constant-temperature-costs mode. "
                              "Use the same flag or start a new result folder.")
+        if simulation_settings is not None:
+            # Older runs recorded only some settings at the top level. Compare
+            # those known values without inventing missing historical inputs.
+            saved = metadata.get("simulation_settings", metadata)
+            different = [name for name, value in simulation_settings.items()
+                         if name in saved and saved[name] != value]
+            if different:
+                raise ValueError(f"Existing sensitivity results use different simulation settings: "
+                                 f"{', '.join(different)}. Use matching settings or a new result folder.")
 
 
 def main() -> None:
@@ -946,26 +880,26 @@ def main() -> None:
     available_scenarios = load_scenarios()
     scenario_names = args.scenarios
     if scenario_names is None:
-        scenario_names = [
-            scenario_name
-            for scenario_name in available_scenarios
-            if scenario_name in NORM_SPECIFIC_PARAMETER_BOUNDS
-        ]
+        scenario_names = default_sensitivity_scenarios()
+
+    range_overrides = parse_range_overrides(getattr(args, "parameter_ranges", None))
+    # Check selected names and effective ranges before creating output directories.
+    for scenario_name in scenario_names:
+        available_scenarios[scenario_name]
+        build_problem(scenario_name, range_overrides)
 
     worker_count = _resolve_worker_count(args.workers)
     if args.output_points_per_year < 1:
         raise ValueError("output-points-per-year must be at least 1")
 
     config = SensitivityConfig(
-        simulation_time=args.simulation_time,
+        **simulation_kwargs(args),
         base_sample_size=args.base_sample_size,
         workers=worker_count,
-        seed=args.seed,
-        output_points_per_year=args.output_points_per_year,
         score_mode=args.score_mode,
         sample_timeout_minutes=args.sample_timeout_minutes,
-        constant_temperature_costs=args.constant_temperature_costs,
         save_time_series=args.save_time_series,
+        parameter_ranges=range_overrides,
     )
 
     if args.append_existing_folder is not None:
@@ -975,7 +909,8 @@ def main() -> None:
                 f"Requested run folder does not exist: {run_root}"
             )
         _validate_append_scenarios(run_root, scenario_names,
-                                   constant_temperature_costs=config.constant_temperature_costs)
+                                   constant_temperature_costs=config.constant_temperature_costs,
+                                   simulation_settings=simulation_kwargs(config))
     else:
         timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
         run_root = args.output_root / timestamp

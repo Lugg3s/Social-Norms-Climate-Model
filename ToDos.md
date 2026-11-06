@@ -1,6 +1,7 @@
 # Aktuelle ToDos:
 
 - Prio1: die notes in dem betreuer notebook
+- related work chapter (chatis Entwurf) kontrollieren
 
 SENSI:
 - Klassifizierung nach Flache et al. (2017, Abb. 1) prüfen: pro Norm Anteile der Sensi-Läufe mit Konsens, Clustering oder Bi-Polarisierung bestimmen; vorher klären, ob und wie die Kategorien auf aggregiertes x bzw. individuelle Intentionen übertragbar sind ([Paper](https://doi.org/10.18564/jasss.3521)).

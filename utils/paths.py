@@ -8,4 +8,5 @@ DATA_DIR = PROJECT_ROOT / "data"
 PLOTS_DIR = PROJECT_ROOT / "plots"
 RUNS_DIR = Path(r"E:\Masterarbeit\Runs")
 SENSITIVITY_RESULTS_DIR = Path(r"E:\Masterarbeit\Sensitivity")
+BIFURCATION_RESULTS_DIR = Path(r"E:\Masterarbeit\bifurcation_diagrams")
 PROFILING_RESULTS_DIR = PROJECT_ROOT / "support" / "profiling_results"

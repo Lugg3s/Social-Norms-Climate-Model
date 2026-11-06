@@ -1,0 +1,11 @@
+{
+    "simulation_time": 600,
+    "output_points_per_year": 24,
+    "coupling_interval": 0.1,
+    "seed": 42,
+    "n_agents": 1000,
+    "solver": "BDF",
+    "dt": null,
+    "constant_temperature_costs": false,
+    "simulate_only_x": false
+}

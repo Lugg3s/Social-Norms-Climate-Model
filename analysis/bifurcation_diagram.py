@@ -25,26 +25,28 @@ import pandas as pd
 
 from model.model_equations import load_scenarios, resolve_parameters, simulate, simulation_years
 from model.solvers import get_solver
+from analysis.parameter_ranges import default_sensitivity_scenarios, get_parameter_range, validate_bounds
 from utils.bounded_process_map import bounded_map
-from utils.paths import PROJECT_ROOT, RUNS_DIR
+from utils.paths import PROJECT_ROOT, BIFURCATION_RESULTS_DIR
+from simulation.settings import DEFAULTS, add_simulation_arguments, simulation_kwargs
 
 
-DEFAULT_OUTPUT_ROOT = RUNS_DIR / "bifurcation_diagrams"
+DEFAULT_OUTPUT_ROOT = BIFURCATION_RESULTS_DIR
 TIME_ZERO_YEAR = int(simulation_years[0])
 
 
 @dataclass(frozen=True)
 class SweepConfig:
-    simulation_time: float = 600
+    simulation_time: float = DEFAULTS.simulation_time
     workers: int = 1
-    seed: int = 42
-    n_agents: int = 1000
-    coupling_interval: float = 0.1
-    output_points_per_year: int = 24
-    solver: str = "BDF"
-    dt: float | None = None
-    constant_temperature_costs: bool = False
-    simulate_only_x: bool = False
+    seed: int = DEFAULTS.seed
+    n_agents: int = DEFAULTS.n_agents
+    coupling_interval: float = DEFAULTS.coupling_interval
+    output_points_per_year: int = DEFAULTS.output_points_per_year
+    solver: str = DEFAULTS.solver
+    dt: float | None = DEFAULTS.dt
+    constant_temperature_costs: bool = DEFAULTS.constant_temperature_costs
+    simulate_only_x: bool = DEFAULTS.simulate_only_x
     sample_timeout_minutes: float = 20
 
     def __post_init__(self):
@@ -58,21 +60,32 @@ class SweepConfig:
         get_solver(self.solver, self.dt)
 
 
-def parameter_grid(values=None, interval=None) -> list[float]:
-    """Use an explicit value list or an inclusive MIN MAX COUNT grid."""
+def parameter_grid(values=None, interval=None, num_points=100) -> list[float]:
+    """Use explicit values or inclusive limits (optionally with legacy COUNT)."""
     if (values is None) == (interval is None):
         raise ValueError("Specify exactly one of parameter-values and parameter-range")
     if interval is not None:
-        start, stop, count = interval
-        if not np.all(np.isfinite(interval)) or count != int(count) or count < 2:
-            raise ValueError("parameter-range needs finite MIN MAX and an integer COUNT >= 2")
-        if start >= stop:
-            raise ValueError("parameter-range requires MIN < MAX")
+        if len(interval) not in (2, 3):
+            raise ValueError("parameter-range needs MIN MAX (optionally legacy COUNT)")
+        start, stop = validate_bounds(interval[:2])
+        count = interval[2] if len(interval) == 3 else num_points
+        if not np.isfinite(count) or count != int(count) or count < 2:
+            raise ValueError("num-points (or legacy COUNT) must be an integer >= 2")
         values = np.linspace(start, stop, int(count))
     result = np.asarray(list(values), dtype=float)
     if result.ndim != 1 or not result.size or not np.all(np.isfinite(result)):
         raise ValueError("parameter-values must be a non-empty finite one-dimensional list")
     return result.tolist()
+
+
+def scenario_grids(scenarios, parameter_name, values=None, interval=None, num_points=100):
+    grids = {}
+    for scenario in dict.fromkeys(scenarios):
+        limits = interval
+        if values is None and interval is None:
+            limits = get_parameter_range(parameter_name)
+        grids[scenario] = parameter_grid(values, limits, num_points)
+    return grids
 
 
 def build_tasks(scenarios, parameter_name, parameter_values, config):
@@ -87,7 +100,8 @@ def build_tasks(scenarios, parameter_name, parameter_values, config):
         if isinstance(original, bool) or not isinstance(original, (int, float)):
             raise ValueError(f"{parameter_name} is not a numeric model parameter in {scenario}")
         bases[scenario] = base
-        for value in parameter_values:
+        values = parameter_values[scenario] if isinstance(parameter_values, dict) else parameter_values
+        for value in values:
             if parameter_name == "network_size" and (value != int(value) or not 0 <= value < config.n_agents):
                 raise ValueError("network_size values must be integers from 0 to n_agents - 1")
             parameters = resolve_parameters({**base, parameter_name: value})
@@ -131,21 +145,28 @@ def endpoint_plot(frame, scenario, parameter_name, simulation_time):
     return fig
 
 
-def run_analysis(parameter_name, parameter_values, scenarios=None,
-                 output_root=DEFAULT_OUTPUT_ROOT, config=None):
+def run_analysis(parameter_name="beta", parameter_values=None, scenarios=None,
+                 output_root=DEFAULT_OUTPUT_ROOT, config=None, *,
+                 num_points=100, parameter_range=None):
     config = SweepConfig() if config is None else config
-    values = parameter_grid(values=parameter_values)
-    tasks, bases = build_tasks(["baseline"] if scenarios is None else scenarios,
-                              parameter_name, values, config)
+    scenarios = default_sensitivity_scenarios() if scenarios is None else scenarios
+    grids = scenario_grids(scenarios, parameter_name, parameter_values, parameter_range, num_points)
+    tasks, bases = build_tasks(scenarios, parameter_name, grids, config)
     root = Path(output_root) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     root.mkdir(parents=True, exist_ok=False)
     sources = [Path(__file__), PROJECT_ROOT / "model/model_equations.py",
                PROJECT_ROOT / "model/agent.py", PROJECT_ROOT / "model/solvers.py",
+               PROJECT_ROOT / "analysis/parameter_ranges.py",
+               PROJECT_ROOT / "simulation/settings.py", PROJECT_ROOT / "config/simulation_settings.json",
                PROJECT_ROOT / "config/scenarios.json", PROJECT_ROOT / "data/global.1751_2017.csv"]
     metadata = dict(
         created_at=datetime.now().astimezone().isoformat(), parameter_name=parameter_name,
-        parameter_values=values, parameters_varied_per_plot=1, scenarios=bases,
-        simulation=asdict(config), time_zero_year=TIME_ZERO_YEAR,
+        parameter_values=grids, parameters_varied_per_plot=1, scenarios=bases,
+        num_points_per_scenario={name: len(values) for name, values in grids.items()},
+        range_source=("explicit_values" if parameter_values is not None else
+                      "CLI_or_API_range" if parameter_range is not None else "scenarios.json"),
+        simulation=asdict(config), simulation_settings=simulation_kwargs(config),
+        time_zero_year=TIME_ZERO_YEAR,
         end_time=config.simulation_time, end_year=TIME_ZERO_YEAR + config.simulation_time,
         definition="One finite-time endpoint per independently initialized parameter value; "
                    "other inputs and seed fixed; no continuation, multistability or "
@@ -202,27 +223,22 @@ def run_analysis(parameter_name, parameter_values, scenarios=None,
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scenarios", nargs="+", default=["baseline"],
-                        help="Exact scenario names; each gets a separate plot (default: baseline).")
+    parser.add_argument("--scenarios", nargs="+", default=None,
+                        help="Exact scenario names; each gets a separate plot. If omitted, use "
+                             "parameter_ranges.sensitivity_scenarios from scenarios.json, as in Sobol.")
     parser.add_argument("--parameter-name", default="beta",
                         help="The single parameter varied per plot (default: beta).")
-    grid = parser.add_mutually_exclusive_group(required=True)
+    grid = parser.add_mutually_exclusive_group()
     grid.add_argument("--parameter-values", nargs="+", type=float,
                       help="Explicit values, e.g. 0 0.5 1 2 3 4 5.")
-    grid.add_argument("--parameter-range", nargs=3, type=float, metavar=("MIN", "MAX", "COUNT"),
-                      help="Inclusive evenly spaced grid; COUNT must be an integer >= 2.")
-    parser.add_argument("--simulation-time", type=float, default=600)
+    grid.add_argument("--parameter-range", nargs="+", type=float, metavar="LIMIT",
+                      help="Override JSON limits: MIN MAX. Legacy MIN MAX COUNT is also accepted.")
+    parser.add_argument("--num-points", type=int, default=100,
+                        help="Evenly spaced points including both limits (default: 100); "
+                             "explicit parameter-values or legacy COUNT determine their own count.")
+    add_simulation_arguments(parser)
     parser.add_argument("--workers", type=int, default=None,
                         help="Worker processes; default: CPU count minus one.")
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--n-agents", type=int, default=1000)
-    parser.add_argument("--coupling-interval", type=float, default=0.1)
-    parser.add_argument("--output-points-per-year", type=int, default=24)
-    parser.add_argument("--solver", choices=["BDF", "LSODA", "RK4"], default="BDF")
-    parser.add_argument("--dt", type=float, help="Required integration step in years for RK4.")
-    parser.add_argument("--constant-temperature-costs", action="store_true")
-    parser.add_argument("--simulate-only-x", action="store_true",
-                        help="Freeze carbon stocks; the model's temperature equation still evolves.")
     parser.add_argument("--sample-timeout-minutes", type=float, default=20)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     return parser.parse_args(argv)
@@ -230,12 +246,12 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
-    values = parameter_grid(args.parameter_values, args.parameter_range)
     settings = {name: getattr(args, name) for name in SweepConfig.__dataclass_fields__}
     if settings["workers"] is None:
         settings["workers"] = max(1, (os.cpu_count() or 1) - 1)
-    run_analysis(args.parameter_name, values, args.scenarios, args.output_root,
-                 SweepConfig(**settings))
+    run_analysis(args.parameter_name, args.parameter_values, args.scenarios, args.output_root,
+                 SweepConfig(**settings), num_points=args.num_points,
+                 parameter_range=args.parameter_range)
 
 
 if __name__ == "__main__":

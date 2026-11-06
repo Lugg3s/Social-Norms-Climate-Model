@@ -11,7 +11,8 @@ from SALib.sample import sobol
 
 from simulation.batch_runner import ExperimentGroup, create_run_name, run_single_combination, sanitize_name
 from model.model_equations import DELAY_NORMS, load_scenarios, resolve_parameters, simulate
-from analysis.sensitivity.sensitivity_analysis import build_problem, NORM_SPECIFIC_PARAMETER_BOUNDS, zero_boundary_parameters
+from analysis.sensitivity.sensitivity_analysis import build_problem, zero_boundary_parameters
+from analysis.parameter_ranges import default_sensitivity_scenarios
 from analysis.symbolic_analysis import SUPPORTED_NORMS, symbolic_social_norm_term
 from analysis.sensitivity.sensitivity_plots import _ranking_social_norm_term
 from analysis.sensitivity.sensitivity_numerical_probe import migrate_archived_dynamic2
@@ -23,7 +24,7 @@ class Dynamic2ConstraintTests(unittest.TestCase):
             self.assertNotEqual(params['social_norm'], 'Injunctive, dynamic2')
             if params['social_norm'] == 'Descriptive, injunctive, dynamic2':
                 self.assertEqual(params['c_desc'], 1, name)
-        for registry in (SUPPORTED_NORMS, DELAY_NORMS, NORM_SPECIFIC_PARAMETER_BOUNDS):
+        for registry in (SUPPORTED_NORMS, DELAY_NORMS, default_sensitivity_scenarios()):
             self.assertNotIn('Injunctive, dynamic2', registry)
         problem = build_problem('Descriptive, injunctive, dynamic2')
         self.assertEqual(problem['bounds'][problem['names'].index('c_desc')], [0., 1.])

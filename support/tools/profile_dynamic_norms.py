@@ -20,6 +20,7 @@ import numpy as np
 import model.model_equations as model
 from analysis.sensitivity.sensitivity_analysis import SensitivityConfig, _run_sample, build_problem
 from utils.paths import PROFILING_RESULTS_DIR
+from simulation.settings import add_simulation_arguments, simulation_kwargs
 
 
 def profile_case(label, params, config, destination, max_seconds):
@@ -107,26 +108,26 @@ def profile_case(label, params, config, destination, max_seconds):
     return summary
 
 
-def main():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios", nargs="+", default=["baseline", "Dynamic social norm", "Descriptive, injunctive, dynamic2"])
-    parser.add_argument("--simulation-time", type=int, default=400)
-    parser.add_argument("--coupling-interval", type=float, default=0.1)
-    parser.add_argument("--output-points-per-year", type=int, default=24)
+    add_simulation_arguments(parser)
     parser.add_argument("--max-seconds", type=float, default=60., help="Per-case profiling limit; partial profiles are saved.")
     parser.add_argument("--zero-boundaries", action="store_true", help="Also profile each exact-zero boundary check.")
     parser.add_argument("--samples-file", type=Path, help="Profile selected rows of an existing sensitivity samples.csv; requires one scenario.")
     parser.add_argument("--sample-indices", nargs="+", type=int, default=[0])
     parser.add_argument("--output-root", type=Path, default=PROFILING_RESULTS_DIR)
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main():
+    args = parse_args()
     if min(args.simulation_time, args.coupling_interval, args.output_points_per_year, args.max_seconds) <= 0:
-        parser.error("Durations, resolution, and time limit must be positive")
+        raise ValueError("Durations, resolution, and time limit must be positive")
     if args.samples_file and len(args.scenarios) != 1:
-        parser.error("--samples-file requires exactly one scenario")
+        raise ValueError("--samples-file requires exactly one scenario")
     root = args.output_root/datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    config = SensitivityConfig(simulation_time=args.simulation_time,
-                               coupling_interval=args.coupling_interval,
-                               output_points_per_year=args.output_points_per_year)
+    config = SensitivityConfig(**simulation_kwargs(args))
     cases = []
     for scenario in args.scenarios:
         params = model.resolve_parameters(scenario)

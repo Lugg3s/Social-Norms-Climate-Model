@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from simulation.settings import DEFAULTS, add_simulation_arguments, simulation_kwargs
+
 import argparse
 import csv
 from datetime import datetime
@@ -32,7 +35,7 @@ import matplotlib.pyplot as plt
 
 DEFAULT_INPUT = DATA_DIR / "interesting_parameter_sets.csv"
 DEFAULT_OUTPUT_ROOT = PLOTS_DIR
-DEFAULT_SIMULATION_TIME = 800
+DEFAULT_SIMULATION_TIME = DEFAULTS.simulation_time
 DEFAULT_METADATA_COLUMNS = {"social_norm", "classification", "comment", "reason"}
 
 CSV_SCENARIO_ALIASES = {
@@ -315,7 +318,9 @@ def run_interesting_parameter_sets(
     output_root: Path | str = DEFAULT_OUTPUT_ROOT,
     simulation_time: int = DEFAULT_SIMULATION_TIME,
     store_files: bool = True,
+    **simulation_settings,
 ) -> Path | None:
+    settings = replace(DEFAULTS, simulation_time=simulation_time, **simulation_settings)
     input_path = Path(input_path)
     output_root = Path(output_root)
     entries = load_interesting_parameter_sets(input_path)
@@ -346,7 +351,7 @@ def run_interesting_parameter_sets(
         print(f"  Social norm term: {social_norm_term if social_norm_term is not None else 'agent-based / stochastic'}")
         if entry["reason"]:
             print(f"  Reason: {entry['reason']}")
-        result = simulate(params, simulation_time=simulation_time)
+        result = simulate(params, **simulation_kwargs(settings))
         metrics = compute_run_metrics(result, params)
         frame = simulation_to_dataframe(result, params)
         if store_files:
@@ -367,6 +372,7 @@ def run_interesting_parameter_sets(
             _display_all_run_plots(frame, run_label, params, parameter_names)
 
         metadata = {
+            "simulation_settings": result["solver_settings"],
             "social_norm": scenario_name,
             "classification": entry["classification"],
             "comment": entry["comment"],
@@ -394,19 +400,19 @@ def run_interesting_parameter_sets(
     return run_root
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run and plot parameter combinations stored in interesting_parameter_sets.csv."
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--simulation-time", type=int, default=DEFAULT_SIMULATION_TIME)
+    add_simulation_arguments(parser)
     parser.add_argument(
         "--no-store-files",
         action="store_true",
         help="Display plots without creating output files.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:
@@ -414,7 +420,7 @@ def main() -> None:
     run_root = run_interesting_parameter_sets(
         input_path=args.input,
         output_root=args.output_root,
-        simulation_time=args.simulation_time,
+        **simulation_kwargs(args),
         store_files=not args.no_store_files,
     )
     if run_root is None:

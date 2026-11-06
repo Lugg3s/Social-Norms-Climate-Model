@@ -46,7 +46,9 @@ def run_probe(task):
     try:
         result=model_equations.simulate(extension=task["parameters"],simulation_time=1200,seed=42,
                                        coupling_interval=task["coupling"],output_points_per_year=task["density"],
-                                       solver="BDF",verbose=False)
+                                       # Pin the remaining historical settings, too.
+                                       solver="BDF",dt=None,n_agents=1000,
+                                       constant_temperature_costs=False,simulate_only_x=False,verbose=False)
         metrics=compute_run_metrics(result,task["parameters"])
         sim=result["simulation"]
         times=np.asarray(sim.t);x=np.asarray(sim.x)

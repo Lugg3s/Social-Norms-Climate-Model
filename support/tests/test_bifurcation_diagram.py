@@ -66,7 +66,7 @@ class EndpointSweepTests(unittest.TestCase):
                          "end_time": 230., "end_year": diagram.TIME_ZERO_YEAR + 230}})]
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(diagram, "bounded_map", return_value=iter(outcomes)):
-                root = diagram.run_analysis("beta", [0., 1.], output_root=Path(directory),
+                root = diagram.run_analysis("beta", [0., 1.], scenarios=["baseline"], output_root=Path(directory),
                                             config=diagram.SweepConfig(simulation_time=230))
             frame = pd.read_csv(root / "results.csv", sep=";")
             self.assertTrue(np.isnan(frame.loc[1, "final_x"]))

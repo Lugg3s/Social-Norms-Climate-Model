@@ -8,7 +8,7 @@ import signal
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from itertools import product
 from pathlib import Path
@@ -26,6 +26,8 @@ import pandas as pd
 from model.model_equations import DELAY_NORMS, SimulationResult, load_scenarios, resolve_parameters, simulate
 from utils.paths import CONFIG_DIR, RUNS_DIR
 from simulation.time_series import load_record_time_series
+from simulation.settings import (DEFAULTS, add_simulation_arguments, simulation_kwargs,
+                                 simulation_overrides)
 from analysis.simulation_metrics import (
     compute_metrics_from_saved_time_series,
     compute_oscillation_metrics,
@@ -34,7 +36,7 @@ from analysis.simulation_metrics import (
 
 
 TIME_ZERO_YEAR = 1800
-DEFAULT_SIMULATION_TIME = 1500
+DEFAULT_SIMULATION_TIME = DEFAULTS.simulation_time
 DEFAULT_OUTPUT_ROOT = RUNS_DIR
 DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 ELIMINATION_THRESHOLD = 0.95
@@ -48,14 +50,15 @@ class ExperimentGroup:
     static_parameters: dict[str, Any] = field(default_factory=dict)
     fixed_overrides: dict[str, Any] = field(default_factory=dict)
     simulation_time: int = DEFAULT_SIMULATION_TIME
-    n_agents: int = 1000
-    coupling_interval: float = 0.1
-    output_points_per_year: int = 100
-    seed: int = 42
-    solver: str = "BDF"
-    dt: float | None = None
+    n_agents: int = DEFAULTS.n_agents
+    coupling_interval: float = DEFAULTS.coupling_interval
+    output_points_per_year: int = DEFAULTS.output_points_per_year
+    seed: int = DEFAULTS.seed
+    solver: str = DEFAULTS.solver
+    dt: float | None = DEFAULTS.dt
     parameter_sets: dict[str, dict[str, Any]] | None = None
-    constant_temperature_costs: bool = False
+    constant_temperature_costs: bool = DEFAULTS.constant_temperature_costs
+    simulate_only_x: bool = DEFAULTS.simulate_only_x
 
 GLOBAL_SWEEP_VALUES = [0, 0.5, 1, 2, 3, 5, 10]
 X0_SWEEP_VALUES = [0, 0.2, 0.5, 0.8, 1]
@@ -84,6 +87,11 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         seed=_DYNAMIC2_TOP5["settings"]["seed"],
         solver=_DYNAMIC2_TOP5["settings"]["solver"],
         constant_temperature_costs=_DYNAMIC2_TOP5["settings"]["constant_temperature_costs"],
+        # These settings were implicit in the archived run; preserve them even
+        # when the defaults for new experiments change.
+        n_agents=1000,
+        dt=None,
+        simulate_only_x=False,
     ),
     # ExperimentGroup(
     #     name="Descriptive, injunctive, dynamic2 (chaos)",
@@ -774,6 +782,7 @@ def save_run_outputs(run_dir, run_label, params, result, metrics, sweep_paramete
         {
             "run_label": run_label,
             "parameters_file": "parameters.json",
+            "simulation_settings": result["solver_settings"],
             "metrics": metrics,
             **({"agent_history_file": "agent_history.npz"} if "agent_history" in result else {}),
         },
@@ -899,14 +908,7 @@ def run_single_combination(
 
         result = simulate(
             params,
-            simulation_time=group.simulation_time,
-            n_agents=group.n_agents,
-            coupling_interval=group.coupling_interval,
-            output_points_per_year=group.output_points_per_year,
-            seed=group.seed,
-            solver=group.solver,
-            dt=group.dt,
-            constant_temperature_costs=group.constant_temperature_costs,
+            **simulation_kwargs(group),
         )
         metrics = compute_run_metrics(result, params)
         if save_outputs_per_run:
@@ -1568,10 +1570,11 @@ def run_groups(
     overwrite: bool = False,
     save_outputs_per_run: bool = False,
     workers: int | None = None,
+    simulation_settings: dict[str, Any] | None = None,
 ) -> Path:
     run_root = make_output_root(output_root)
     available_scenarios = load_scenarios()
-    groups = load_default_groups()
+    groups = [replace(group, **(simulation_settings or {})) for group in load_default_groups()]
     if selected_group_names:
         selected = set(selected_group_names)
         groups = [group for group in groups if group.name in selected]
@@ -1593,6 +1596,7 @@ def run_groups(
                     "sweep_parameters": group.sweep_parameters,
                     "static_parameters": group.static_parameters,
                     "fixed_overrides": group.fixed_overrides,
+                    "simulation_settings": simulation_kwargs(group),
                     "simulation_time": group.simulation_time,
                     "n_agents": group.n_agents,
                     "coupling_interval": group.coupling_interval,
@@ -1602,6 +1606,7 @@ def run_groups(
                     "dt": group.dt,
                     "parameter_sets": group.parameter_sets,
                     "constant_temperature_costs": group.constant_temperature_costs,
+                    "simulate_only_x": group.simulate_only_x,
                 }
                 for group in groups
             ],
@@ -1745,7 +1750,7 @@ def run_groups(
     return run_root
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run parameter sweeps and save CSVs plus plots for each combination."
     )
@@ -1778,7 +1783,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Number of parallel worker processes. Default: CPU count minus one. Use 1 for serial execution.",
     )
-    return parser.parse_args()
+    add_simulation_arguments(parser, use_defaults=False)
+    return parser.parse_args(argv)
 
 
 def main() -> None:
@@ -1790,6 +1796,7 @@ def main() -> None:
             overwrite=args.overwrite,
             save_outputs_per_run=args.save_outputs_per_run,
             workers=args.workers,
+            simulation_settings=simulation_overrides(args),
         )
     except KeyboardInterrupt:
         raise SystemExit(130)

@@ -1,10 +1,12 @@
 import numpy as np
+import json
 import matplotlib.pyplot as plt
 from datetime import datetime
 from pathlib import Path
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from model.model_equations import *
 from utils.paths import CONFIG_DIR, PLOTS_DIR
+from simulation.settings import DEFAULTS, SETTINGS_PATH
 import shutil
 # from agent_model_equation_anara import *
 
@@ -31,11 +33,29 @@ def _get_run_output_dir():
     return _RUN_OUTPUT_DIR
 
 
+def _simulate_for_plot(*args, **kwargs):
+    """Keep actual settings for every simulation started by notebook plots."""
+    result = simulate(*args, **kwargs)
+    record = {"created_at": datetime.now().isoformat(),
+              "simulation_settings": result["solver_settings"],
+              "parameters": result["parameters"]}
+    with (_get_run_output_dir() / "simulation_manifest.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, default=_json_scalar) + "\n")
+    return result
+
+
+def _json_scalar(value):
+    if isinstance(value, np.generic):
+        return value.item()
+    raise TypeError(f"Cannot serialize {type(value).__name__}")
+
+
 def _store_scenario_json():
     """
     Store the complete scenario.json file in the output directory for reproducibility.
     """
     output_dir = _get_run_output_dir()
+    shutil.copy(SETTINGS_PATH, output_dir / SETTINGS_PATH.name)
     scenario_file = CONFIG_DIR / "scenarios.json"
     if scenario_file.exists():
         destination_file = Path(output_dir / "scenario.json")
@@ -66,7 +86,7 @@ def plot_emissions(include_scenarios=None, exclude_scenarios=None):
     return handles, labels
 """
 
-def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=400, simulate_only_x=False, fig_name=None):
+def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=DEFAULTS.simulation_time, simulate_only_x=DEFAULTS.simulate_only_x, fig_name=None):
     """Plot temperature and mitigation trajectories.
     If `results` is provided, it must map scenario names to simulation results
     and no simulations are run inside this function.
@@ -83,7 +103,7 @@ def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=Non
         results = {}
         for scenario_name in model_equations:
             print(f"Simulating scenario: {scenario_name}")
-            results[scenario_name] = simulate(scenario_name, simulation_time=simulation_time, simulate_only_x=False)["simulation"]
+            results[scenario_name] = _simulate_for_plot(scenario_name, simulation_time=simulation_time, simulate_only_x=simulate_only_x)["simulation"]
     elif include_scenarios or exclude_scenarios:
         selected_scenarios = load_scenarios(include=include_scenarios, exclude=exclude_scenarios)
         results = {name: result for name, result in results.items() if name in selected_scenarios}
@@ -104,7 +124,7 @@ def plot_temperature(include_scenarios=None, exclude_scenarios=None, results=Non
     plt.show()
 
 
-def plot_x(include_scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulate_only_x=False, simulation_time=400, fig_name=None):
+def plot_x(include_scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulate_only_x=DEFAULTS.simulate_only_x, simulation_time=DEFAULTS.simulation_time, fig_name=None):
     """Plot the mitigation share x over time.
 
     If `results` is provided, it must be a mapping of scenario names to result
@@ -121,7 +141,7 @@ def plot_x(include_scenarios=None, exclude_scenarios=None, results=None, show_x_
         results = {}
         for scenario_name in model_equations:
             print(f"Simulating scenario: {scenario_name}")
-            results[scenario_name] = simulate(
+            results[scenario_name] = _simulate_for_plot(
                 scenario_name,
                 simulation_time=simulation_time,
                 simulate_only_x=simulate_only_x,
@@ -159,8 +179,8 @@ def plot_x_sensitivity(
     exclude_scenarios=None,
     save_prefix="x_sensitivity",
     show_x_auxiliary=False,
-    simulation_time=400,
-    simulate_only_x=False,
+    simulation_time=DEFAULTS.simulation_time,
+    simulate_only_x=DEFAULTS.simulate_only_x,
 ):
     """Plot x-trajectories for a parameter sweep.
 
@@ -180,7 +200,7 @@ def plot_x_sensitivity(
         for parameter_value in parameter_values:
             run_params = {**scenario_params, parameter_name: parameter_value}
             print(f"Simulating {scenario_name} with {parameter_name}={parameter_value}")
-            result = simulate(
+            result = _simulate_for_plot(
                 run_params,
                 simulation_time=simulation_time,
                 simulate_only_x=simulate_only_x,
@@ -210,8 +230,8 @@ def plot_temperature_sensitivity(
     exclude_scenarios=None,
     save_prefix="temperature_sensitivity",
     show_x_auxiliary=False,
-    simulation_time=400,
-    simulate_only_x=False
+    simulation_time=DEFAULTS.simulation_time,
+    simulate_only_x=DEFAULTS.simulate_only_x
 ):
     """Plot temperature trajectories for one parameter sweep.
 
@@ -232,7 +252,7 @@ def plot_temperature_sensitivity(
         for parameter_value in parameter_values:
             run_params = {**scenario_params, parameter_name: parameter_value}
             print(f"Simulating {scenario_name} with {parameter_name}={parameter_value}")
-            result = simulate(
+            result = _simulate_for_plot(
                 run_params,
                 simulation_time=simulation_time,
                 simulate_only_x=simulate_only_x,
@@ -258,9 +278,9 @@ def plot_temperature_sensitivity_2d(
     include_scenarios=None,
     exclude_scenarios=None,
     save_prefix="temperature_sensitivity_2d",
-    simulation_time=400,
+    simulation_time=DEFAULTS.simulation_time,
     cmap="viridis",
-    simulate_only_x=False,
+    simulate_only_x=DEFAULTS.simulate_only_x,
 ):
     """Plot a 2D parameter sweep with final temperature anomaly as the color field.
 
@@ -284,7 +304,7 @@ def plot_temperature_sensitivity_2d(
                     y_parameter_name: y_value,
                 }
                 print(f"Running simulation {y_index * len(x_values) + x_index + 1}/{amount_of_simulations} for scenario {scenario_name} with {x_parameter_name}={x_value}, {y_parameter_name}={y_value}")
-                result = simulate(run_params, simulation_time=simulation_time, simulate_only_x=simulate_only_x)["simulation"]
+                result = _simulate_for_plot(run_params, simulation_time=simulation_time, simulate_only_x=simulate_only_x)["simulation"]
                 # temperature_grid[y_index, x_index] = np.max(result.T)
                 temperature_grid[y_index, x_index] = result.T[-1]
 
@@ -314,7 +334,7 @@ def plot_temperature_sensitivity_2d(
         plt.show()
 
 
-def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=400, simulate_only_x=False):
+def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show_x_auxiliary=False, simulation_time=DEFAULTS.simulation_time, simulate_only_x=DEFAULTS.simulate_only_x):
     """Plot weighted social and temperature contributions with the beta threshold.
 
     If `results` is provided, it must map scenario names to simulation results
@@ -365,7 +385,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         results = {}
         for scenario_name in model_equations:
             print(f"Simulating scenario: {scenario_name}")
-            results[scenario_name] = simulate(
+            results[scenario_name] = _simulate_for_plot(
                 scenario_name,
                 simulation_time=simulation_time,
                 simulate_only_x=simulate_only_x
@@ -375,7 +395,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
     #     results = {}
     #     for scenario_name in model_equations:
     #         print(f"Simulating scenario: {scenario_name}")
-    #         results[scenario_name] = simulate(scenario_name, simulation_time=simulation_time)
+    #         results[scenario_name] = _simulate_for_plot(scenario_name, simulation_time=simulation_time)
     elif scenarios or exclude_scenarios:
         selected_scenarios = load_scenarios(include=scenarios, exclude=exclude_scenarios)
         results = {name: result for name, result in results.items() if name in selected_scenarios}
