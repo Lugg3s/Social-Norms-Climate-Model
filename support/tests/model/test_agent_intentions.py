@@ -187,8 +187,13 @@ class AnnualCouplingTests(unittest.TestCase):
         saved_metrics = compute_metrics_from_saved_time_series(frame, result["parameters"])
         live_metrics = compute_run_metrics(result, result["parameters"])
         self.assertEqual(saved_metrics.keys(), live_metrics.keys())
-        np.testing.assert_allclose(list(saved_metrics.values()), list(live_metrics.values()),
-                                   rtol=0, atol=0, equal_nan=True)
+        for name in saved_metrics:
+            saved, live = saved_metrics[name], live_metrics[name]
+            if isinstance(saved, (str, type(None))):
+                self.assertEqual(saved, live, name)
+            else:
+                np.testing.assert_allclose(saved, live, rtol=0, atol=0, equal_nan=True,
+                                           err_msg=name)
 
     def test_unused_replicator_parameters_cannot_influence_agents(self):
         params = {**self.params, "social_norm_factor": 123, "kappa": 123}

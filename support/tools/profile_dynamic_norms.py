@@ -110,7 +110,7 @@ def profile_case(label, params, config, destination, max_seconds):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scenarios", nargs="+", default=["baseline", "Dynamic social norm", "Descriptive, injunctive, dynamic2"])
+    parser.add_argument("--scenarios", nargs="+", default=["No social norm", "baseline", "Dynamic social norm", "Descriptive, injunctive, dynamic2"])
     add_simulation_arguments(parser)
     parser.add_argument("--max-seconds", type=float, default=60., help="Per-case profiling limit; partial profiles are saved.")
     parser.add_argument("--zero-boundaries", action="store_true", help="Also profile each exact-zero boundary check.")

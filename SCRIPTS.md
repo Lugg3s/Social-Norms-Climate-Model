@@ -1,6 +1,6 @@
 # Ausführbare Skripte
 
-Stand: 6. November 2026. Befehle im Repository-Hauptordner ausführen.
+Stand: 12. November 2026. Befehle im Repository-Hauptordner ausführen.
 Szenarionamen mit Leerzeichen in Anführungszeichen setzen. Jedes CLI bietet
 zusätzlich `-h` / `--help`. Tabellen nennen die tatsächlichen CLI-Argumente;
 Modellparameter kommen aus `config/scenarios.json`, sofern nicht ausdrücklich
@@ -34,6 +34,14 @@ Simulationsoptionen können mit `--no-constant-temperature-costs` bzw.
 Ergebnis-Metadaten speichern alle tatsächlich verwendeten Simulationseinstellungen;
 Notebook-Plots schreiben dafür `simulation_manifest.jsonl` in ihren Ausgabeordner.
 
+`No social norm` ist die Referenzvariante mit konstantem Normterm `S = 0`.
+Temperaturkopplung, Kosten und Replicator-Dynamik bleiben aktiv. Die Sensi variiert
+hier nur `temperature_factor`, `beta` und `kappa`; `social_norm_factor` entfällt.
+Die Variante gehört zur gemeinsamen Standardauswahl von Sensi/Pipeline und
+Bifurkation. Regressionsbäume und gespeicherte Batch-Plots einschließlich Videos
+und 3D-Ausgaben übernehmen sie aus neuen Ergebnisdaten. Die Batchgruppe
+`no_social_norm` führt einen Beta-Sweep mit sechs Werten aus dem JSON-Bereich aus.
+
 ## 1. Endwert-/Bifurkationsdiagramm
 
 `python -m analysis.bifurcation_diagram` — ein Scatterplot pro Szenario:
@@ -45,7 +53,7 @@ python -m analysis.bifurcation_diagram --scenarios "Descriptive, injunctive, dyn
 
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
-| `--scenarios NAME ...` | Die neun Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Gleiche Normenauswahl wie bei der Sensi; jedes Szenario erhält einen eigenen Plot. Explizite Namen ersetzen die Standardauswahl. |
+| `--scenarios NAME ...` | Die zehn Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Gleiche Normenauswahl wie bei der Sensi; jedes Szenario erhält einen eigenen Plot. Explizite Namen ersetzen die Standardauswahl. |
 | `--parameter-name NAME` | `beta` | Genau ein variierender numerischer Modellparameter. |
 | `--parameter-values WERT ...` | Gleichmäßiges Raster aus Bereich und `--num-points` | Explizite Einzelwerte statt JSON-Bereich; alternativ zu `--parameter-range`. |
 | `--parameter-range MIN MAX` | Globaler Bereich aus `scenarios.json`; für `beta` aktuell `[0, 5]` | Überschreibt die beiden Grenzen. Die alte Form `MIN MAX ANZAHL` bleibt gültig; deren Anzahl hat Vorrang vor `--num-points`. |
@@ -94,7 +102,7 @@ bleiben sie fest; mit globalem oder CLI-Bereich werden sie in der Sensi variiert
 Ein globaler Bereich allein nimmt einen nur gemeinsam definierten Parameter
 nicht automatisch in die Sensi jedes Szenarios auf.
 Der Endwertplot liest direkt den globalen Bereich des gewählten Parameters.
-`sensitivity_scenarios` legt die gemeinsame Standardauswahl von neun Szenarien für
+`sensitivity_scenarios` legt die gemeinsame Standardauswahl von zehn Szenarien für
 Sensi/Pipeline und Bifurkationsdiagramme fest: ein Standardszenario pro Norm.
 Weitere konfigurierte Szenarien, etwa `(custom)` oder `(chaos candidate)`, werden
 nur durch explizite Auswahl mit `--scenarios` einbezogen. Die Auswahl erfolgt über
@@ -116,9 +124,17 @@ python -m analysis.bifurcation_diagram --scenarios baseline --parameter-range 1 
 `python -m analysis.sensitivity.sensitivity_analysis` — Simulationen, Sobol-Indizes,
 Rankings und Verteilungsplots; speichert standardmäßig auch Zeitreihen.
 
+Speichert außerdem pro Lauf `behaviour_class` und Klassifikationsdiagnostik in
+`simulation_outputs.csv` (auch mit `--no-save-time-series`). Pro Norm entstehen
+`behaviour_classes.csv` sowie `behaviour_class_frequencies.csv`, `.svg` und `.png`.
+Die vertikalen Balken zeigen relative Klassenhäufigkeiten über alle angeforderten
+Sobol-Läufe; Fehler/Timeouts erscheinen separat, zusätzliche Nullrandfälle zählen
+nicht mit. Die Klassifizierung wird nicht als Sobol-Zielvariable verwendet.
+Regeln: [`analysis/BEHAVIOURAL_CLASSIFICATION.md`](analysis/BEHAVIOURAL_CLASSIFICATION.md).
+
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
-| `--scenarios NAME ...` | Die neun Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Auswahl der Normen. |
+| `--scenarios NAME ...` | Die zehn Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Auswahl der Normen. |
 | `--parameter-range NAME MIN MAX` | Globale Bereiche aus `parameter_ranges.bounds` für die Einträge unter Szenario-`defaults` | Bereich für einen unter `defaults` deklarierten Parameter angeben/überschreiben; wiederholbar. Gilt für alle gewählten Szenarien, die diesen Eintrag jeweils enthalten müssen. |
 | `--simulation-time JAHRE` | `600` | Simulationsdauer. |
 | `--base-sample-size ANZAHL` | `256` | Sobol-Basisstichprobe; üblicherweise Zweierpotenz. |
@@ -137,6 +153,20 @@ Rankings und Verteilungsplots; speichert standardmäßig auch Zeitreihen.
 | `--dt JAHRE` | `None` | Erforderlicher positiver RK4-Schritt; bei adaptiven Solvern ungenutzt. |
 | `--simulate-only-x` / `--no-simulate-only-x` | `False` | Kohlenstoffspeicher einfrieren bzw. Einfrieren deaktivieren; Temperatur entwickelt sich weiter. |
 
+### Klassenhäufigkeiten aus gespeicherten Sensi-Daten
+
+`python -m analysis.behaviour_classification_plots --input-root "<Sensi-Lauf>"`
+erstellt pro Norm ein vertikales Balkendiagramm (PNG/SVG) sowie Klassentabellen,
+ohne Simulationen auszuführen. Die ursprünglichen Ergebnisdateien bleiben erhalten.
+Alle neuen oder künftig bearbeiteten Plots werden auf Englisch beschriftet.
+
+| Argument | Standard bei Weglassen | Bedeutung |
+| --- | --- | --- |
+| `--input-root PFAD` | Pflichtargument | Sensi-Lauf oder einzelner Szenarioordner. |
+| `--output-root PFAD` | `<input-root>/behaviour_classification` | Ziel; darunter ein Ordner pro Norm. |
+| `--scenarios NAME ...` | Alle im Eingabeordner vorhandenen Szenarien | Normen nach Szenarioname oder Ordnername auswählen. |
+| `--reclassify` | `False`; gespeicherte Klassen verwenden | Klassen anhand gespeicherter NPZ-Zeitreihen mit aktuellen Regeln neu berechnen. Für ältere Läufe ohne Klassen; Zeitreihen müssen vorhanden sein. |
+
 ## 3. Sensi mit anschließenden Regressionsbäumen
 
 `python -m analysis.sensitivity.sensitivity_pipeline` — führt die Sensi aus und
@@ -144,7 +174,7 @@ erstellt danach Bäume aus den gespeicherten Daten, ohne zusätzliche Simulation
 
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
-| `--scenarios NAME ...` | Die neun Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Auswahl der Normen. |
+| `--scenarios NAME ...` | Die zehn Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Auswahl der Normen. |
 | `--parameter-range NAME MIN MAX` | Globale Bereiche aus `parameter_ranges.bounds` für die Einträge unter Szenario-`defaults` | Überschreibt einen Bereich für die ausgewählten Szenarien; wiederholbar wie im Sensi-Skript. |
 | `--simulation-time JAHRE` | `600` | Simulationsdauer. |
 | `--base-sample-size ANZAHL` | `256` | Sobol-Basisstichprobe. |
@@ -204,7 +234,7 @@ Szenarien und Modell-/Solvereinstellungen stehen in `ExperimentGroup` im Skript.
 
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
-| `--groups NAME ...` | Alle Gruppen in `DEFAULT_EXPERIMENT_GROUPS`; aktuell `dynamic2_top5_sensi128` | Experimentgruppen auswählen. |
+| `--groups NAME ...` | Alle Gruppen in `DEFAULT_EXPERIMENT_GROUPS`; aktuell `dynamic2_top5_sensi128` und `no_social_norm` | Experimentgruppen auswählen. |
 | `--output-root PFAD` | `E:\Masterarbeit\Runs` | Überordner der Ergebnisse. |
 | `--overwrite` | `False`; fertige Kombinationen überspringen | Bereits fertige Kombinationen erneut berechnen. |
 | `--save-outputs-per-run` | `False`; nur zusammengefasste Ausgaben | Einzelne Zeitreihen und Plots zusätzlich speichern. |
@@ -308,7 +338,7 @@ ausgewählte Simulationen Rechenzeit verbrauchen.
 
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
-| `--scenarios NAME ...` | `baseline`, `Dynamic social norm`, `Descriptive, injunctive, dynamic2` | Szenarienauswahl. |
+| `--scenarios NAME ...` | `No social norm`, `baseline`, `Dynamic social norm`, `Descriptive, injunctive, dynamic2` | Szenarienauswahl. |
 | `--simulation-time JAHRE` | `600` | Simulationsdauer. |
 | `--coupling-interval JAHRE` | `0.1` | Kopplungsintervall. |
 | `--output-points-per-year ANZAHL` | `24` | Ausgabeauflösung. |

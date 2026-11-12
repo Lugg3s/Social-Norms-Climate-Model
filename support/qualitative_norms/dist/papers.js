@@ -77,6 +77,10 @@
     'model/model_equations.py: get_social_norm_term / diff_x_p / diff_x_ref; Anara: FRIDA-Paper.',
     'Abschnitt 3.1.3 und Tabelle A1. Die Übertragung auf das vorliegende Modell ist eine Adaption.');
   const assignments = {
+    'no-social-norm': {
+      references: [],
+      note: 'Projektinterne Referenzvariante mit Normterm S = 0; keine eigene Paperreferenz.',
+    },
     baseline: {
       references: [reference('bury', 'Direkte Code-Referenz der Baseline',
         'model/model_equations.py: „Baseline from Bury“; Anara: Hauptpaper und S1 Text.'), review],

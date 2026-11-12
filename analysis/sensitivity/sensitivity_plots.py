@@ -546,6 +546,9 @@ def _ranking_formula_content(metadata, parameters):
                                                for symbol in term.free_symbols if symbol.name in latex_names}),
             temperature,
         ]
+        if norm == "No social norm":
+            rows[0] = (r"\dot{x}=\kappa x(1-x)\left[-\beta+"
+                       r"\mathtt{temperature\_factor}\,f_T(T)\right]")
         codes.insert(0, "κ = kappa")
         if norm == "Observation based / approval (punish only one behaviour)" and "alpha" in names:
             codes.append("α = alpha")

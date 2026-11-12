@@ -358,6 +358,8 @@ def simulate(extension="baseline", simulation_time=DEFAULTS.simulation_time,
 
     def get_social_norm_term(state, t):
         match p["social_norm"]:
+            case "No social norm":
+                return 0.0
             case "Observation-based / imitation":
                 # Baseline from Bury
                 return 2 * state["x"] - 1
@@ -429,6 +431,8 @@ def simulate(extension="baseline", simulation_time=DEFAULTS.simulation_time,
         social_norm_term = get_social_norm_term(state, t)
         if social_norm_term is None:
             return 0
+        if social_norm_mode == "No social norm":
+            return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + p["temperature_factor"] * f_T(state["T"]))
         return p["kappa"] * state["x"] * (1 - state["x"]) * (-p["beta"] + p["temperature_factor"] * f_T(state["T"]) + p["social_norm_factor"] * social_norm_term)
 
     # Literaturanalogie: Rajah et al. (2025), Abs. 3.1.3 und Tab. A1, S. 6017.

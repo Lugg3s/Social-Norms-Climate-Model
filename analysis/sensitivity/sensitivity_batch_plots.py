@@ -11,6 +11,7 @@ import pandas as pd
 
 import simulation.batch_runner as batch
 from simulation.time_series import load_time_series
+from analysis.trajectory_classification import classify_trajectory, classification_definition
 from visualization.make_plot_videos import make_mp4, normalize_frames
 
 
@@ -25,10 +26,14 @@ def _render_one(task):
     run_dir = scenario_output / name
     run_dir.mkdir(exist_ok=True)
     label = f"{scenario} | {name}"
+    classification = classify_trajectory(
+        frame["t"], frame["x"],
+        stepwise=params.get("agent_decision_model") == "annual_intention_threshold")
     batch.save_run_plots(frame, run_dir, label, params, features)
     batch.save_json(run_dir / "parameters.json", params)
-    batch.save_json(run_dir / "metadata.json", {**metadata, "source_time_series": str(archive), "run_label": label})
-    return {**metadata["metrics"], **{feature: params[feature] for feature in features},
+    batch.save_json(run_dir / "metadata.json", {**metadata, "source_time_series": str(archive), "run_label": label,
+                                               "derived_classification": classification})
+    return {**metadata["metrics"], **classification, **{feature: params[feature] for feature in features},
             "sample_index": context["sample_index"], "phase": phase, "status": "ok",
             "scenario": scenario, "group": scenario, "run_name": name,
             "run_dir": str(run_dir), "time_series_file": str(archive)}
@@ -111,6 +116,8 @@ def render_saved_sensitivity(input_root: Path, output_root: Path | None = None, 
     output = base / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     output.mkdir(parents=True, exist_ok=False)
     manifest = {"input_root": str(input_root), "source": "saved aggregate trajectories; no simulation",
+                "behaviour_classification": classification_definition(),
+                "classification_source": "Recomputed from each archived trajectory using the recorded current definition; source archive metadata preserved.",
                 "videos": videos, "plots_3d": plots_3d,
                 "parameter_projection": "Individual sampled runs; other sampled parameters vary. No fitted surface.",
                 "scenarios": []}

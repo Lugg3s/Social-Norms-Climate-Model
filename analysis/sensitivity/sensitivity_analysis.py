@@ -23,6 +23,9 @@ from analysis.parameter_ranges import (
     default_sensitivity_scenarios, get_parameter_ranges, parse_range_overrides,
 )
 from analysis.simulation_metrics import ELIMINATION_THRESHOLD, compute_run_metrics
+from analysis.trajectory_classification import (
+    FAILED, UNAVAILABLE, MIN_COMPLETE_CYCLES, classification_definition,
+)
 from utils.bounded_process_map import bounded_map
 from utils.paths import SENSITIVITY_RESULTS_DIR
 from simulation.time_series import save_time_series
@@ -35,7 +38,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DEFAULT_BASE_SAMPLE_SIZE = 256
 DEFAULT_OUTPUT_POINTS_PER_YEAR = DEFAULTS.output_points_per_year
 OSCILLATION_WINDOW_YEARS = 500.0
-OSCILLATION_MIN_COMPLETE_CYCLES = 2
+OSCILLATION_MIN_COMPLETE_CYCLES = MIN_COMPLETE_CYCLES
 ABM_AGENT_COUNT = DEFAULTS.n_agents
 
 SENSITIVITY_OUTPUTS = [
@@ -164,7 +167,7 @@ def _run_tracked_sample(
     phase: str = "sample",
     boundary_parameter: str | None = None,
     time_series_dir: Path | None = None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Persist actual worker start/finish events in one file per simulation.
 
     A started record with no terminal record means that completion was not
@@ -326,6 +329,7 @@ def run_samples(
                 _record_timeout(tasks[index], outcome)
                 records[index] = {**{name: np.nan for name in SENSITIVITY_OUTPUTS},
                                   SIMULATION_SUCCESS_OUTPUT: 0,
+                                  "behaviour_class": FAILED,
                                   "status": "timed_out"}
             else:
                 error = RuntimeError(f"Sample {index}: {outcome['error_type']}: "
@@ -342,6 +346,7 @@ def run_samples(
                     raise error
                 records[index] = {**{name: np.nan for name in SENSITIVITY_OUTPUTS},
                                   SIMULATION_SUCCESS_OUTPUT: 0,
+                                  "behaviour_class": FAILED,
                                   "status": "failed", "error_message": outcome["error_message"]}
                 print(f"[{datetime.now():%H:%M:%S}] Skipping sample_index={index}: "
                       f"{outcome['error_message']} | continuing with remaining samples", flush=True)
@@ -377,9 +382,9 @@ def run_zero_boundary_cases(
                 row.update(status="ok", **outcome["result"])
             elif outcome["status"] == "timed_out":
                 _record_timeout(tasks[index], outcome)
-                row.update(status="timed_out", error_message="Wall-clock limit exceeded")
+                row.update(status="timed_out", behaviour_class=FAILED, error_message="Wall-clock limit exceeded")
             else:
-                row.update(status="failed", error_type=outcome["error_type"],
+                row.update(status="failed", behaviour_class=FAILED, error_type=outcome["error_type"],
                            error_message=outcome["error_message"])
             records.append(row)
     finally:
@@ -537,6 +542,10 @@ def run_sensitivity_analysis(
         "analysis_status.json",
         "sample_inclusion.csv",
         "simulation_status.csv",
+        "behaviour_classes.csv",
+        "behaviour_class_frequencies.csv",
+        "behaviour_class_frequencies.svg",
+        "behaviour_class_frequencies.png",
         "ranking_balken_gruppen_gesamt.png",
         "ranking_balken_gruppen_gesamt.svg",
         "ranking_balken_zielvariablen.png",
@@ -609,6 +618,9 @@ def run_sensitivity_analysis(
         "sample_index",
         np.arange(len(simulation_outputs), dtype=int),
     )
+    if "behaviour_class" not in simulation_outputs:
+        simulation_outputs["behaviour_class"] = UNAVAILABLE
+    simulation_outputs.loc[~simulation_outputs["status"].eq("completed"), "behaviour_class"] = FAILED
     simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False, sep=";")
 
     status_columns = ["status", SIMULATION_SUCCESS_OUTPUT]
@@ -692,6 +704,9 @@ def run_sensitivity_analysis(
         "simulation_outputs_file": "simulation_outputs.csv",
         "simulation_status_file": "simulation_status.csv",
         "simulation_success_output": SIMULATION_SUCCESS_OUTPUT,
+        "behaviour_classification": classification_definition(),
+        "behaviour_classification_file": "behaviour_classes.csv",
+        "behaviour_classification_plot": "behaviour_class_frequencies.svg",
         "parameter_reconstruction_note": (
             "Reconstruct each model input as parameters.json updated with the "
             "sample-specific values from samples.csv for the same sample_index. "
@@ -747,6 +762,11 @@ def run_sensitivity_analysis(
         }
     with (scenario_dir / "metadata.json").open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, ensure_ascii=False)
+
+    # Descriptive plots run only after numerical artifacts and metadata are safe.
+    # All requested samples, not only retained Sobol blocks; no boundary runs.
+    from analysis.behaviour_classification_plots import save_classification_outputs
+    save_classification_outputs(simulation_outputs, scenario_dir, scenario_name)
 
     return scenario_dir
 

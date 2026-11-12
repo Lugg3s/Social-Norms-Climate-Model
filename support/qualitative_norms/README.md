@@ -1,10 +1,14 @@
 # Normen-Werkbuch
 
-Private, buildless web interface for qualitative work on the nine distinct active
+Private, buildless web interface for qualitative work on the ten distinct active
 norm types in `model/model_equations.py` / `config/scenarios.json`. All interpretation fields
 start empty. Only the fictional Reusable Cups case and mathematical definitions
 are supplied. Equivalent testing configurations are not separate norm types;
 disabled/unimplemented norms are omitted. No model parameter or equation is changed.
+
+The `No social norm` reference has a constant zero norm term and no
+`social_norm_factor`. Older JSON backups gain empty fields for this reference
+while retaining their existing notes.
 
 Open `dist/index.html` directly in a browser or run, from the model repository:
 

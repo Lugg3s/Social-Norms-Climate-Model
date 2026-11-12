@@ -415,7 +415,7 @@ def plot_social_norms(scenarios=None, exclude_scenarios=None, results=None, show
         color = ax._get_lines.get_next_color()
         stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
         if not np.all(np.isnan(series)):
-            norm_scale = 1.0 if stepwise else params["social_norm_factor"]
+            norm_scale = 1.0 if stepwise or params["social_norm"] == "No social norm" else params["social_norm_factor"]
             ax.plot(time, norm_scale * series, color=color,
                     label=f"{scenario_name}: social norm", linestyle="-",
                     drawstyle="steps-post" if stepwise else "default")

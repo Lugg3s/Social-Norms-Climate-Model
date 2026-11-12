@@ -23,6 +23,7 @@ x_tau = sp.Symbol("x_tau", real=True)
 x_tau_window = sp.Symbol("x_tau_window", real=True)
 
 SUPPORTED_NORMS = (
+    "No social norm",
     "Observation-based / imitation",
     "Observation-based / intention motivation",
     "Belief-based / intention motivation",
@@ -76,6 +77,8 @@ def _symbols_for_parameters(parameter_names: set[str]) -> dict[str, sp.Symbol]:
 
 def _parameter_names_for_norm(norm: str) -> set[str]:
     common = {"beta", "kappa", "temperature_factor", "f_max", "omega", "T_c", "social_norm_factor"}
+    if norm == "No social norm":
+        return common - {"social_norm_factor"}
     by_norm = {
         "Observation-based / imitation": set(),
         "Belief-based / intention motivation": {"N"},
@@ -100,6 +103,8 @@ def _temperature_term(s: dict[str, sp.Symbol]) -> sp.Expr:
 
 
 def _social_norm_term(norm: str, s: dict[str, sp.Symbol]) -> sp.Expr:
+    if norm == "No social norm":
+        return sp.Integer(0)
     if norm == "Observation-based / imitation":
         return 2 * x - 1
     if norm == "Belief-based / intention motivation":
@@ -150,6 +155,8 @@ def symbolic_social_norm_term(norm: str) -> sp.Expr | None:
 
 def _bracket(norm: str, s: dict[str, sp.Symbol], equilibrium: bool = True) -> sp.Expr:
     term = _equilibrium_social_term(norm, s) if equilibrium else _social_norm_term(norm, s)
+    if norm == "No social norm":
+        return sp.simplify(-s["beta"] + _temperature_term(s))
     return sp.simplify(
         -s["beta"] + _temperature_term(s) + s["social_norm_factor"] * term
     )

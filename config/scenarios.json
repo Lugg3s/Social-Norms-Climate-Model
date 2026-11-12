@@ -37,6 +37,15 @@
         "x0": 0.3,
         "f_gtm": 83259000000000.0
     },
+    "No social norm": {
+        "ABM": false,
+        "social_norm": "No social norm",
+        "defaults": {
+            "temperature_factor": 1,
+            "beta": 1,
+            "kappa": 0.05
+        }
+    },
     "baseline": {
         "ABM": false,
         "social_norm": "Observation-based / imitation",
@@ -247,6 +256,7 @@
             "rho": [1.1, 10.0]
         },
         "sensitivity_scenarios": [
+            "No social norm",
             "baseline",
             "Dynamic social norm",
             "Belief-based / intention motivation",

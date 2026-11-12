@@ -5,6 +5,7 @@ import json
 import math
 import os
 import signal
+import textwrap
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -28,9 +29,12 @@ from utils.paths import CONFIG_DIR, RUNS_DIR
 from simulation.time_series import load_record_time_series
 from simulation.settings import (DEFAULTS, add_simulation_arguments, simulation_kwargs,
                                  simulation_overrides)
+from analysis.parameter_ranges import get_parameter_range
+from analysis.trajectory_classification import (
+    CLASS_ORDER, CLASS_COLORS, CLASSIFICATION_VERSION, classify_trajectory, classification_definition,
+)
 from analysis.simulation_metrics import (
     compute_metrics_from_saved_time_series,
-    compute_oscillation_metrics,
     compute_run_metrics,
 )
 
@@ -92,6 +96,11 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
         n_agents=1000,
         dt=None,
         simulate_only_x=False,
+    ),
+    ExperimentGroup(
+        name="no_social_norm",
+        scenarios=["No social norm"],
+        sweep_parameters={"beta": np.linspace(*get_parameter_range("beta"), 6).tolist()},
     ),
     # ExperimentGroup(
     #     name="Descriptive, injunctive, dynamic2 (chaos)",
@@ -358,55 +367,14 @@ KEY_METRICS = [
 ]
 
 
-PHASE_ORDER = [
-    "Kollaps auf 0",
-    "volle S-Kurve auf 1",
-    "Zwischenzustand",
-    "gedaempft oszillierend",
-    "ungedämpft oszillierend",
-]
-
-PHASE_COLORS = {
-    "Kollaps auf 0": "#d62728",
-    "volle S-Kurve auf 1": "#ff7f0e",
-    "Zwischenzustand": "#2ca02c",
-    "gedaempft oszillierend": "#1f77b4",
-    "ungedämpft oszillierend": "#9467bd",
-}
+PHASE_ORDER = list(CLASS_ORDER)
+PHASE_COLORS = {name: CLASS_COLORS[name] for name in CLASS_ORDER}
 
 
-def classify(traj):
-    """Classify x(t) using prominent oscillations, amplitude decay, and final x."""
-    traj = np.asarray(traj, dtype=float)
-    traj = traj[np.isfinite(traj)]
-    if traj.size == 0:
-        return "Zwischenzustand"
+def classify(traj, t_values, *, stepwise=False):
+    """Use real model years and the same classifier as sensitivity runs."""
+    return classify_trajectory(t_values, traj, stepwise=stepwise)["behaviour_class"]
 
-    # The oscillation detector already rejects small extrema through its
-    # prominence threshold. Using the full trajectory also preserves strongly
-    # damped oscillations that have disappeared by the final tail.
-    oscillation_metrics = compute_oscillation_metrics(
-        np.arange(traj.size, dtype=float),
-        traj,
-    )
-    n_oscillations = float(oscillation_metrics["n_oscillations"])
-    damping_index = float(oscillation_metrics["damping_index"])
-    amplitude_ratio = float(oscillation_metrics["amplitude_ratio"])
-
-    if n_oscillations >= 1:
-        clearly_damped = damping_index >= 0.15 or (
-            np.isfinite(amplitude_ratio) and amplitude_ratio <= 0.85
-        )
-        if clearly_damped:
-            return "gedaempft oszillierend"
-        return "ungedämpft oszillierend"
-
-    final_x = traj[-1]
-    if final_x < 0.05:
-        return "Kollaps auf 0"
-    if final_x > 0.95:
-        return "volle S-Kurve auf 1"
-    return "Zwischenzustand"
 
 
 def sanitize_name(value: Any) -> str:
@@ -679,7 +647,7 @@ def _plot_mitigation_incentives(ax, frame, params) -> None:
     if np.all(np.isnan(series)):
         series = np.zeros_like(series)
     stepwise = params.get("agent_decision_model") == "annual_intention_threshold"
-    norm_scale = 1.0 if stepwise else params["social_norm_factor"]
+    norm_scale = 1.0 if stepwise or params["social_norm"] == "No social norm" else params["social_norm_factor"]
     ax.plot(frame["year"], norm_scale * series, label="Social norm", linestyle="-",
             drawstyle="steps-post" if stepwise else "default")
     ax.plot(frame["year"], params["temperature_factor"] * frame["f_T"],
@@ -952,17 +920,22 @@ def _classify_saved_run(record: pd.Series) -> str | None:
     x_bounds_valid = record.get("x_bounds_valid")
     if pd.notna(x_bounds_valid) and not bool(x_bounds_valid):
         return None
+    if (record.get("classification_version") == CLASSIFICATION_VERSION
+            and record.get("behaviour_class") in PHASE_ORDER):
+        return record["behaviour_class"]
     run_dir = record.get("run_dir")
     if not isinstance(run_dir, str):
         return None
     try:
-        frame, _ = load_record_time_series(record)
+        frame, params = load_record_time_series(record)
     except FileNotFoundError:
         return None
-    trajectory = pd.to_numeric(frame["x"], errors="coerce").dropna().to_numpy(dtype=float)
+    trajectory = pd.to_numeric(frame["x"], errors="coerce").to_numpy(dtype=float)
     if trajectory.size == 0:
         return None
-    return classify(trajectory)
+    label = classify(trajectory, frame["t"].to_numpy(dtype=float),
+                     stepwise=params.get("agent_decision_model") == "annual_intention_threshold")
+    return label if label in PHASE_ORDER else None
 
 
 def save_phase_map_for_two_parameters(
@@ -1034,8 +1007,8 @@ def save_phase_map_for_two_parameters(
         ax.set_ylabel(y_param)
         ax.set_title(f"{scenario_name}: phase map over {x_param} and {y_param}")
         cbar = fig.colorbar(image, ax=ax, ticks=list(range(len(PHASE_ORDER))))
-        cbar.ax.set_yticklabels(PHASE_ORDER)
-        cbar.set_label("Phase regime")
+        cbar.ax.set_yticklabels([textwrap.fill(name, 28) for name in PHASE_ORDER], fontsize=9)
+        cbar.set_label("Behavioural class")
         fig.tight_layout()
         safe_scenario = sanitize_name(scenario_name)
         fig.savefig(
@@ -1470,6 +1443,7 @@ def build_scenario_comparison_table(all_runs: pd.DataFrame) -> pd.DataFrame:
             "scenario": scenario_name,
             "n_runs": int(len(scenario_runs)),
             "elimination_threshold": ELIMINATION_THRESHOLD,
+            "behaviour_classification": classification_definition(),
             "elimination_success_rate": float(success.mean()),
             "bool_x95_rate": float(bool_x95.mean()),
             "time_to_elimination_mean_successful": time_to_elimination_mean,

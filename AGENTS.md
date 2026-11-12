@@ -26,3 +26,8 @@
 
 - `SCRIPTS.md` ist die zentrale Übersicht der ausführbaren Skripte. Bei neuen Startskripten oder geänderten CLI-Argumenten, Standardwerten und Ausgabepfaden diese Datei im selben Arbeitsschritt aktualisieren.
 - Jedes Skript erhält einen kurzen eigenen Bereich mit Aufruf und einer Tabelle aller anwendungsspezifischen CLI-Argumente. Historische Spezialauswertungen und Bibliotheksmodule ohne CLI ausdrücklich kennzeichnen.
+
+# Sprache von Plots
+
+- Alle neu erstellten Plots auf Englisch beschriften: Titel, Achsen, Legenden, Klassenbezeichnungen, Annotationen und Bildtexte.
+- Bestehende Plots müssen nicht gesammelt umgestellt werden. Sobald ein Plot künftig bearbeitet wird, seine sichtbaren Beschriftungen im selben Arbeitsschritt auf Englisch umstellen. Modellparameter und Variablennamen beibehalten.

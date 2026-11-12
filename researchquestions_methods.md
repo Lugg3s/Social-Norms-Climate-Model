@@ -1,17 +1,17 @@
-|Research question|Method|Expected outcome|
-|--------------|------------|--|
-|Under which parameter combinations do alternative social-norm formulations produce qualitatively different behavioural regimes? <br> For which social norms can oszillation occur? <br>|Regelbasierte Klassifikation der Verläufe<br>define different behavioural regimes (high mitigation (~1), low mitigation (~0), stable in the middle (0 << x >> 1) undamped oscilations, damped oscilations, chaos, collapse/tipping points (WIE?)). Diese Klassifikation könnte man für jeden Run aus der sensi berechnen. Dann könnte man ein Balkendiagramm je Norm berechnen bei dem man pro Klasse einen Balken hat und auf der y-achse die relative Häufigkeit. Dabei, |?|
-|At which beta values does the system tend towards 1/0? <br> How does the bifurcation-diagram differ qualitatively between the norms? <br> For which norms do we get a bifurcation? |bifurcation diagram with beta and x_end|?|
-|Do trajectories exist, that can only be modelled using a specific norm-type?|?|?|
-|Which parameters have the most impact on the mitigation-share? <br> Which parameters have the most impact on qualitatively different trajectories compared between the norms? <br> Which parameters lead to stronger oszillations? <br> Which parameters have the most impact on climate change and emissions?<br> ... ?|global sensitivity analysis|?|
-|?|local sensitivity analysis|?|
-|?|Regressionsbäume|?|
-||Mit echten Datenreihen vergleichen|?|
-|For which norms does bistability occur?||for all except static injunctive? with stable points beeing x=1 and x=0??|
-||||
-||||
-||||
-|...|...|...|
+|Research question|Method|Expected outcome|python command|
+|--------------|------------|--|--|
+|Under which parameter combinations do alternative social-norm formulations produce qualitatively different behavioural regimes? <br> For which social norms can oszillation occur? <br>|Regelbasierte Klassifikation der Verläufe<br>define different behavioural regimes (high mitigation (~1), low mitigation (~0), stable in the middle (0 << x >> 1) undamped oscilations, damped oscilations). Diese Klassifikation könnte man für jeden Run aus der sensi berechnen. Dann könnte man ein Balkendiagramm je Norm berechnen bei dem man pro Klasse einen Balken hat und auf der y-achse die relative Häufigkeit. Dabei, |no social norm: nicht stable in the middle<br> observation-based/imitation: keine undamped oszillation,nicht stable in the middle<br>belief-based / intention motivation: keine undamped oszillation, nicht stable in the middle<br>Observation based / approval: keine undamped oszillation, nicht stable in the middle<br>Static injunctive: alles kann vorkommen<br>Dynamic social norm (1&2): nicht stable in the middle<br>Descriptive, injunctive (1&2), dynamic: alles möglich<br> Observation-based / intention motivation (agents): keine undamped oszillation, nicht stable in the middle<br>|Part of `analysis.sensitivity.sensitivity_analysis`<br>Plot saved classes: `python -m analysis.behaviour_classification_plots --input-root "<SENSI_RUN>"`<br>For older runs with saved NPZ trajectories, add `--reclassify`.|
+|At which beta values does the system tend towards 1/0? <br> How does the bifurcation-diagram differ qualitatively between the norms? <br> For which norms do we get a bifurcation? |bifurcation diagram with beta and x_end||`analysis.bifurcation_diagram --parameter-name beta`<br>Finite-time endpoint sweep; no automatic equilibrium-stability or bifurcation detection.|
+|Do trajectories exist, that can only be modelled using a specific norm-type?|analyze results of classification, compare equations and find equivalences (norm a beeing a special case of norm b) (norm a is the same as norm b when some parameters are eg. 0). Generate a norm matrix with x-axis = norms, y-axis = classes. Fill each cell with the relative occurences|static injunctive != others. With constant temperature: dynamic != static != others||
+|Which parameters have the most impact on the mitigation-share? <br> Which parameters have the most impact on qualitatively different trajectories compared between the norms? <br> Which parameters lead to stronger oszillations? <br> Which parameters have the most impact on climate change and emissions?<br> ... ?|global sensitivity analysis||`analysis.sensitivity.sensitivity_analysis`|
+|Welche Parameter beeinflussen den Mitigationsverlauf und die Klimaergebnisse besonders stark, verglichen zwischen unterschiedlichen Klassifikationen innerhalb einer Norm (z.B.: Vergleiche lokale sensi zwischen einem case kollaps auf 1, einem case kollaps auf 0 und einem case Zwischenzustand bei gleicher Norm. Jeweils pro Norm ausführen) |local sensitivity analysis|kaum unterschied zur globalen analyse||
+|Under which combinations of parameter values do particular output levels occur?|Regressionsbäume (Zielvariablen:<br> Mitigation: x_mean, final_x, first_time_x95, bool_x95 <br>Klima: final_temperature, cumulative_emissions <br>Oszillationen: oscillation_occurrence, oscillations_per_500_years, median_period, oscillation_amplitude, damping_index, damping_rate)||`analysis.regression_trees.regression_tree_analysis --input-root "<SENSI_RUN>"`<br>New Sensi followed by trees: `analysis.sensitivity.sensitivity_pipeline`|
+|Wie realistisch sind die verschiedenen Verläufe der Normen? (Nur anwendbar wenn sie sich ausreichend unterscheiden)|Mit echten Datenreihen vergleichen|||
+|For which norms can the norm mechanism generate bistability when temperature-related benefits are held constant?|1. Analytical equilibrium and stability analysis <br>2.multi-initial-condition simulations|for observation-based/imitaion, observation-based/approval and agent norm x=1 and x=0.<br> no bistability for belief-based/intention motivation and static injunctive|Initial-condition screening only: `analysis.bifurcation_diagram --parameter-name x0 --parameter-values 0.01 0.1 0.3 0.5 0.7 0.9 0.99 --constant-temperature-costs`<br>No automated bistability/stability test. Analytical functions: `analysis.symbolic_analysis` via `main.ipynb` (no standalone CLI).|
+|||||
+|||||
+|||||
+|...|...|...||
 
 ## Notes
 - ask questions from researcher perspective: "Im planning to model social norms. Which norm applies best to my use case?"

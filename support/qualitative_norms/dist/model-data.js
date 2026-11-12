@@ -57,6 +57,13 @@
   const refGuard = 'Für |x_ref| < 10⁻¹² wird der gesamte relative dynamische Summand auf 0 gesetzt.';
   const history = 'Für Abfragen vor dem Beginn der gespeicherten Zeitreihe wird x(0) = x0 verwendet.';
   const NORMS = [
+    {
+      ...norm('no-social-norm', 'No social norm', n(0)),
+      formula: equation(derivative(x), times(id('κ'), x, par(row(n(1), op('−'), x)),
+        par(row(op('−'), id('β'), op('+'), temperature)))),
+      auxiliary: [equation(id('S'), n(0)), sigmoid],
+      parameters: ['temperature_factor', 'beta', 'kappa', ...response],
+    },
     norm('baseline', 'Observation-based / imitation (baseline)', descriptive),
     norm('belief', 'Belief-based / intention motivation', id('N'), ['N']),
     norm('approval', 'Observation based / approval (punish only one behaviour)', x),
@@ -116,6 +123,8 @@
     };
     for (const model of NORMS) {
       const note = input.notes[model.key];
+      // Backups made before adding the zero-norm reference get empty new fields.
+      if (model.key === 'no-social-norm' && !Object.hasOwn(input.notes, model.key)) continue;
       if (!note || !note.parameters) throw new Error(`Notizen für „${model.name}“ fehlen.`);
       for (const key of NORM_FIELDS) clean.notes[model.key][key] = string(note[key]);
       for (const name of [...model.parameters, ...model.variables]) {

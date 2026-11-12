@@ -30,6 +30,11 @@ Existing results remain in their original folders.
 The complete command reference, including arguments and defaults for each
 executable script, is maintained in [SCRIPTS.md](SCRIPTS.md).
 
+New and subsequently edited plots use English titles, axes, legends and annotations.
+Sensitivity runs also save a descriptive behavioural class for every sample and
+per-norm vertical class-frequency plots. These are separate from Sobol estimation;
+see [the classification rules](analysis/BEHAVIOURAL_CLASSIFICATION.md).
+
 Shared simulation defaults are defined only in
 [`config/simulation_settings.json`](config/simulation_settings.json): 600 years,
 24 output points per year, a 0.1-year coupling interval, seed 42, 1,000 agents,
@@ -94,11 +99,26 @@ temperature-cost function's constants and initial conditions live in
 without a range they stay fixed, and with a global or CLI range they become
 Sobol inputs. A global range alone does not select a shared-only parameter.
 The endpoint diagram looks up the chosen parameter's global range directly.
-`sensitivity_scenarios` lists the nine default scenarios shared by Sobol and
+`sensitivity_scenarios` lists the ten default scenarios shared by Sobol and
 endpoint diagrams: one standard scenario per norm. Other configured variants
 (such as custom and chaos candidates) are available through explicit `--scenarios`
 selection, which replaces that list. Selection uses this explicit list; it does
 not automatically deduplicate the `social_norm` fields or filter scenario names.
+
+`No social norm` is the zero-norm reference: `S = 0` at every time and state.
+Its behavioural equation after the prescribed historical phase is
+`dx/dt = kappa*x*(1-x)*(-beta + temperature_factor*f_T(T))`.
+Climate coupling remains active. Its only sampled behavioural inputs are
+`temperature_factor`, `beta` and `kappa`; no unused `social_norm_factor` is supplied.
+It is included in default Sobol/pipeline and endpoint analyses, symbolic
+equilibrium/stability analysis, the notebook's symbolic list, runtime profiling,
+and the qualitative workbook. The active batch group `no_social_norm` sweeps six
+equally spaced beta values over the global JSON range. Notebook simulations and
+parameter sweeps, CSV parameter-set imports, saved-trajectory plots/videos/3D
+projections and all regression-tree modes also accept this scenario. Saved-data
+analyses include it when the input run contains its results; adding the scenario
+does not add rows to older data sets. Historical review/probe definitions retain
+their original selected cases.
 The previous Sobol bounds and parameter order are preserved. These ranges are
 analysis settings, separate from the fixed model values in each scenario.
 
@@ -580,8 +600,8 @@ Run solver and history-update checks with
 
 ## Runtime profiling
 
-`python -m support.tools.profile_dynamic_norms` profiles representative baseline and dynamic
-norm cases, serially, using a 400-year horizon, with the sensitivity defaults
+`python -m support.tools.profile_dynamic_norms` profiles the zero-norm reference and representative baseline and dynamic
+norm cases, serially, using the central 600-year horizon, with the sensitivity defaults
 of 0.1-year coupling and 24 output intervals per year. It does
 not change model equations or solver tolerances. Profiling adds overhead, so
 the reported times are diagnostic rather than production runtime predictions.
@@ -698,14 +718,16 @@ For inputs containing multiple norms, the default analysis additionally creates
 inputs). Both groups include their own reports, summary and
 `regressiontrees_alle_normen.svg`. Decision features are the intersection of
 sampled input names across the selected norms, never the norm label. In the
-current nine-norm sensitivity configuration, these are `temperature_factor` and `beta`;
+current ten-scenario sensitivity configuration, these are `temperature_factor` and `beta`;
 the agent model does not sample `kappa` or `social_norm_factor`.
 
 When the selected sources contain the agent norm and at least two other norms,
 both common-input groups are also created without the agent norm under
 `_common_parametes/without_agents/pooled` and
-`_common_parametes/without_agents/per_norm`. The eight current ODE norms share
-`social_norm_factor`, `temperature_factor`, `beta` and `kappa`. Each variant
+`_common_parametes/without_agents/per_norm`. The nine current ODE scenarios share
+`temperature_factor`, `beta` and `kappa`. The zero-norm reference does not sample
+`social_norm_factor`, so that input is absent from the intersection when this
+reference is included. Each variant
 recomputes its input intersection and has separate reports, source manifests and
 SVG overviews labelled "mit Agentennorm" or "ohne Agentennorm". The agent rows
 are excluded completely from the latter variant. This also runs automatically

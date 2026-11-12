@@ -1,6 +1,10 @@
 # Aktuelle ToDos:
 
-- Prio1: die notes in dem betreuer notebook
+- Forschungsfragen überlegen und eine Übersicht erstellen welche Forschungsfrage konkret durch welche Berechnung/Methodik/Analyse beantwortet wird
+    ○ Das dann auch hannah schicken
+- Lokale Sensi mit den Relevantesten Parametern aus der globalen sensi
+    ○ Lokale Sensi laufen lassen
+Und zusätzlich zb. x_end vs parameter
 - related work chapter (chatis Entwurf) kontrollieren
 - bifurcation diagramme auswerten. Begründung für Oszillationen in dem Plot finden.
     - evtl. zum Vergleich mit 1500 Jahren ausprobieren

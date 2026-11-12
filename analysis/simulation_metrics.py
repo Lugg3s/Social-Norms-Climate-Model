@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from model.model_equations import emission_rate
+from analysis.trajectory_classification import classify_trajectory
 
 
 ELIMINATION_THRESHOLD = 0.95
@@ -29,7 +30,44 @@ def _empty_oscillation_metrics() -> dict[str, float]:
     }
 
 
-def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> dict[str, float]:
+def _prominent_turning_points(values, minimum_reversal):
+    """Confirm a turning point only after a reversal of the required size.
+
+    Small counter-movements do not interrupt a large cycle. Boundary extrema
+    and a final unconfirmed reversal are excluded. Used by classification only;
+    existing Sobol targets retain their original adjacent-extrema algorithm.
+    """
+    minimum_reversal -= 1e-12  # Round-off at an exact two-percentage-point swing.
+    peaks, troughs = [], []
+    low = high = 0
+    direction = 0
+    for index in range(1, len(values)):
+        if direction == 0:
+            if values[index] < values[low]:
+                low = index
+            if values[index] > values[high]:
+                high = index
+            if values[high] - values[low] >= minimum_reversal:
+                direction = 1 if high > low else -1
+        elif direction > 0:
+            if values[index] >= values[high]:
+                high = index
+            elif values[high] - values[index] >= minimum_reversal:
+                peaks.append(high)
+                low = index
+                direction = -1
+        else:
+            if values[index] <= values[low]:
+                low = index
+            elif values[index] - values[low] >= minimum_reversal:
+                troughs.append(low)
+                high = index
+                direction = 1
+    return np.asarray(peaks, dtype=int), np.asarray(troughs, dtype=int)
+
+
+def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray, *,
+                                 filter_minor_reversals: bool = False) -> dict[str, float]:
     """Compute prominent peak/trough oscillation diagnostics for x(t)."""
     if t_values.size < 5 or x_values.size < 5:
         return _empty_oscillation_metrics()
@@ -48,6 +86,9 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
 
     peak_indices = np.where((sign_dx[:-1] > 0) & (sign_dx[1:] < 0))[0] + 1
     trough_indices = np.where((sign_dx[:-1] < 0) & (sign_dx[1:] > 0))[0] + 1
+    if filter_minor_reversals:
+        peak_indices, trough_indices = _prominent_turning_points(
+            x_values, max(0.02, 0.05 * float(np.ptp(x_values))))
 
     extrema_types = np.concatenate(
         [np.ones(peak_indices.size, dtype=int), -np.ones(trough_indices.size, dtype=int)]
@@ -77,15 +118,13 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
         pair_times[idx] = float((t_values[left_idx] + t_values[right_idx]) / 2.0)
 
     prominent_pair_mask = np.isfinite(pair_amplitudes) & (
-        pair_amplitudes >= min_prominent_amplitude
+        pair_amplitudes >= min_prominent_amplitude - (1e-12 if filter_minor_reversals else 0.0)
     )
     prominent_amplitudes = pair_amplitudes[prominent_pair_mask]
     prominent_times = pair_times[prominent_pair_mask]
 
     # Each prominent peak-to-trough or trough-to-peak segment is one half-cycle.
-    # Two prominent half-cycles correspond to one full oscillation. Fractional
-    # cycles are retained because they still contain frequency information near
-    # the boundaries of a finite simulation window.
+    # Complete cycles are counted below; isolated half-cycles remain diagnostics.
     prominent_extrema_mask = np.zeros(extrema_indices.size, dtype=bool)
     for idx, is_prominent in enumerate(prominent_pair_mask):
         if is_prominent:
@@ -172,11 +211,13 @@ def _compute_oscillation_metrics(t_values: np.ndarray, x_values: np.ndarray) -> 
 def compute_oscillation_metrics(
     t_values: np.ndarray,
     x_values: np.ndarray,
+    *, filter_minor_reversals: bool = False,
 ) -> dict[str, float]:
     """Public wrapper used by batch classification and sensitivity analysis."""
     return _compute_oscillation_metrics(
         np.asarray(t_values, dtype=float),
         np.asarray(x_values, dtype=float),
+        filter_minor_reversals=filter_minor_reversals,
     )
 
 
@@ -277,6 +318,7 @@ def _base_metrics(
         metrics.update(_compute_oscillation_metrics(t_values[years], x_values[years]))
     else:
         metrics.update(_compute_oscillation_metrics(t_values, x_values))
+    metrics.update(classify_trajectory(t_values, x_values, stepwise=stepwise))
     return metrics
 
 
