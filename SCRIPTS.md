@@ -67,9 +67,13 @@ Alle anderen Modellparameter bleiben pro Szenario unverändert. Jeder Wert start
 aus den konfigurierten Anfangsbedingungen, ohne Übernahme des vorherigen Endzustands.
 Auch die Anfangsbedingungen sind fest, außer wenn ausdrücklich deren Parameter
 (z. B. `x0`) als einziger Sweep-Parameter ausgewählt wird.
-PNG/SVG und szenarioweise CSVs liegen unter `<Zeitstempel>/scenario_01/` usw.;
-`metadata.json` ordnet die Szenarien zu und dokumentiert Parameter, Einstellungen
-und Quellcode-Hashes. `results.csv` enthält alle Läufe und ihren Status und wird
+PNG/SVG und szenarioweise CSVs liegen direkt unter `<Zeitstempel>/` und heißen
+`<Parameter>_<Szenarioname>.png`, `.svg` bzw. `.csv`, z. B. `beta_baseline.png`
+und `beta_baseline.csv`. Leerzeichen und ungültige Windows-Pfadzeichen werden
+durch `_` ersetzt; Varianten behalten ihren Namenszusatz. `metadata.json` ordnet
+die Ausgabestämme über `scenario_output_stems` zu und dokumentiert Parameter,
+Einstellungen und Quellcode-Hashes. `results.csv` enthält weiterhin alle Läufe
+und ihren Status und wird
 während der Berechnung aktualisiert. Fehlgeschlagene oder abgebrochene Läufe
 erzeugen keine künstlichen Punkte bei `x = 0`.
 Der Plot zeigt endliche Endwerte, keine automatisch bestimmten Gleichgewichte,

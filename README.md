@@ -71,6 +71,12 @@ python -m unittest discover -s support/tests -t . -v
 
 The endpoint sweep saves PNG/SVG plots, CSV results and reproducibility metadata
 under `E:\Masterarbeit\bifurcation_diagrams\<timestamp>\` by default.
+Scenario-specific files are written directly into the timestamp folder and use
+the names `<parameter>_<scenario>.png`, `.svg` and `.csv`, for example
+`beta_baseline.png` and `beta_baseline.csv`. Spaces and invalid Windows path
+characters are replaced by underscores. Custom variants retain their name suffix;
+`metadata.json` records the scenario-to-output mapping in
+`scenario_output_stems`.
 Each plot varies exactly one parameter and labels the requested end time and
 calendar year. All other parameters and the seed stay fixed within a scenario;
 each run restarts from its configured initial conditions.

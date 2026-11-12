@@ -73,7 +73,10 @@ class EndpointSweepTests(unittest.TestCase):
             self.assertEqual(frame.loc[0, "final_x"], .72)
             meta = json.loads((root / "metadata.json").read_text(encoding="utf-8"))
             self.assertEqual(meta["parameters_varied_per_plot"], 1)
-            self.assertTrue((root / "scenario_01/final_x_vs_beta.svg").exists())
+            self.assertEqual(meta["scenario_output_stems"], {"baseline": "beta_baseline"})
+            self.assertTrue((root / "beta_baseline.svg").exists())
+            self.assertTrue((root / "beta_baseline.png").exists())
+            self.assertTrue((root / "beta_baseline.csv").exists())
             figure = diagram.endpoint_plot(frame, "baseline", "beta", 230)
             try:
                 self.assertEqual(len(figure.axes[0].collections[0].get_offsets()), 1)

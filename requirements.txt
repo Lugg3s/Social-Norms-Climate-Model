@@ -1,8 +1,9 @@
-numpy
+# np.trapezoid requires NumPy 2.0; remaining np.trapz calls require NumPy <2.4.
+numpy>=2.0,<2.4
 pandas
 scipy
 sympy
-matplotlib
+matplotlib>=3.9
 Pillow
 imageio
 imageio-ffmpeg
@@ -10,3 +11,4 @@ IPython
 ipykernel
 SALib
 scikit-learn>=1.5
+pytest

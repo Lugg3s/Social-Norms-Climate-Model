@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import textwrap
 
 import matplotlib
@@ -152,6 +153,20 @@ def run_analysis(parameter_name="beta", parameter_values=None, scenarios=None,
     scenarios = default_sensitivity_scenarios() if scenarios is None else scenarios
     grids = scenario_grids(scenarios, parameter_name, parameter_values, parameter_range, num_points)
     tasks, bases = build_tasks(scenarios, parameter_name, grids, config)
+    scenario_output_stems = {}
+    used_names = set()
+    for scenario in bases:
+        # Preserve parameter and scenario labels in Windows-safe output names.
+        scenario_name = re.sub(r'[<>:"/\\|?*\x00-\x20]', "_", scenario).rstrip(" .")
+        parameter_label = re.sub(r'[<>:"/\\|?*\x00-\x20]', "_", parameter_name).rstrip(" .")
+        stem = f"{parameter_label}_{scenario_name}"
+        output_stem = stem
+        suffix = 2
+        while output_stem.casefold() in used_names:
+            output_stem = f"{stem}__{suffix}"
+            suffix += 1
+        scenario_output_stems[scenario] = output_stem
+        used_names.add(output_stem.casefold())
     root = Path(output_root) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     root.mkdir(parents=True, exist_ok=False)
     sources = [Path(__file__), PROJECT_ROOT / "model/model_equations.py",
@@ -162,6 +177,7 @@ def run_analysis(parameter_name="beta", parameter_values=None, scenarios=None,
     metadata = dict(
         created_at=datetime.now().astimezone().isoformat(), parameter_name=parameter_name,
         parameter_values=grids, parameters_varied_per_plot=1, scenarios=bases,
+        scenario_output_stems=scenario_output_stems,
         num_points_per_scenario={name: len(values) for name, values in grids.items()},
         range_source=("explicit_values" if parameter_values is not None else
                       "CLI_or_API_range" if parameter_range is not None else "scenarios.json"),
@@ -206,15 +222,14 @@ def run_analysis(parameter_name="beta", parameter_values=None, scenarios=None,
     finally:
         checkpoint()
         frame = pd.DataFrame(rows)
-        for number, scenario in enumerate(bases, start=1):
-            folder = root / f"scenario_{number:02d}"
-            folder.mkdir(exist_ok=True)
+        for scenario in bases:
             subset = frame.loc[frame.scenario == scenario]
-            subset.to_csv(folder / "results.csv", sep=";", index=False)
+            output_stem = scenario_output_stems[scenario]
+            subset.to_csv(root / f"{output_stem}.csv", sep=";", index=False)
             fig = endpoint_plot(subset, scenario, parameter_name, config.simulation_time)
             try:
                 for extension in ("png", "svg"):
-                    fig.savefig(folder / f"final_x_vs_{parameter_name}.{extension}", dpi=200)
+                    fig.savefig(root / f"{output_stem}.{extension}", dpi=200)
             finally:
                 plt.close(fig)
     print(f"Saved endpoint diagrams: {root}", flush=True)
