@@ -38,12 +38,12 @@ def class_frequencies(outputs: pd.DataFrame) -> pd.DataFrame:
     } for label in order])
 
 
-def save_classification_outputs(outputs: pd.DataFrame, destination: Path, scenario: str):
+def save_classification_outputs(outputs: pd.DataFrame, destination: Path, scenario: str, *, comparison=None):
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     columns = [name for name in outputs if name in {
         "sample_index", "status", "behaviour_class", "time_series_file", "low_until_end",
-    } or name.startswith(("classification_", "collapse_", "recovery_"))]
+    } or name.startswith(("classification_", "collapse_", "recovery_", "norm_comparison_"))]
     outputs[columns].to_csv(destination / "behaviour_classes.csv", sep=";", index=False)
     frequencies = class_frequencies(outputs)
     frequencies.to_csv(destination / "behaviour_class_frequencies.csv", sep=";", index=False)
@@ -76,6 +76,9 @@ def save_classification_outputs(outputs: pd.DataFrame, destination: Path, scenar
     for suffix in ("png", "svg"):
         fig.savefig(destination / f"behaviour_class_frequencies.{suffix}", dpi=200)
     plt.close(fig)
+    if "norm_comparison_x1_timing" in outputs:
+        from analysis.no_norm_comparison import save_comparison_frequencies
+        save_comparison_frequencies(outputs, destination, scenario, definition=comparison)
     return frequencies
 
 
@@ -115,11 +118,14 @@ def create_plots(input_root: Path, output_root: Path | None = None, *, scenarios
         if reclassify:
             outputs = _reclassify(folder, outputs)
         target = destination / folder.name
-        save_classification_outputs(outputs, target, scenario)
+        save_classification_outputs(outputs, target, scenario,
+                                    comparison=metadata.get("without_norm_comparison", {"version": 2}))
         definition = classification_definition() if reclassify else metadata.get("behaviour_classification")
         (target / "classification_metadata.json").write_text(json.dumps({
             "scenario": scenario, "source": str(folder), "reclassified": reclassify,
             "definition": definition,
+            "without_norm_comparison": metadata.get("without_norm_comparison"),
+            "without_norm_comparison_source": "Saved paired comparison columns; not recomputed by --reclassify.",
             "denominator": "All requested Sobol samples; zero-boundary runs excluded; failures shown separately.",
         }, indent=2), encoding="utf-8")
         reports.append(target)

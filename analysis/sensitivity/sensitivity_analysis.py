@@ -7,7 +7,7 @@ import sys
 import traceback
 import warnings
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from time import monotonic
@@ -16,7 +16,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from SALib.analyze import sobol
-from SALib.sample import sobol as sobol_sample
 
 from model.model_equations import load_scenarios, resolve_parameters, simulate
 from analysis.parameter_ranges import (
@@ -26,6 +25,11 @@ from analysis.simulation_metrics import ELIMINATION_THRESHOLD, compute_run_metri
 from analysis.trajectory_classification import (
     FAILED, UNAVAILABLE, MIN_COMPLETE_CYCLES, classification_definition,
 )
+from analysis.no_norm_comparison import (
+    compare_profiles, comparison_definition, without_norm_parameters,
+)
+from analysis.sensitivity.shared_sampling import prepare_shared_design, scenario_samples
+from analysis.sensitivity.reference_cache import ReferenceCache, reference_model
 from utils.bounded_process_map import bounded_map
 from utils.paths import SENSITIVITY_RESULTS_DIR
 from simulation.time_series import save_time_series
@@ -91,6 +95,7 @@ class SensitivityConfig:
     dt: float | None = DEFAULTS.dt
     simulate_only_x: bool = DEFAULTS.simulate_only_x
     save_time_series: bool = True
+    compare_without_norm: bool = True
     parameter_ranges: dict[str, list[float]] | None = None
 
     def __post_init__(self):
@@ -143,9 +148,12 @@ def _resolve_sample_parameters(scenario_params, parameter_names, sample):
     return resolve_parameters(params)
 
 
-def _run_sample(job: tuple[Any, ...], *, time_series_path=None, time_series_context=None) -> dict[str, Any]:
+def _run_sample(job: tuple[Any, ...], *, time_series_path=None, time_series_context=None,
+                without_norm=False) -> dict[str, Any]:
     scenario_params, parameter_names, sample, config = job
     params = _resolve_sample_parameters(scenario_params, parameter_names, sample)
+    if without_norm:
+        params = without_norm_parameters(params)
     result = simulate(
         extension=params,
         **simulation_kwargs(config),
@@ -176,26 +184,30 @@ def _run_tracked_sample(
     """
     scenario_params, parameter_names, sample, config = job
     def compute():
+        options = {"without_norm": True} if phase == "reference" else {}
         if config.save_time_series and time_series_dir is not None:
             return _run_sample(job, time_series_path=time_series_dir / f"{phase}_{sample_index:06d}.npz",
                                time_series_context={"phase": phase, "sample_index": sample_index,
                                                     "boundary_parameter": boundary_parameter,
                                                     "n_agents": config.n_agents,
-                                                    "config": vars(config)})
-        return _run_sample(job)
+                                                    "config": vars(config)}, **options)
+        return _run_sample(job, **options)
     if diagnostics_dir is None:
         return compute()
     overrides = {name: float(value) for name, value in zip(parameter_names, sample)}
     parameters = _resolve_sample_parameters(scenario_params, parameter_names, sample)
+    if phase == "reference":
+        parameters = without_norm_parameters(parameters)
     diagnostics_dir.mkdir(parents=True, exist_ok=True)
     log_path = diagnostics_dir / f"{phase}_{sample_index:06d}.jsonl"
     started_at = datetime.now().astimezone().isoformat(timespec="milliseconds")
     started_clock = monotonic()
-    identity = dict(sample_index=sample_index if phase == "sample" else None,
+    identity = dict(sample_index=sample_index if phase != "boundary" else None,
                     boundary_index=sample_index if phase == "boundary" else None,
                     phase=phase, boundary_parameter=boundary_parameter,
                     worker_pid=os.getpid(), started_at=started_at)
-    label = f"sample_index={sample_index}" if phase == "sample" else f"boundary {boundary_parameter}=0"
+    label = (f"{phase} sample_index={sample_index}" if phase != "boundary" else
+             f"boundary {boundary_parameter}=0")
 
     def write_event(event, mode="a"):
         # Closing the file flushes each event before computation/return.
@@ -283,12 +295,15 @@ def _record_timeout(task, outcome):
     job, index, diagnostics_dir, phase, boundary_parameter, _ = task
     base_params, names, sample, config = job
     overrides = {name: float(value) for name, value in zip(names, sample)}
+    parameters = _resolve_sample_parameters(base_params, names, sample)
+    if phase == "reference":
+        parameters = without_norm_parameters(parameters)
     record = {
         "status": "timed_out", "phase": phase,
-        "sample_index": index if phase == "sample" else None,
+        "sample_index": index if phase != "boundary" else None,
         "boundary_index": index if phase == "boundary" else None,
         "boundary_parameter": boundary_parameter,
-        "parameters": _resolve_sample_parameters(base_params, names, sample), "sampled_parameters": overrides,
+        "parameters": parameters, "sampled_parameters": overrides,
         "config": vars(config), **outcome,
         "finished_at": datetime.now().astimezone().isoformat(timespec="milliseconds"),
         "timeout_minutes": config.sample_timeout_minutes,
@@ -314,9 +329,11 @@ def run_samples(
     failure_path: Path | None = None,
     diagnostics_dir: Path | None = None,
     time_series_dir: Path | None = None,
+    *, phase: str = "sample", sample_indices=None,
 ) -> pd.DataFrame:
+    sample_indices = list(range(len(samples))) if sample_indices is None else [int(i) for i in sample_indices]
     tasks = [((scenario_params, problem["names"], sample, config), index,
-              diagnostics_dir, "sample", None, time_series_dir) for index, sample in enumerate(samples)]
+              diagnostics_dir, phase, None, time_series_dir) for index, sample in zip(sample_indices, samples)]
     records = [None] * len(tasks)
     started_at = monotonic()
     results = bounded_map(_execute_sample_task, tasks, config.workers,
@@ -338,7 +355,9 @@ def run_samples(
                                                            map(float, samples[index])))}
                 if parameters.get("ABM", False):
                     parameters["network_size"] = int(np.rint(parameters["network_size"]))
-                _write_failed_sample(failure_path, index, error, parameters)
+                if phase == "reference":
+                    parameters = without_norm_parameters(parameters)
+                _write_failed_sample(failure_path, sample_indices[index], error, parameters)
                 # Recover only from known numerical integration failures.
                 # Programming errors and interruptions must remain visible/fatal.
                 if (outcome["error_type"] != "RuntimeError" or
@@ -354,6 +373,69 @@ def run_samples(
     finally:
         results.close()
     return pd.DataFrame(records)
+
+
+def add_no_norm_comparisons(outputs, base_params, problem, samples, config, scenario_dir,
+                            diagnostics_dir, time_series_dir, *, reference_cache_root=None):
+    """Reuse exact effective references, running each missing control only once."""
+    paired = outputs.reset_index(drop=True).copy()
+    records = paired.to_dict("records")
+    references = [{"sample_index": row["sample_index"], "status": "not_run", "reference_reused": False}
+                  for row in records]
+    missing, keys = {}, {}
+    with ReferenceCache(reference_cache_root or scenario_dir, config) as cache:
+        if base_params["social_norm"] == "No social norm":
+            # Populate the shared cache from the ordinary no-norm Sobol runs.
+            for i, row in enumerate(records):
+                params = _resolve_sample_parameters(base_params, problem["names"], samples[i])
+                key = cache.key(params)
+                cache.put(key, row, scenario_dir, row["sample_index"])
+                references[i] = {**cache.get(key, scenario_dir, require_archive=False), "sample_index": row["sample_index"],
+                                 "reference_reused": True}
+        else:
+            for i, row in enumerate(records):
+                if row["status"] != "completed":
+                    continue
+                params = _resolve_sample_parameters(base_params, problem["names"], samples[i])
+                key = cache.key(params)
+                keys[i] = key
+                cached = cache.get(key, scenario_dir)
+                if cached is None:
+                    missing.setdefault(key, []).append(i)
+                else:
+                    references[i] = {**cached, "sample_index": row["sample_index"], "reference_reused": True}
+            representatives = [indices[0] for indices in missing.values()]
+            print(f"  Without-norm references: {len(keys) - len(representatives)} reused; "
+                  f"{len(representatives)} unique additional simulations", flush=True)
+            if representatives:
+                computed = run_samples(
+                    base_params, problem, samples[representatives], config,
+                    failure_path=scenario_dir / "failed_reference.csv", diagnostics_dir=diagnostics_dir,
+                    time_series_dir=time_series_dir, phase="reference", sample_indices=representatives,
+                )
+                for i, result in zip(representatives, computed.to_dict("records")):
+                    cache.put(keys[i], result, scenario_dir, records[i]["sample_index"])
+                for key, indices in missing.items():
+                    for i in indices:
+                        references[i] = {**cache.get(key, scenario_dir, require_archive=False), "sample_index": records[i]["sample_index"],
+                                         "reference_reused": i != indices[0]}
+    reference_count = len(missing)
+    references = pd.DataFrame(references)
+    references["reference_model"] = reference_model(base_params)
+    references.to_csv(scenario_dir / "without_norm_outputs.csv", sep=";", index=False)
+    comparison = pd.DataFrame([compare_profiles(actual, reference)
+                              for actual, reference in zip(paired.to_dict("records"),
+                                                           references.to_dict("records"))])
+    paired = pd.concat([paired, comparison], axis=1)
+    for name in ("reference_key", "reference_source_scenario", "reference_source_sample_index",
+                 "reference_reused", "reference_model"):
+        if name in references:
+            paired["norm_comparison_" + name] = references[name]
+    if "time_series_file" in references:
+        paired["norm_comparison_reference_time_series_file"] = references["time_series_file"]
+    paired[["sample_index", *[name for name in paired if name.startswith("norm_comparison_")]]].to_csv(
+        scenario_dir / "without_norm_comparisons.csv", sep=";", index=False)
+    return paired, reference_count
 
 
 def zero_boundary_parameters(problem):
@@ -516,12 +598,8 @@ def run_sensitivity_analysis(
         )
 
     base_params = resolve_parameters(scenario_name)
-    samples = sobol_sample.sample(
-        problem,
-        config.base_sample_size,
-        calc_second_order=False,
-        seed=config.seed,
-    )
+    a, b, sampling_design = prepare_shared_design(run_root, config)
+    samples = scenario_samples(problem, a, b, sampling_design)
     print(
         f"  Sobol sample generated: {len(samples)} model runs for "
         f"{problem['num_vars']} parameters",
@@ -538,6 +616,12 @@ def run_sensitivity_analysis(
         "failed_sample.csv",
         "zero_boundary_cases.csv",
         "parameters.json",
+        "without_norm_outputs.csv",
+        "without_norm_comparisons.csv",
+        "failed_reference.csv",
+        "without_norm_comparison_frequencies.csv",
+        "without_norm_comparison_frequencies.svg",
+        "without_norm_comparison_frequencies.png",
         "diagnostics.json",
         "analysis_status.json",
         "sample_inclusion.csv",
@@ -570,7 +654,7 @@ def run_sensitivity_analysis(
     diagnostics_dir.mkdir(parents=True, exist_ok=False)
     diagnostics_info = {
         "directory": diagnostics_dir.name,
-        "format": "One JSONL file per sample or boundary check; start and terminal events.",
+        "format": "One JSONL file per sample, boundary check or matched reference; start and terminal events.",
         "sample_index": "Zero-based index matching samples.csv and simulation_outputs.csv.",
         "unfinished_record": "A start without a terminal event indicates running or interrupted/crashed work.",
         "timeouts_file": "timeouts.jsonl (created when a timeout occurs; includes full parameters)",
@@ -670,6 +754,9 @@ def run_sensitivity_analysis(
     metadata = {
         "scenario": scenario_name,
         "problem": problem,
+        "sampling_design": {"method": sampling_design["method"], "version": sampling_design["version"],
+                            "sha256": sampling_design["sha256"], "metadata_file": "../sampling_design.json",
+                            "arrays_file": "../sampling_AB.npz"},
         "simulation_settings": simulation_kwargs(config),
         "simulation_time": config.simulation_time,
         "base_sample_size": config.base_sample_size,
@@ -707,6 +794,8 @@ def run_sensitivity_analysis(
         "behaviour_classification": classification_definition(),
         "behaviour_classification_file": "behaviour_classes.csv",
         "behaviour_classification_plot": "behaviour_class_frequencies.svg",
+        "without_norm_comparison": {**comparison_definition(), "enabled": config.compare_without_norm,
+                                    "status": "pending" if config.compare_without_norm else "disabled"},
         "parameter_reconstruction_note": (
             "Reconstruct each model input as parameters.json updated with the "
             "sample-specific values from samples.csv for the same sample_index. "
@@ -763,10 +852,37 @@ def run_sensitivity_analysis(
     with (scenario_dir / "metadata.json").open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, ensure_ascii=False)
 
+    # Persist original numerical results before starting additional experiments.
+    # A reference failure must never change Sobol inclusion or success flags.
+    if config.compare_without_norm:
+        simulation_outputs, reference_count = add_no_norm_comparisons(
+            simulation_outputs, base_params, problem, samples, config, scenario_dir,
+            diagnostics_dir, time_series_dir, reference_cache_root=run_root,
+        )
+        simulation_outputs.to_csv(scenario_dir / "simulation_outputs.csv", index=False, sep=";")
+        metadata["without_norm_comparison"].update(
+            status="completed", number_of_additional_runs=reference_count,
+            number_of_reused_references=int(simulation_outputs["norm_comparison_reference_reused"].sum()),
+            reference_model=reference_model(base_params), cache_file="../reference_cache.sqlite3",
+            reference_outputs_file="without_norm_outputs.csv",
+            comparisons_file="without_norm_comparisons.csv",
+            frequencies_file="without_norm_comparison_frequencies.csv",
+        )
+        with (scenario_dir / "metadata.json").open("w", encoding="utf-8") as handle:
+            json.dump(metadata, handle, indent=2, ensure_ascii=False)
+
+    elif base_params["social_norm"] == "No social norm":
+        # Ordinary no-norm results remain reusable if comparisons are enabled on append later.
+        with ReferenceCache(run_root, config) as cache:
+            for i, row in enumerate(simulation_outputs.to_dict("records")):
+                params = _resolve_sample_parameters(base_params, problem["names"], samples[i])
+                cache.put(cache.key(params), row, scenario_dir, row["sample_index"])
+
     # Descriptive plots run only after numerical artifacts and metadata are safe.
     # All requested samples, not only retained Sobol blocks; no boundary runs.
     from analysis.behaviour_classification_plots import save_classification_outputs
-    save_classification_outputs(simulation_outputs, scenario_dir, scenario_name)
+    save_classification_outputs(simulation_outputs, scenario_dir, scenario_name,
+                                comparison=metadata["without_norm_comparison"])
 
     return scenario_dir
 
@@ -791,6 +907,8 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="Parallel workers; default: CPU count minus one.")
     parser.add_argument("--no-save-time-series", action="store_false", dest="save_time_series",
                         default=True, help="Disable compressed aggregate trajectories (saved by default).")
+    parser.add_argument("--no-compare-without-norm", action="store_false", dest="compare_without_norm",
+                        default=True, help="Disable additional paired without-norm simulations/classifications.")
     parser.add_argument("--sample-timeout-minutes", type=float, default=20.0,
                         help="Wall-clock limit per simulation, including boundary checks (default: 20 minutes).")
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT,
@@ -863,7 +981,7 @@ def _scenario_directory(run_root: Path, scenario_name: str) -> Path:
 
 
 def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_temperature_costs=False,
-                               simulation_settings=None) -> None:
+                               simulation_settings=None, compare_without_norm=True) -> None:
     for scenario_name in scenario_names:
         scenario_dir = _scenario_directory(run_root, scenario_name)
         if scenario_dir.exists() and any(scenario_dir.iterdir()):
@@ -872,6 +990,10 @@ def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_tempe
             )
     for metadata_path in run_root.glob("*/metadata.json"):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        comparison = metadata.get("without_norm_comparison", {})
+        if (compare_without_norm and comparison.get("enabled")
+                and comparison.get("version") != comparison_definition()["version"]):
+            raise ValueError("Existing results use a different without-norm comparison definition. Start a new result folder.")
         if (metadata.get("outputs_for_ranking") != SENSITIVITY_OUTPUTS
                 or metadata.get("elimination_time_definition", {}).get("method") != "zero_if_not_reached"
                 or metadata.get("oscillations_per_500_years_definition", {}).get("minimum_complete_cycles")
@@ -893,6 +1015,33 @@ def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_tempe
             if different:
                 raise ValueError(f"Existing sensitivity results use different simulation settings: "
                                  f"{', '.join(different)}. Use matching settings or a new result folder.")
+
+
+def _save_run_arguments(args, scenario_names, run_root, config):
+    """Record resolved defaults before simulation; retain every append invocation."""
+    path = run_root / "run_arguments.json"
+    record = (json.loads(path.read_text(encoding="utf-8")) if path.exists()
+              else {"version": 1, "invocations": []})
+    arguments = {**vars(args), **asdict(config),
+                 "scenarios": sorted(scenario_names, key=lambda name: name != "No social norm"),
+                 "output_root": args.output_root.resolve()}
+    record["invocations"].append({
+        "started_at": datetime.now().astimezone().isoformat(),
+        "entry_point": sys.argv[0],
+        "cli_arguments": sys.argv[1:],
+        "working_directory": Path.cwd(),
+        "python_executable": sys.executable,
+        "run_directory": run_root.resolve(),
+        "parsed_arguments": vars(args),
+        "effective_arguments": arguments,
+        "parameter_ranges_by_scenario": {
+            name: get_parameter_ranges(name, config.parameter_ranges) for name in scenario_names
+        },
+    })
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(record, indent=2, ensure_ascii=False,
+                                    allow_nan=False, default=os.fspath) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def main() -> None:
@@ -919,6 +1068,7 @@ def main() -> None:
         score_mode=args.score_mode,
         sample_timeout_minutes=args.sample_timeout_minutes,
         save_time_series=args.save_time_series,
+        compare_without_norm=getattr(args, "compare_without_norm", True),
         parameter_ranges=range_overrides,
     )
 
@@ -930,12 +1080,15 @@ def main() -> None:
             )
         _validate_append_scenarios(run_root, scenario_names,
                                    constant_temperature_costs=config.constant_temperature_costs,
-                                   simulation_settings=simulation_kwargs(config))
+                                   simulation_settings=simulation_kwargs(config),
+                                   compare_without_norm=config.compare_without_norm)
     else:
         timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
         run_root = args.output_root / timestamp
         run_root.mkdir(parents=True, exist_ok=False)
 
+    prepare_shared_design(run_root, config)
+    _save_run_arguments(args, scenario_names, run_root, config)
     with sensitivity_console_log(run_root / 'analysis.sensitivity.sensitivity_analysis.log'):
         _run_scenarios(
             scenario_names,
@@ -946,7 +1099,8 @@ def main() -> None:
 
 
 def _run_scenarios(scenario_names, run_root, config, overwrite_existing=True):
-
+    # Preserve explicit scenario selection, but always run a selected no-norm control first.
+    scenario_names = sorted(scenario_names, key=lambda name: name != "No social norm")
     overall_top_rows: list[pd.DataFrame] = [
         ranking.head(2) for ranking in _existing_rankings(run_root)
     ]

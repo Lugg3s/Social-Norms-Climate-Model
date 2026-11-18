@@ -7,6 +7,7 @@ import pandas as pd
 
 from model.model_equations import emission_rate
 from analysis.trajectory_classification import classify_trajectory
+from analysis.no_norm_comparison import transition_profile
 
 
 ELIMINATION_THRESHOLD = 0.95
@@ -319,6 +320,8 @@ def _base_metrics(
     else:
         metrics.update(_compute_oscillation_metrics(t_values, x_values))
     metrics.update(classify_trajectory(t_values, x_values, stepwise=stepwise))
+    metrics.update(transition_profile(t_values, x_values, stepwise=stepwise,
+                                      oscillatory=metrics["classification_oscillation_detected"]))
     return metrics
 
 

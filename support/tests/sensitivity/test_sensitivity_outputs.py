@@ -121,6 +121,12 @@ class SensitivityOutputTests(unittest.TestCase):
                 },
             }), encoding="utf-8")
             sensitivity._validate_append_scenarios(Path(root), ["Dynamic social norm"])
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata["without_norm_comparison"] = {"enabled": True, "version": 2}
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "different without-norm comparison definition"):
+                sensitivity._validate_append_scenarios(Path(root), ["Dynamic social norm"])
+            sensitivity._validate_append_scenarios(Path(root), ["Dynamic social norm"], compare_without_norm=False)
             with self.assertRaises(FileExistsError):
                 sensitivity._validate_append_scenarios(Path(root), ["baseline"])
 

@@ -1,6 +1,6 @@
 # Ausführbare Skripte
 
-Stand: 12. November 2026. Befehle im Repository-Hauptordner ausführen.
+Stand: 16. November 2026. Befehle im Repository-Hauptordner ausführen.
 Szenarionamen mit Leerzeichen in Anführungszeichen setzen. Jedes CLI bietet
 zusätzlich `-h` / `--help`. Tabellen nennen die tatsächlichen CLI-Argumente;
 Modellparameter kommen aus `config/scenarios.json`, sofern nicht ausdrücklich
@@ -124,6 +124,13 @@ python -m analysis.bifurcation_diagram --scenarios baseline --parameter-range 1 
 `python -m analysis.sensitivity.sensitivity_analysis` — Simulationen, Sobol-Indizes,
 Rankings und Verteilungsplots; speichert standardmäßig auch Zeitreihen.
 
+Im Ergebnis-Hauptordner hält `run_arguments.json` vor dem Simulationsstart alle
+CLI-Argumente einschließlich Standardwerten fest: ursprünglicher Aufruf,
+geparste und tatsächlich verwendete Werte (inklusive aufgelöster Workerzahl und
+Szenarioauswahl), effektive Parameterbereiche pro Szenario sowie Arbeits- und
+Ausgabeverzeichnis. Bei `--append-existing-folder` wird ein weiterer Aufruf
+ergänzt; frühere Einträge bleiben erhalten. Gilt auch für `sensitivity_pipeline`.
+
 Speichert außerdem pro Lauf `behaviour_class` und Klassifikationsdiagnostik in
 `simulation_outputs.csv` (auch mit `--no-save-time-series`). Pro Norm entstehen
 `behaviour_classes.csv` sowie `behaviour_class_frequencies.csv`, `.svg` und `.png`.
@@ -131,6 +138,57 @@ Die vertikalen Balken zeigen relative Klassenhäufigkeiten über alle angeforder
 Sobol-Läufe; Fehler/Timeouts erscheinen separat, zusätzliche Nullrandfälle zählen
 nicht mit. Die Klassifizierung wird nicht als Sobol-Zielvariable verwendet.
 Regeln: [`analysis/BEHAVIOURAL_CLASSIFICATION.md`](analysis/BEHAVIOURAL_CLASSIFICATION.md).
+
+Alle Normen verwenden gemeinsame A/B-Grundwerte; pro Norm entstehen weiterhin
+`N*(D+2)` gültige Sobol-Zeilen mit ihren eigenen Parametern. Bereiche und Anzahl
+der Sensi-Läufe bleiben gleich, konkrete Stichprobenwerte ändern sich gegenüber
+den früheren unabhängigen Designs auch bei gleichem Seed. Im Ergebnis-Hauptordner
+stehen `sampling_design.json` und `sampling_AB.npz`; die A/B-Koordinaten umfassen
+die globalen Bereichsnamen plus zusätzliche explizite Bereichsüberschreibungen.
+Sie hängen nicht von Auswahl oder Reihenfolge der Normen ab. Anhängen setzt
+identische Basisstichprobengröße, Seed und Bereiche voraus; ältere Ergebnisordner
+ohne dieses gemeinsame Design werden nicht mit neuen Stichproben vermischt.
+
+Standardmäßig wird für jedes erfolgreiche Sample eine passende Referenz zugeordnet.
+Ein ausgewähltes `No social norm` läuft immer zuerst (in der Standardauswahl
+enthalten) und liefert Referenzen für die anderen kontinuierlichen Normen.
+`reference_cache.sqlite3` speichert sie gemeinsam für den gesamten Lauf, auch
+über spätere Append-Aufrufe hinweg. Nur fehlende, eindeutige Referenzkonfigurationen
+werden zusätzlich simuliert; Normparameter ohne Wirkung im Referenzmodell führen
+zu keiner neuen Referenz. Wirksame Parameter, Anfangsbedingungen, numerische
+Einstellungen sowie Code-/Datenstände und numerische Bibliotheksversionen müssen
+übereinstimmen. Bei abweichenden Einstellungen entstehen eigene Referenzen.
+Explizite `--scenarios`-Auswahlen werden nicht erweitert; ohne ausgewähltes
+Ohne-Norm-Szenario werden die benötigten Referenzen einmalig bei Bedarf berechnet.
+
+Kontinuierliche Referenzen behalten die Eingaben und verwenden Normterm null.
+Die Agentenreferenz heißt `Agent model without social influence` und behält
+Agenten, Netzwerk, Seed und jährliche Entscheidungen mit `eta=0`; sie wird
+getrennt von den ODE-Referenzen gespeichert und ebenfalls dedupliziert.
+Zusätzliche Referenzen besitzen eigene Zeitlimits.
+Ihre Fehler beeinflussen weder die ursprünglichen Sobol-Zielgrößen noch die
+Auswahl vollständiger Sobol-Blöcke. Gespeichert werden Vergleiche der ersten
+5-%-/95-%-Erreichung sowie der größten jährlichen Veränderung von x: Maximum
+von `abs(x(y+1)-x(y))` über vollständige Kalenderjahre ab 2017. Richtung und
+Jahresintervall werden mitgespeichert; ein 10-%–90-%-Übergang ist nicht nötig.
+ODE-Werte werden an Jahresgrenzen linear interpoliert, Agentenwerte bis zur
+nächsten Entscheidung konstant gehalten. Erkannte Oszillationen bleiben vom
+Steigungsvergleich ausgeschlossen. Neue Vergleiche verwenden Protokollversion 3;
+Append mischt diese nicht mit aktivierten Vergleichen früherer Versionen.
+Fehlende Ereignisse, Gleichstand und nicht vergleichbare Verläufe bleiben eigene
+Kategorien. Tabellen: `without_norm_outputs.csv`, `without_norm_comparisons.csv`
+und `without_norm_comparison_frequencies.csv`; die englischen Balkendiagramme
+heißen `without_norm_comparison_frequencies.svg` / `.png`. Die Vergleichsfelder
+stehen auch in `simulation_outputs.csv` und `behaviour_classes.csv`. Sie sind
+keine Sobol-Zielvariablen. Archivierte Zeitreihen enthalten die Einzelprofile;
+die paarweisen Ergebnisse werden nach Abschluss der Referenzen in CSV gespeichert.
+`analysis/no_norm_comparison.py` ist das zugehörige Bibliotheksmodul ohne eigene CLI.
+`analysis/sensitivity/shared_sampling.py` und `reference_cache.py` sind ebenfalls
+Bibliotheksmodule ohne CLI. Beim Kopieren eines Laufs die A/B-Dateien, die SQLite-
+Datei und alle Szenarioordner gemeinsam erhalten: Referenz-Zeitreihenlinks können
+auf Dateien eines anderen Szenarios im selben Lauf zeigen. Quelle, Quell-Sample-ID,
+Referenzschlüssel und Wiederverwendung werden als `norm_comparison_reference_*`
+gespeichert. `metadata.json` nennt zusätzliche und wiederverwendete Referenzen.
 
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
@@ -143,15 +201,45 @@ Regeln: [`analysis/BEHAVIOURAL_CLASSIFICATION.md`](analysis/BEHAVIOURAL_CLASSIFI
 | `--seed ZAHL` | `42` | Seed für Sampling und Simulationen. |
 | `--constant-temperature-costs` / `--no-constant-temperature-costs` | `False`; temperaturabhängige Kostenfunktion | Temperaturkostenfunktion konstant 1. |
 | `--no-save-time-series` | Zeitreihen speichern (`save_time_series=True`) | Schaltet die standardmäßige Zeitreihenspeicherung ab. |
+| `--no-compare-without-norm` | Vergleich aktiviert (`compare_without_norm=True`) | Zusätzliche Ohne-Norm-Referenzläufe und Vergleichsklassifikationen abschalten. |
 | `--sample-timeout-minutes MINUTEN` | `20` | Zeitlimit je Simulation. |
 | `--output-root PFAD` | `E:\Masterarbeit\Sensitivity` | Überordner der Ergebnisläufe. |
-| `--append-existing-folder ORDNER` | Neuer Zeitstempelordner; kein bestehender Lauf wird ergänzt | Weitere Szenarien zu einem bestehenden Lauf unter `--output-root` ergänzen. |
+| `--append-existing-folder ORDNER` | Neuer Zeitstempelordner; kein bestehender Lauf wird ergänzt | Weitere Szenarien zu einem aktuellen gemeinsamen Design unter `--output-root` ergänzen; N, Seed und Bereiche beibehalten. |
 | `--score-mode MODUS` | `simple_mean` | Gesamtranking: `simple_mean` oder `grouped_mean`. |
 | `--coupling-interval JAHRE` | `0.1` | Kopplungsintervall in Jahren. |
 | `--n-agents ANZAHL` | `1000` | Agentenzahl bei ABM-Szenarien. |
 | `--solver NAME` | `BDF` | `BDF`, `LSODA` oder `RK4`. |
 | `--dt JAHRE` | `None` | Erforderlicher positiver RK4-Schritt; bei adaptiven Solvern ungenutzt. |
 | `--simulate-only-x` / `--no-simulate-only-x` | `False` | Kohlenstoffspeicher einfrieren bzw. Einfrieren deaktivieren; Temperatur entwickelt sich weiter. |
+
+### PIK-Slurm-Job
+
+[`support/hpc/run_sensi.sbatch`](support/hpc/run_sensi.sbatch) vom Repository-Hauptordner
+mit `sbatch support/hpc/run_sensi.sbatch` starten. Voraussetzung: `.venv` ist dort
+eingerichtet. Verwendet Account `copan`, QoS `short`, einen Knoten, einen Task,
+128 CPUs, 128 GB RAM und acht Stunden Zeitlimit. Speicher und Zeitlimit sind
+vorläufige Ressourcenansätze, keine gemessenen Bedarfswerte. Slurm schreibt
+`slurm-<JOB_ID>.out` in den Einreichungsordner. Ressourcen lassen sich durch
+`sbatch`-Optionen vor dem Skriptpfad überschreiben.
+
+Alle Sensi-Argumente aus Abschnitt 2 können nach dem Skriptpfad übergeben werden.
+Die folgenden Werte weichen vom direkten Python-Aufruf ab:
+
+| Argument / Umgebungsvariable | Standard bei Weglassen | Bedeutung |
+| --- | --- | --- |
+| `--base-sample-size N` | `512` | Basisstichprobe dieses Clusterexperiments. |
+| `--simulation-time JAHRE` | `600` | Simulationsdauer dieses Clusterexperiments. |
+| `--workers N` | `$SLURM_CPUS_PER_TASK` | Vom Skript fest auf die zugewiesene CPU-Anzahl gesetzt; mit `sbatch --cpus-per-task=N` ändern. |
+| `--output-root PFAD` | `${RESULTS_ROOT:-$HOME/socio-climate-results}/job-${SLURM_JOB_ID}` | Vom Skript festgesetzt; den Überordner mit `RESULTS_ROOT` ändern. |
+| `RESULTS_ROOT` | `$HOME/socio-climate-results` | Überordner der jobspezifischen Ergebnisordner. |
+
+Ohne `--scenarios` werden alle zehn Standardnormen untersucht. Zeitreihen und
+Klassifizierungen werden standardmäßig gespeichert. Beispiel für einen kleinen
+Test mit überschriebenen Ressourcen und Simulationsargumenten:
+
+```bash
+sbatch --cpus-per-task=8 --mem=16G --time=00:30:00 support/hpc/run_sensi.sbatch --scenarios baseline --base-sample-size 2 --simulation-time 220
+```
 
 ### Klassenhäufigkeiten aus gespeicherten Sensi-Daten
 
@@ -183,9 +271,10 @@ erstellt danach Bäume aus den gespeicherten Daten, ohne zusätzliche Simulation
 | `--seed ZAHL` | `42` | Seed für Sensi und Baumkonfiguration. |
 | `--constant-temperature-costs` / `--no-constant-temperature-costs` | `False`; temperaturabhängige Kostenfunktion | Temperaturkostenfunktion konstant 1. |
 | `--no-save-time-series` | Zeitreihen speichern (`save_time_series=True`) | Zeitreihenspeicherung abschalten. |
+| `--no-compare-without-norm` | Vergleich aktiviert (`compare_without_norm=True`) | Zusätzliche Ohne-Norm-Referenzläufe und Vergleichsklassifikationen abschalten. |
 | `--sample-timeout-minutes MINUTEN` | `20` | Zeitlimit je Simulation. |
 | `--output-root PFAD` | `E:\Masterarbeit\Sensitivity` | Überordner; Bäume unter `<Lauf>/regression_trees/<Zeitstempel>/`. |
-| `--append-existing-folder ORDNER` | Neuer Zeitstempelordner; kein bestehender Lauf wird ergänzt | Szenarien ergänzen; Bäume anschließend aus allen fertigen Szenarien neu erstellen. |
+| `--append-existing-folder ORDNER` | Neuer Zeitstempelordner; kein bestehender Lauf wird ergänzt | Szenarien im gemeinsamen Design ergänzen (gleiche N, Seed, Bereiche); Bäume anschließend aus allen fertigen Szenarien neu erstellen. |
 | `--score-mode MODUS` | `simple_mean` | `simple_mean` oder `grouped_mean`. |
 | `--coupling-interval JAHRE` | `0.1` | Kopplungsintervall in Jahren. |
 | `--n-agents ANZAHL` | `1000` | Agentenzahl bei ABM-Szenarien. |

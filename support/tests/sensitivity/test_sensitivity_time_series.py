@@ -71,11 +71,15 @@ class TimeSeriesTests(unittest.TestCase):
             archives = saved / info['directory']
             self.assertEqual(len(list(archives.glob('sample_*.npz'))), 12)
             self.assertEqual(len(list(archives.glob('boundary_*.npz'))), 4)
+            self.assertEqual(len(list(archives.glob('reference_*.npz'))), 10)
             self.assertFalse(json.loads((disabled / 'time_series.json').read_text())['enabled'])
             self.assertFalse(list(disabled.glob('time_series_*')))
             a = pd.read_csv(saved / 'simulation_outputs.csv', sep=';')
             b = pd.read_csv(disabled / 'simulation_outputs.csv', sep=';')
-            pd.testing.assert_frame_equal(a.drop(columns='time_series_file'), b, check_exact=True)
+            artifact_columns = ['time_series_file', 'norm_comparison_reference_time_series_file']
+            pd.testing.assert_frame_equal(a.drop(columns=artifact_columns), b, check_exact=True)
+            for relative in a['norm_comparison_reference_time_series_file']:
+                self.assertTrue((saved / relative).is_file())
             for relative in a['time_series_file']:
                 _, metadata = load_time_series(saved / relative)
                 self.assertEqual(metadata['context']['n_agents'], 1000)

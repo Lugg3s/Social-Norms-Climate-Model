@@ -47,5 +47,13 @@ def get_parameter_range(parameter_name):
     return validate_bounds(_configuration()["bounds"][parameter_name])
 
 
+def shared_sampling_ranges(overrides=None):
+    """Stable coordinates across scenario selections and append operations."""
+    ranges = dict(_configuration()["bounds"])
+    for name, bounds in sorted((overrides or {}).items()):
+        ranges[name] = bounds
+    return {name: validate_bounds(bounds) for name, bounds in ranges.items()}
+
+
 def default_sensitivity_scenarios():
     return list(_configuration()["sensitivity_scenarios"])

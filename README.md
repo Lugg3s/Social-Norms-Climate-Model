@@ -35,6 +35,30 @@ Sensitivity runs also save a descriptive behavioural class for every sample and
 per-norm vertical class-frequency plots. These are separate from Sobol estimation;
 see [the classification rules](analysis/BEHAVIOURAL_CLASSIFICATION.md).
 
+Sensitivity runs additionally compare each successful sample with a matched
+without-norm reference by default: first reach of x <= 5% / x >= 95%, and
+largest annual change in x across complete calendar-year intervals after 2017,
+with its direction and interval saved. No threshold passage is required;
+detected oscillations remain excluded from this change comparison. All norms project a
+shared Sobol A/B design into their own valid N*(D+2) sampling blocks. When selected
+(as it is by default), `No social norm` runs first and supplies references to
+the other continuous norms. A run-local cache reuses identical effective controls;
+only missing unique references are simulated. Different physical inputs or
+settings cannot share a reference. The ABM uses a separate **Agent model without
+social influence**, retaining the same agents and setting only `eta=0`.
+Missing reaches, equal outcomes and incomparable slopes are separate categories.
+Comparisons and frequency plots are saved per norm and never enter Sobol estimation.
+Use `--no-compare-without-norm` to disable comparisons and additional controls.
+
+Keep `sampling_design.json`, `sampling_AB.npz`, and `reference_cache.sqlite3`
+with the complete result folder when copying it. New shared sampling preserves
+parameter ranges and per-norm sample counts but changes sampled values relative
+to older independent designs, even with the same seed. Legacy results remain
+unchanged; start a new folder instead of appending the new design to them.
+Append operations within a new run reuse its saved A/B values and require matching
+sample size, seed and ranges. Explicit `--scenarios` selections are preserved;
+if no no-norm scenario is selected, needed unique controls are computed on demand.
+
 Shared simulation defaults are defined only in
 [`config/simulation_settings.json`](config/simulation_settings.json): 600 years,
 24 output points per year, a 0.1-year coupling interval, seed 42, 1,000 agents,
