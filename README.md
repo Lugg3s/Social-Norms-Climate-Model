@@ -668,8 +668,8 @@ constant-response/sigmoid mode, within one result folder.
 
 `analysis/regression_trees/regression_tree_analysis.py` evaluates saved simulations without running the
 socio-climate model again. It fits a separate `DecisionTreeRegressor` per norm
-and target. The seven active sensitivity targets are included: `x_mean`,
-`final_temperature`, `cumulative_emissions`, `first_time_x95`, `bool_x95`,
+and target. Its seven unconditional targets follow the active Sobol target list:
+`x_mean`, `final_temperature`, `max_temperature`, `cumulative_emissions`, `bool_x95`,
 `oscillation_occurrence` and `oscillations_per_500_years`. The five additional
 targets `final_x`, `median_period`, `oscillation_amplitude`, `damping_index`
 and `damping_rate` remain available. Inputs come only from sampled model parameters;
@@ -693,12 +693,16 @@ cross-validation on training blocks only. Depths 2–4 and minimum leaf fraction
 5%/10% are compared using MAE; numerically negligible splits are suppressed
 relative to training-target variance. These limits and the seed are saved.
 
-Only completed, finite target values enter a tree. The seven sensitivity targets
+Only completed, finite target values enter a tree. The seven unconditional targets
 include nonoscillating simulations and genuine zeros. Boolean targets remain
 regression targets: their leaf means are the proportions of training runs with
 value 1, shown as percentages; deviations and MAE use percentage points.
-`first_time_x95` keeps 0 (= never reached), so its means include these zeros and
-are not conditional waiting times among successful runs.
+`max_temperature` uses the saved peak temperature anomaly over the entire simulated
+interval, including the historical phase; leaf means, deviations and MAE use °C.
+`first_time_x95` is no longer a default tree target, but remains explicitly
+selectable with `--targets first_time_x95` for existing analyses. Its saved 0
+(= never reached) is included in leaf means, which are not conditional waiting
+times among successful runs.
 The four conditional targets `median_period`, `oscillation_amplitude`,
 `damping_index` and `damping_rate` additionally require at least two complete
 prominent cycles, matching `oscillation_occurrence`.
@@ -820,15 +824,18 @@ the entire simulated interval, `integral(x dt)/(t_end - t_start)`, including
 the prescribed historical period. ODE output uses trapezoidal integration;
 annual agent decisions use the actual share held between decisions.
 
-`time_to_elimination` is the first time `x >= 0.95`, even if x later decreases.
-It remains `NaN` if this never happens. For Sobol, the target
-`first_time_x95` stores **0 if the threshold is never reached**
-and the actual first-passage time otherwise. Zero denotes non-occurrence, not
-elimination at time zero. This is a zero-coded first-passage target, not a
-horizon-censored time or an estimate of future elimination. Its Sobol indices
-reflect both occurrence and timing; a smaller output is not always faster
-elimination. The separate binary target `bool_x95` remains available.
-Non-eliminating successful simulations stay in the complete Sobol design.
+`max_temperature` is the peak global temperature anomaly in degrees Celsius:
+the maximum of the stored temperature samples over the entire simulated interval,
+including the historical phase. The output resolution affects its accuracy;
+`final_temperature` instead measures the anomaly at the final time.
+
+`time_to_elimination` remains saved as the first time `x >= 0.95`, even if x later
+decreases, or `NaN` if this never happens. The auxiliary metric `first_time_x95`
+stores **0 if the threshold is never reached** and the actual first-passage time
+otherwise, but is no longer a Sobol or ranking target. Timing comparisons against
+the reference remain available. The binary Sobol target `bool_x95` records whether
+the threshold is ever reached. Non-eliminating successful simulations stay in
+the complete Sobol design.
 
 `oscillation_occurrence` is a binary target: 1 if at least two complete
 prominent cycles are detected over the entire simulated interval, otherwise 0.
@@ -841,8 +848,8 @@ Rare events can still make Sobol estimates unstable.
 cycles. It is 0 when `oscillation_occurrence` is 0; otherwise it equals
 `n_oscillations * 500 / simulation_time`, using the entire simulated interval.
 
-The mitigation group contains `x_mean`, `first_time_x95` and `bool_x95`;
-climate contains `final_temperature` and `cumulative_emissions`; dynamics
+The mitigation group contains `x_mean` and `bool_x95`;
+climate contains `final_temperature`, `max_temperature` and `cumulative_emissions`; dynamics
 contains `oscillation_occurrence` and `oscillations_per_500_years`.
 `final_x`, `oscillation_amplitude` and `damping_index` are commented out of
 the Sobol selection and ranking groups but remain saved as raw metrics.
@@ -891,8 +898,8 @@ The existing filenames are retained, including for the two binary bar charts:
 ```text
 violin_boxplot_x_mean.png
 violin_boxplot_final_temperature.png
+violin_boxplot_max_temperature.png
 violin_boxplot_cumulative_emissions.png
-violin_boxplot_first_time_x95.png
 violin_boxplot_bool_x95.png
 violin_boxplot_oscillation_occurrence.png
 violin_boxplot_oscillations_per_500_years.png

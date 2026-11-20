@@ -4,6 +4,10 @@
 - Die gewünschte Erinnerung ist erledigt. Keine erneute Erinnerung oder Freigabeanfrage für diese abgeschlossene Liste erforderlich.
 - Datierte Auswertungen behalten ihre historischen Ergebnisse und Parameterdefinitionen. Sie sind keine Beschreibung des jeweils aktuellen Modells.
 
+# Offene Erinnerung: Kopierskript
+
+- Beim ersten Kontakt ab Montag, 23.11.2026 (Europe/Berlin), einmal an das Kopierskript erinnern: `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`. Es kopiert die relevanten PNGs nach `results/Global_sensitivity_analysis/<Norm>/` und überschreibt bestehende Ziel-PNGs. Nach erfolgter Erinnerung diesen Punkt als erledigt markieren. Nutzervorgabe vom 20.11.2026; unabhängig von der bereits erledigten Dokumentations-Erinnerung oben.
+
 # Literaturrecherchen
 
 - Bei künftigen Paper-Recherchen hochwertige, wissenschaftlich gut rezipierte Quellen bevorzugen. Vor einer Empfehlung die Zitationszahl prüfen und mit Datenbank, eindeutigem Paper/DOI und Abrufdatum angeben (Nutzervorgabe vom 24.10.2026).

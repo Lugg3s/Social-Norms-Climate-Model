@@ -33,6 +33,7 @@ def write_demo(directory: Path, base_sample_size: int = 32) -> Path:
         "sample_index": np.arange(len(samples)), "status": "completed",
         "final_x": final_x, "x_mean": x_mean,
         "final_temperature": 4.0 - 3.0 * final_x,
+        "max_temperature": 4.5 - 2.0 * x_mean,
         "cumulative_emissions": 1000.0 * (1.0 - x_mean),
         "first_time_x95": np.where(reached, 260.0 + 60.0 * beta, 0.0),
         "bool_x95": reached, "oscillation_occurrence": oscillating,

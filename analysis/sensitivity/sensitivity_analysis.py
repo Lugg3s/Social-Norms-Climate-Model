@@ -49,8 +49,8 @@ SENSITIVITY_OUTPUTS = [
     # "final_x",  # Kandidat für Regression Trees.
     "x_mean",
     "final_temperature",
+    "max_temperature",
     "cumulative_emissions",
-    "first_time_x95",
     "bool_x95",
     "oscillation_occurrence",
     # "oscillation_amplitude",  # Kandidat für Regression Trees.
@@ -67,9 +67,9 @@ RECOVERABLE_INTEGRATION_ERRORS = (
 OUTPUT_GROUPS = {
     "mitigation": [
         # "final_x",
-        "x_mean", "first_time_x95", "bool_x95",
+        "x_mean", "bool_x95",
     ],
-    "climate": ["final_temperature", "cumulative_emissions"],
+    "climate": ["final_temperature", "max_temperature", "cumulative_emissions"],
     "dynamics": [
         "oscillation_occurrence",
         # "oscillation_amplitude",
@@ -128,8 +128,9 @@ def _prepare_sensitivity_outputs(metrics: dict[str, Any], simulation_time: float
         # "final_x": float(metrics["final_x"]),
         "x_mean": float(metrics["x_mean"]),
         "final_temperature": float(metrics["final_temperature"]),
+        "max_temperature": float(metrics["max_temperature"]),
         "cumulative_emissions": float(metrics["cumulative_emissions"]),
-        "first_time_x95": time_to_elimination,
+        "first_time_x95": time_to_elimination,  # Saved descriptive metric; excluded from Sobol/ranking.
         "bool_x95": bool(metrics["bool_x95"]),
         "oscillation_occurrence": bool(metrics["n_oscillations"] >= OSCILLATION_MIN_COMPLETE_CYCLES),
         # "oscillation_amplitude": float(metrics["oscillation_amplitude"]),
@@ -809,7 +810,13 @@ def run_sensitivity_analysis(
             "non_event_value": 0.0,
             "event_indicator": "bool_x95",
             "raw_time": "time_to_elimination (NaN if the threshold is never reached).",
-            "sobol_output": "first_time_x95 (0 if never reached; otherwise first threshold time).",
+            "saved_metric": "first_time_x95 (0 if never reached; otherwise first threshold time); not a Sobol/ranking target.",
+        },
+        "max_temperature_definition": {
+            "quantity": "Global temperature anomaly T in degrees Celsius.",
+            "statistic": "Maximum over stored output times across the entire simulated interval, including the historical phase.",
+            "peak_time_metric": "time_to_peak_temperature",
+            "resolution_note": "Sampled maximum; output resolution affects peak accuracy.",
         },
         "x_mean_definition": "Time-weighted mean over the whole simulated interval: integral(x dt)/(t_end-t_start).",
         "oscillation_window_years": OSCILLATION_WINDOW_YEARS,

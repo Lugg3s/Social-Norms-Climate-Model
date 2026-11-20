@@ -59,44 +59,93 @@ Note: In this file i want to store all relevant informations that can be extract
 - climate is dominated by the temperature_factor
 - dynamics are dominated by beta
 - network_size has a value of 0 in mean x, end temperature and cumulative emissions. However, it has little influence on if x ever reaches >=95% (value = 0.1)
-- hier weitermachen... Was fällt sonst noch in ranking_balken_zielvariablen.png auf?
+- MISSING: social_norm_factor
 
 ### Classifications
-
+- TODO: ich mach hier erstmal nicht weiter, da ich vermute, dass die Sensi für diese Norm nochmal neu durchgeführt werden muss
 
 ## Observation_based___approval_(punish_only_one_behaviour)
 ### Parameter
+- dominated by temperature_factor
+- beta has second highest impact
 
 ### Classifications
-
+- 86.5% of all runs end at x>=95%
+- no damped/persistent oscillations
+- 88% of those runs that end at x>=95% are faster (makes sense because only mitigators benefit from this norm)
+- 70% of those runs that end at x<=5% are slower (makes sense because non-mitigators likely are punished by the norm and can never benefit from it)
+- 63.6% of all runs have a higher max annual change: runs where x->1
+- 31.1% are flatter: runs where x->0
 
 ## Static injunctive
 ### Parameter
+- social_norm_factor has high impact on the dynamics (first x>=95% & oscillations), but low impact on the climate (cumulative emissions & finaltemperature)
+- ...?
 
 ### Classifications
+- 16% stable intermediate level (no oscillation)
+- 24.5% damped oscillations
+- 0% persistent oscillations
+- pretty high amount of transitional / unresolved (35%)
+- 47.6% of all runs reach x<=5% later compared to the no-norm reference (10.6% are earlier)
+- 43.5% of all runs reach x<=95% earlier compared to the no-norm reference (25.6% are earlier)
+-> faster if x->1, slower if x->0 (only cases where both reach x>=95% or x<=5% are considered here)
+- most runs (54.2%) are flatter comapred to the no-norm reference
+- 29.4% are not comaprable
+    - Why is that?
 
+
+## Dynamic_social_norm
+### Parameter
+- ...
+
+### Classifications
+- no damped/persistent oscilations
+- 71.7% approach to 1
+- 78% of all runs reach x<=5% earlier compared to the no-norm reference (0% are later)
+    - so if x<=5 is reached with this norm, then its always reached earlier>
+- 59.4% of all runs reach x<=95% later compared to the no-norm reference (26.1% are earlier)
+- obviously most runs are steeper than the no-norm-reference (94.8%)
+- only 1.4% are flatter
+
+## Dynamic_social_norm 2
+### Parameter
+- ...
+
+### Classifications
+- no damped/persistent oscilations
+- 63.5% approach to 1
+- 43.8% of all runs reach x<=5% equally(!) fast compared to the no-norm reference (34.2% are earlier) (0% are later)
+    - so if x<=5 is reached with this norm, then its always reached earlier (similar to the other dynamic norm)
+- 59.8% of all runs reach x<=95% earlier compared to the no-norm reference (28.1% are earlier) 
+- In 67% of the runs the largest annual change is steeper than the no-norm reference (16.8% flatter)
 
 ## Descriptive,_injunctive,_dynamic
 ### Parameter
+- ...
 
 ### Classifications
 
 
 ## Descriptive,_injunctive,_dynamic 2
 ### Parameter
+- ...
 
 ### Classifications
 
 
-## Dynamic_social_norm
-### Parameter
 
-### Classifications
 
-## Dynamic_social_norm 2
-### Parameter
+## Comparing the norms
+...
 
-### Classifications
+
+## Main results
+- If a dynamic norm is used and x reaches <=5% then the norm implementation always reaches this point faster or equally fast compared to the no-norm reference. 
+    - TODO: Das gilt erstmal nur für die einfachen dynamischen normen. Für Kombinationen muss das noch nachgeschaut werden
+
+
+
 
 # Research-questions
 

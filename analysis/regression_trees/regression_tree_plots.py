@@ -13,18 +13,19 @@ SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
 SVG_PIXELS_PER_POINT = 96 / 72
 TARGET_UNITS = {
-    "x_mean": "Zeitmittel des Mitigationsanteils · %",
-    "final_temperature": "Endtemperatur · °C",
-    "cumulative_emissions": "Kumulierte Emissionen · GtC",
-    "first_time_x95": "Erste Erreichung von x ≥ 95 % · Jahre; 0 = nie",
-    "bool_x95": "Anteil der Läufe mit x ≥ 95 % irgendwann · %",
-    "oscillation_occurrence": "Anteil der Läufe mit mindestens 2 vollständigen Zyklen · %",
-    "oscillations_per_500_years": "Gespeicherte Zykluszahl · pro 500 Jahre",
-    "final_x": "Mitigationsanteil am Simulationsende · %",
-    "median_period": "Mediane Periodendauer · Jahre",
-    "oscillation_amplitude": "Gespeicherte Oszillationsamplitude · Prozentpunkte",
-    "damping_index": "Dämpfungsindex · dimensionslos",
-    "damping_rate": "Dämpfungsrate · 1/Jahr",
+    "x_mean": "Time-averaged mitigation fraction · %",
+    "final_temperature": "Final temperature anomaly · °C",
+    "max_temperature": "Peak temperature anomaly · °C",
+    "cumulative_emissions": "Cumulative emissions · GtC",
+    "first_time_x95": "First time x ≥ 95% · years; 0 = never",
+    "bool_x95": "Share of runs reaching x ≥ 95% at least once · %",
+    "oscillation_occurrence": "Share of runs with at least 2 complete cycles · %",
+    "oscillations_per_500_years": "Saved cycle count · per 500 years",
+    "final_x": "Mitigation fraction at the end of the simulation · %",
+    "median_period": "Median period · years",
+    "oscillation_amplitude": "Saved oscillation amplitude · percentage points",
+    "damping_index": "Damping index · dimensionless",
+    "damping_rate": "Damping rate · 1/year",
 }
 
 
@@ -80,17 +81,17 @@ def _tree_panel(path: Path, prefix: str):
 
 def _mae(target, value):
     if target in {"final_x", "x_mean", "oscillation_amplitude", "bool_x95", "oscillation_occurrence"}:
-        return f"{100 * value:.2f} Prozentpunkte".replace(".", ",")
-    unit = {"median_period": " Jahre", "first_time_x95": " Jahre", "damping_index": "",
-            "damping_rate": " / Jahr", "final_temperature": " °C", "cumulative_emissions": " GtC",
-            "oscillations_per_500_years": " / 500 Jahre"}[target]
-    return f"{value:.3g}{unit}".replace(".", ",")
+        return f"{100 * value:.2f} percentage points"
+    unit = {"median_period": " years", "first_time_x95": " years", "damping_index": "",
+            "damping_rate": " / year", "final_temperature": " °C", "max_temperature": " °C",
+            "cumulative_emissions": " GtC", "oscillations_per_500_years": " / 500 years"}[target]
+    return f"{value:.3g}{unit}"
 
 
 def _counts(report):
     if "eligible_rows" not in report:
-        return "Anzahl gültiger Läufe nicht im Bericht angegeben"
-    return (f"Gültig: {report['eligible_rows']} / {report['total_rows']} Läufe"
+        return "Number of eligible runs not specified in the report"
+    return (f"Eligible: {report['eligible_rows']} / {report['total_rows']} runs"
             f" · Training: {report.get('train_rows', 0)} · Test: {report.get('test_rows', 0)}")
 
 
@@ -103,9 +104,9 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
     manifest_path = result_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
     mode = manifest.get("analysis_mode", "per_norm")
-    title = {"pooled_common": "Regression Trees über alle Normen · gemeinsame Parameter",
-             "per_norm_common": "Regression Trees je Norm · gemeinsame Parameter"}.get(
-                 mode, "Regression Trees – alle Normen")
+    title = {"pooled_common": "Regression trees across all norms · common parameters",
+             "per_norm_common": "Regression trees per norm · common parameters"}.get(
+                 mode, "Regression trees – all norms")
     if manifest.get("analysis_variant_label"):
         title += " · " + manifest["analysis_variant_label"]
     reports = json.loads((result_dir / "reports.json").read_text(encoding="utf-8"))
@@ -158,22 +159,22 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
     })
     _element(sheet, "title", id="overview_title").text = title
     _element(sheet, "desc", id="overview_description").text = (
-        f"Ein Abschnitt pro Norm, maximal {columns} Zielvariablen nebeneinander. Vollständige gespeicherte "
-        "Trees als eingebettete Vektoren. Fehlende Trees werden mit ihrem Status gezeigt. "
-        "Zielvariablen und Parameternamen bleiben unverändert."
+        f"One section per norm, with at most {columns} targets side by side. Complete saved trees "
+        "are embedded as vectors. Missing trees are shown with their status. "
+        "Target and parameter names are preserved."
     )
     _element(sheet, "rect", width=f"{width:g}", height=f"{height:g}", fill="#eaf0f5")
     fitted = len(panels)
     _label(sheet, margin, 46, title, 32, True)
     norm_count = len(manifest["sources"]) if mode == "pooled_common" else len(scenarios)
     _label(sheet, margin, 80,
-           f"{norm_count} Normen · {len(targets)} Zielvariablen · {fitted} Trees"
-           f" · maximal {columns} Trees nebeneinander in Originalgröße", 20)
+           f"{norm_count} norms · {len(targets)} targets · {fitted} trees"
+           f" · at most {columns} trees side by side at their original size", 20)
     _label(sheet, margin, 112,
-           "Ja / Nein: der Bedingung folgen · Blatt: Mittelwert und Standardabweichung der Trainingsläufe"
-           " · Perioden-, Amplituden- und Dämpfungsziele: nur gültige schwingende Verläufe", 18, color="#526579")
+           "Yes / No: follow the condition · Leaf: mean and standard deviation of training runs"
+           " · Period, amplitude and damping targets: valid oscillating trajectories only", 18, color="#526579")
     if mode in {"pooled_common", "per_norm_common"}:
-        _label(sheet, margin, 138, "Entscheidungsparameter: " + ", ".join(manifest["common_feature_names"]),
+        _label(sheet, margin, 138, "Decision parameters: " + ", ".join(manifest["common_feature_names"]),
                17, color="#526579")
     top = 150
     for norm_index, norm in enumerate(scenarios):
@@ -204,30 +205,30 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
                     placed.set("data-tree-panel", f"{norm_index}:{target}")
                     placed.append(panel)
                 else:
-                    status = {"insufficient_data": "Kein Tree: zu wenig gültige Daten",
-                              "constant_training_target": "Kein Tree: Zielwert im Training konstant",
-                              "unavailable": "Kein Tree: Zielvariable nicht verfügbar",
-                              "not_analyzed": "Nicht ausgewertet"}.get(report["status"], report["status"])
+                    status = {"insufficient_data": "No tree: insufficient eligible data",
+                              "constant_training_target": "No tree: constant training target",
+                              "unavailable": "No tree: target unavailable",
+                              "not_analyzed": "Not analyzed"}.get(report["status"], report["status"])
                     center = left + column_width / 2
                     middle = card_top + card_header + row_height / 2
                     _label(card, center, middle - 12, status, 22, True, color="#647689", anchor="middle")
                     _label(card, center, middle + 24, _counts(report), 17, color="#647689", anchor="middle")
                     if "train_blocks" in report:
                         _label(card, center, middle + 52,
-                               f"Trainingsblöcke: {report['train_blocks']} · Testblöcke: {report['test_blocks']}",
+                               f"Training blocks: {report['train_blocks']} · Test blocks: {report['test_blocks']}",
                                17, color="#647689", anchor="middle")
                 footer = card_top + card_header + row_height
                 if report["status"] == "fitted":
                     _label(card, left + padding, footer + 22, _counts(report), 16, color="#526579")
                     _label(card, left + padding, footer + 46,
-                           f"Test-MAE: {_mae(target, report['test_metrics']['mae'])}"
-                           f" · Vergleich (Trainingsmittelwert): {_mae(target, report['baseline_test_metrics']['mae'])}",
+                           f"Test MAE: {_mae(target, report['test_metrics']['mae'])}"
+                           f" · Training-mean baseline: {_mae(target, report['baseline_test_metrics']['mae'])}",
                            16, color="#526579")
                     notes = []
                     if report.get("train_blocks", 0) < 30 or report.get("test_blocks", 0) < 10:
-                        notes.append("Kleine Stichprobe; Ergebnis explorativ")
+                        notes.append("Small sample; exploratory result")
                     if not report.get("beats_mean_baseline", True):
-                        notes.append("Test-MAE nicht besser als Mittelwert-Vergleich")
+                        notes.append("Test MAE does not improve on the mean baseline")
                     if notes:
                         _label(card, left + padding, footer + 74, " · ".join(notes), 16, color="#96601b")
                     if report.get("saved_definition_note"):
@@ -237,7 +238,7 @@ def create_regression_tree_overview(result_dir: Path, output_path: Path | None =
             card_top += card_height + row_gap
         top = card_top - row_gap + section_gap
     _label(sheet, margin, top + 24,
-           "Darstellung aus gespeicherten Tree-SVGs und Berichten; keine erneuten Fits oder Simulationen.",
+           "Rendered from saved tree SVGs and reports; no refitting or new simulations.",
            18, color="#526579")
     output_path = Path(output_path) if output_path is not None else result_dir / OVERVIEW_FILENAME
     output_path.parent.mkdir(parents=True, exist_ok=True)

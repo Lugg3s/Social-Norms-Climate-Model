@@ -96,8 +96,8 @@ appear separately; they are never assigned a behavioural outcome. All six ordina
 classes remain visible even when empty. Shares reflect the chosen sampling ranges
 and design; they are not real-world probabilities or independent Bernoulli trials.
 
-The seven existing Sobol outputs and their definitions are unchanged. In particular,
-the existing Sobol oscillation metrics retain their whole-simulation window and
+Classification is separate from the seven active Sobol outputs. In particular,
+the Sobol oscillation metrics retain their whole-simulation window and
 original adjacent-extrema detector. The classification has a separate
 post-historical window and the additional reversal filter; raw
 `n_oscillations` and `classification_complete_cycles` can therefore differ.

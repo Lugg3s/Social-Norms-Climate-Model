@@ -124,6 +124,15 @@ python -m analysis.bifurcation_diagram --scenarios baseline --parameter-range 1 
 `python -m analysis.sensitivity.sensitivity_analysis` — Simulationen, Sobol-Indizes,
 Rankings und Verteilungsplots; speichert standardmäßig auch Zeitreihen.
 
+Sieben Sobol-Zielgrößen: Mitigation: `x_mean`, `bool_x95`; Climate:
+`final_temperature`, `max_temperature`, `cumulative_emissions`; Dynamics:
+`oscillation_occurrence`, `oscillations_per_500_years`. `max_temperature` ist die
+höchste gespeicherte Temperaturanomalie über den gesamten Simulationszeitraum
+(einschließlich historischer Phase). `first_time_x95` bleibt als beschreibende
+Metrik gespeichert, wird aber nicht mehr für Sobol oder Rankings verwendet.
+Bestehende Ergebnisordner behalten ihre ursprüngliche Zielgrößenauswahl; neue
+Analysen benötigen einen neuen Ergebnisordner.
+
 Im Ergebnis-Hauptordner hält `run_arguments.json` vor dem Simulationsstart alle
 CLI-Argumente einschließlich Standardwerten fest: ursprünglicher Aufruf,
 geparste und tatsächlich verwendete Werte (inklusive aufgelöster Workerzahl und
@@ -326,15 +335,20 @@ erstellt danach Bäume aus den gespeicherten Daten, ohne zusätzliche Simulation
 | `--input-root PFAD` | Kein Standard; erforderlich | Sensi-Lauf oder einzelner Szenarioordner. |
 | `--output-root PFAD` | `plots/regression_tree_results` | Überordner für einen neuen Ergebnisordner. |
 | `--scenarios NAME ...` | Alle im Eingabelauf verfügbaren Szenarien | Szenarienauswahl. |
-| `--targets NAME ...` | Alle zwölf unten aufgeführten Zielgrößen | Auswahl der Zielgrößen. |
+| `--targets NAME ...` | Alle zwölf unten aufgeführten Zielgrößen | Auswahl der Zielgrößen; `first_time_x95` zusätzlich explizit wählbar, aber nicht im Standard enthalten. |
 | `--seed ZAHL` | `42` | Seed für Aufteilung und Validierung. |
 | `--test-fraction ANTEIL` | `0.25` | Anteil zurückgehaltener Sobol-Blöcke. |
 | `--max-depths TIEFE ...` | `2 3 4` | In der Kreuzvalidierung geprüfte Baumtiefen. |
 | `--analysis-modes MODUS ...` | Eine Norm: `per_norm`; mehrere: `per_norm`, `pooled_common`, `per_norm_common` | Analysearten auswählen. |
 
-Zielgrößen: `x_mean`, `final_temperature`, `cumulative_emissions`, `first_time_x95`,
+Zielgrößen: `x_mean`, `final_temperature`, `max_temperature`, `cumulative_emissions`,
 `bool_x95`, `oscillation_occurrence`, `oscillations_per_500_years`, `final_x`,
 `median_period`, `oscillation_amplitude`, `damping_index`, `damping_rate`.
+Die ersten sieben Zielgrößen werden direkt aus der aktuellen Sobol-Auswahl
+übernommen. `max_temperature` sowie seine Standardabweichung und MAE werden in
+°C angegeben. `first_time_x95` bleibt für ältere Auswertungen über
+`--targets first_time_x95` verfügbar. Fehlende Zielspalten werden als
+`unavailable` protokolliert, ohne Simulationen erneut auszuführen.
 Bei mehreren Normen werden standardmäßig alle drei Analysearten erstellt;
 gemeinsame Parameteranalysen liegen unter `_common_parametes/`, gegebenenfalls
 zusätzlich in einer Variante ohne Agentennorm unter `without_agents/`.
@@ -531,3 +545,21 @@ python -m pytest support/tests/sensitivity/test_sensitivity_review.py
 | `-v` | Normale Ausgabe (`verbosity=1`) | Ausführliche unittest-Ausgabe (`verbosity=2`). |
 | `support.tests.<Modul>` | Ohne Testnamen: Testsuche | Statt Gesamtsuche ein bestimmtes unittest-Modul ausführen. |
 | Testdateipfad bei `pytest` | Testsuche ab aktuellem Arbeitsordner; derzeit keine abweichende pytest-Konfiguration im Repo | Auswahl der pytest-Tests. |
+
+## 15. Gespeicherte Sensi-PNGs nach results kopieren
+
+`python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`
+kopiert je Norm `behaviour_class_frequencies.png`,
+`without_norm_comparison_frequencies.png`, `ranking_balken_gruppen_gesamt.png`
+und `ranking_balken_zielvariablen.png` in den gleichnamigen Norm-Unterordner
+des Ausgabeordners. Vorhandene Ziel-PNGs werden überschrieben; Quelldateien,
+Markdown-Dateien und andere Ziel-Dateien bleiben unverändert. Es werden keine
+Simulationen oder Plots neu berechnet. Für `No social norm` entfällt der
+Referenzvergleich ausdrücklich (drei statt vier PNGs). Andere fehlende PNGs
+führen vor dem Kopieren zu einem Fehler.
+
+| Argument | Standard bei Weglassen | Bedeutung |
+| --- | --- | --- |
+| `--input-root PFAD` | Kein Standard; erforderlich | Abgeschlossener Sensi-Lauf oder einzelner Norm-Ordner mit `metadata.json`. |
+| `--output-root PFAD` | `<Repository>/results/Global_sensitivity_analysis` | Zielordner, unabhängig vom aktuellen Arbeitsverzeichnis; muss außerhalb der Eingabe liegen. |
+| `--scenarios NAME ...` | Alle verfügbaren Szenarien | Auswahl anhand des Szenarionamens in `metadata.json` oder des Quellordnernamens. |

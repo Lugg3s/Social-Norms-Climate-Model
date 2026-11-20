@@ -1,11 +1,18 @@
 # Aktuelle ToDos:
+1. chati anpassungen an sensi entwickeln lassen
+1. Sensi nochmal laufen lassen
+1. Danach die bereits erstellten Auswertungen um peak temperature erweitern (plots in den results-ordnern auch aktualisieren) UND kontrollieren, ob sich etwas verändert hat weil jetzt first x>=95% fehlt.
 1. globale sensi analysieren und auswerten
     1. jeden Ordner einzeln durchgehen
     1. Vergleiche zwischen den Normen
     1. Research Questions beantworten
 1. globale sensi mit konsanten Temperaturkosten auswerten und vergleichen
 
+
 # Punkte aus der sensi, die ich noch analysieren muss
+1. social_norm_factor fehlt bei der agents norm. Dadurch wird natürlich tendeziell der temperature_term viel größer als der norm_term.
+    1. sieht so aus, als wäre eta der Ersatz für social_norm_factor
+    1. evtl kann man das in den Equations und den Sensi-Ergebnissen einfach umbenennen in social_norm_factor (ABER NUR, WENN DIE WERTEBEREICHE GLEICH SIND)
 1. 0.1% der runs in baseline sind als "stable intermediate level" klassifiziert. Wie kann das sein?
 
 ## Themen zum besprechen mit Hannah
@@ -13,7 +20,9 @@
 
 
 ## ToDos für codex
-1. 
+1. [x] peak temperature anomaly zu sensi als zielvariable hinzufügen (group: climate) — `max_temperature`, Maximum über die gespeicherten Zeitpunkte des gesamten Laufs; auch Standard-Zielgröße der Regressionsbäume.
+1. [x] first x>=95% (0=never) als zielvariable weglassen — aus Sobol, Rankings und Standard-Regressionsbäumen entfernt; als beschreibende Metrik und für Timingvergleiche weiter gespeichert.
+1. [x] ein script schreiben, das ich nutzen kann um die 4 relevanten pngs aus den jeweiligen Norm-ordern auf E: in die jeweiligen Norm-Ordner in Results/global sensi zu kopieren. (die gleichen 4 plots, die bei einigen Normen dort schon liegen) Das script soll bereits existierende einfach überschreiben — `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`; Details in `SCRIPTS.md`. Bei `No social norm` entfällt der Vergleichsplot.
 
 # ToDos die ich auf jeden Fall noch machen muss
 1. related work chapter (chatis Entwurf) kontrollieren
@@ -37,6 +46,7 @@ In Arbeit Erwähnen warum ich das Bury modell genommen habe
     1. vorallem relevant für nicht-dynamische und nicht-abm plots. Damit kann ich zb ausschließen, dass es Zwischenzustände bei bestimmten Normen gibt, sondern dass diese immer zu 0/1 konvergieren.
 
 # ToDos, die man evtl. noch machen könnte, aber nicht muss
+1. vergleichen wieviel Prozent einer Norm erreichen das gleiche Ergebnis (x>=95%, oder x<=95%) wie die no-norm referenz. In Wie vielen Fällen führt das implementieren der Norm dazu, dass sich das Ergebnis/Endergebnis unterscheidet?
 1. latin hyper cube sampling vergleichen mit meiner aktuellen Sensitivitätsanalyse (sobol indices)
 1. Mit Parametern die aktuelle Entwicklung reverse engineeren (also von 1800 zb laufen lasssen)
     1. Und dann schauen, welche Normen die aktuelle Entwicklung besonders gut darstellen

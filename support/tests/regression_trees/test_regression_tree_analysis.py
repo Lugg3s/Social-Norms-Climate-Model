@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupKFold
 
-from analysis.regression_trees.regression_tree_analysis import (SENSITIVITY_TARGETS, TreeConfig, eligible_target, fit_target,
+from analysis.regression_trees.regression_tree_analysis import (SENSITIVITY_TARGETS, TARGETS, TreeConfig, eligible_target, fit_target,
                                      group_holdout, load_scenario, run_analysis,
                                      _leaf_prediction, _leaf_spread, _leaf_standard_deviations)
 from analysis.sensitivity.sensitivity_analysis import SENSITIVITY_OUTPUTS
@@ -50,8 +50,10 @@ class RegressionTreeTests(unittest.TestCase):
         data.loc[2, "status"] = "timed_out"
         self.assertFalse(eligible_target(data, "final_x")[0][2])
 
-    def test_all_active_sensitivity_targets_use_nonoscillating_and_zero_rows(self):
-        self.assertEqual(tuple(SENSITIVITY_OUTPUTS), SENSITIVITY_TARGETS)
+    def test_unconditional_tree_targets_use_nonoscillating_and_zero_rows(self):
+        self.assertEqual(set(SENSITIVITY_TARGETS), set(SENSITIVITY_OUTPUTS))
+        self.assertEqual(len(TARGETS), 12)
+        self.assertNotIn('first_time_x95', TARGETS)
         data = self.scenario.data.drop(columns=['n_oscillations'])
         for target in SENSITIVITY_TARGETS:
             mask, _ = eligible_target(data, target)
@@ -79,9 +81,9 @@ class RegressionTreeTests(unittest.TestCase):
                 values = training[target].to_numpy(dtype=float)[leaves == leaf]
                 self.assertAlmostEqual(model.tree_.value[leaf, 0, 0], values.mean())
                 self.assertAlmostEqual(stds[leaf], np.std(values))
-            self.assertIn('25,0 %', _leaf_prediction(target, 0.25))
-            self.assertIn('Anteil der Läufe mit Wert 1', _leaf_prediction(target, 0.25))
-            self.assertIn('Prozentpunkte', _leaf_spread(target, 0.25))
+            self.assertIn('25.0 %', _leaf_prediction(target, 0.25))
+            self.assertIn('Share of runs with value 1', _leaf_prediction(target, 0.25))
+            self.assertIn('percentage points', _leaf_spread(target, 0.25))
         self.scenario.data['bool_x95'] = False
         report, payload = fit_target(self.scenario, 'bool_x95', self.config, split)
         self.assertEqual(report['status'], 'constant_training_target')
@@ -95,7 +97,7 @@ class RegressionTreeTests(unittest.TestCase):
         self.assertTrue(mask.all())
         report, payload = fit_target(self.scenario, 'oscillations_per_500_years', self.config,
                                      group_holdout(self.scenario.data, self.config))
-        self.assertIn('ältere Rate', report['saved_definition_note'])
+        self.assertIn('Legacy saved rate', report['saved_definition_note'])
         self.assertAlmostEqual(payload['predictions'].set_index('sample_index').loc[0, 'observed'], 500 / 600)
 
     def test_all_sensitivity_targets_export_with_their_original_names(self):
@@ -108,8 +110,36 @@ class RegressionTreeTests(unittest.TestCase):
             self.assertIn(target, overview)
             svg = (output / 'input' / target / 'tree.svg').read_text(encoding='utf-8')
             self.assertIn(target, svg)
-            self.assertIn('Std.-Abw.', svg)
-        self.assertIn('einschließlich 0', (output / 'input' / 'first_time_x95' / 'tree.svg').read_text(encoding='utf-8'))
+            self.assertIn('Std. dev.', svg)
+        self.assertFalse((output / 'input' / 'first_time_x95').exists())
+        peak = (output / 'input' / 'max_temperature' / 'tree.svg').read_text(encoding='utf-8')
+        self.assertIn('°C', peak)
+
+    def test_peak_temperature_prediction_and_spread_use_degrees_celsius(self):
+        self.assertIn('3.25', _leaf_prediction('max_temperature', 3.25))
+        self.assertIn('°C', _leaf_prediction('max_temperature', 3.25))
+        self.assertIn('0.25', _leaf_spread('max_temperature', 0.25))
+        self.assertIn('°C', _leaf_spread('max_temperature', 0.25))
+        self.assertTrue((self.scenario.data.max_temperature > self.scenario.data.final_temperature).any())
+
+    def test_saved_first_time_remains_explicitly_selectable(self):
+        output = self.root / 'legacy_timing'
+        reports = run_analysis(self.source, output, targets=['first_time_x95'], config=self.config)
+        self.assertEqual(reports[0]['target'], 'first_time_x95')
+        self.assertEqual(reports[0]['status'], 'fitted')
+        svg = (output / 'input' / 'first_time_x95' / 'tree.svg').read_text(encoding='utf-8')
+        self.assertIn('Mean includes 0 (= never reached)', svg)
+        self.assertIn('years', svg)
+
+    def test_old_archive_reports_peak_as_unavailable_without_affecting_other_targets(self):
+        path = self.source / 'simulation_outputs.csv'
+        outputs = pd.read_csv(path, sep=';').drop(columns=['max_temperature'])
+        outputs.to_csv(path, sep=';', index=False)
+        reports = run_analysis(self.source, self.root / 'old_archive',
+                               targets=['max_temperature', 'final_temperature'], config=self.config)
+        by_target = {report['target']: report for report in reports}
+        self.assertEqual(by_target['max_temperature']['status'], 'unavailable')
+        self.assertEqual(by_target['final_temperature']['status'], 'fitted')
 
     def test_holdout_and_cv_keep_whole_sobol_blocks_together(self):
         train, test = group_holdout(self.scenario.data, self.config)
@@ -194,11 +224,11 @@ class RegressionTreeTests(unittest.TestCase):
             for name in ("tree.svg", "tree.png", "report.json", "rules.txt", "predictions.csv", "training_cv.csv"):
                 self.assertTrue((folder / name).exists(), name)
             svg_text = (folder / "tree.svg").read_text(encoding="utf-8")
-            self.assertIn("Std.-Abw.:", svg_text)
-            self.assertIn("kein Konfidenzintervall", svg_text)
-            self.assertIn("Prozentpunkte" if target == "final_x" else "Jahre", svg_text)
+            self.assertIn("Std. dev.:", svg_text)
+            self.assertIn("not a confidence interval", svg_text)
+            self.assertIn("percentage points" if target == "final_x" else "years", svg_text)
         overview_text = (self.root / "result" / "regressiontrees_alle_normen.svg").read_text(encoding="utf-8")
-        self.assertIn("Std.-Abw.:", overview_text)
+        self.assertIn("Std. dev.:", overview_text)
         for path, content in originals.items():
             self.assertEqual(path.read_bytes(), content)
         with self.assertRaises(FileExistsError):

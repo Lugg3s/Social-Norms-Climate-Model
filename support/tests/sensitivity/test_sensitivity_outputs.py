@@ -41,7 +41,7 @@ class SensitivityOutputTests(unittest.TestCase):
         self.assertEqual(outputs["first_time_x95"], 0)
         self.assertFalse(outputs["bool_x95"])
         self.assertAlmostEqual(outputs["x_mean"], 0.35)
-        self.assertEqual(set(outputs), set(sensitivity.SENSITIVITY_OUTPUTS))
+        self.assertEqual(set(outputs), set(sensitivity.SENSITIVITY_OUTPUTS) | {"first_time_x95"})
 
     def test_crossing_at_horizon_keeps_actual_time(self):
         metrics = self.metrics([0, 1200], [0.3, 0.95])

@@ -29,7 +29,7 @@ class RegressionTreeOverviewTests(unittest.TestCase):
                     '<g id="figure_1"><g id="axes_1" clip-path="url(#clip)">'
                     '<use xlink:href="#shared_path"/>'
                     f'<text id="text_1" x="400" y="200">temperature_factor ≤ {index}?</text>'
-                    '<text x="400" y="250">final_x: 55,2 %</text></g>'
+                    '<text x="400" y="250">final_x: 55.2 %</text></g>'
                     '<text x="400" y="30">Repeated original heading</text></g></svg>', encoding="utf-8")
 
     @staticmethod
@@ -57,11 +57,11 @@ class RegressionTreeOverviewTests(unittest.TestCase):
                             == ["final_x", "median_period"] for section in sections))
         self.assertEqual(sum(node.get("data-tree-panel") is not None for node in svg.iter()), 2)
         text = " ".join(svg.itertext())
-        self.assertIn("Kein Tree: zu wenig gültige Daten", text)
-        self.assertIn("Kein Tree: Zielwert im Training konstant", text)
+        self.assertIn("No tree: insufficient eligible data", text)
+        self.assertIn("No tree: constant training target", text)
         self.assertIn("temperature_factor ≤ 0?", text)
         self.assertIn("temperature_factor ≤ 2?", text)
-        self.assertIn("final_x: 55,2 %", text)
+        self.assertIn("final_x: 55.2 %", text)
         self.assertNotIn("Repeated original heading", text)
         ids = [node.get("id") for node in svg.iter() if node.get("id")]
         self.assertEqual(len(ids), len(set(ids)))
@@ -81,9 +81,17 @@ class RegressionTreeOverviewTests(unittest.TestCase):
                              "status": "unavailable", "reason": "Missing columns"}])
         path = create_regression_tree_overview(self.root, self.root / "export" / "overview.svg")
         text = " ".join(ET.parse(path).getroot().itertext())
-        self.assertIn("0 Trees", text)
-        self.assertIn("Kein Tree: Zielvariable nicht verfügbar", text)
+        self.assertIn("0 trees", text)
+        self.assertIn("No tree: target unavailable", text)
         self.assertIn("Missing columns", text)
+
+    def test_peak_temperature_uses_degrees_celsius_for_target_and_mae(self):
+        report = {**self.fitted("Norm_A"), "target": "max_temperature"}
+        self.write_results([report])
+        path = create_regression_tree_overview(self.root)
+        text = " ".join(ET.parse(path).getroot().itertext())
+        self.assertIn("Peak temperature anomaly", text)
+        self.assertIn("0.1 °C", text)
 
     def test_missing_fitted_svg_is_not_silently_omitted(self):
         self.write_results([self.fitted("Norm_A")])

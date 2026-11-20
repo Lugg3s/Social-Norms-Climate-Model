@@ -21,6 +21,7 @@ OUTPUT_LABELS = {
     "final_x": "Final mitigation share (x)",
     "x_mean": "Time-averaged mitigation share (x)",
     "final_temperature": "Final temperature",
+    "max_temperature": "Peak temperature anomaly (°C)",
     "cumulative_emissions": "Cumulative emissions",
     "time_to_elimination_censored": "First threshold time (replacement for non-reaching runs)",
     "threshold_reached": "Mitigation threshold ever reached (0/1)",
@@ -65,11 +66,13 @@ def _simulation_time_label(run_root: Path) -> str:
 
 def _output_label(output_name: str, time_label: str) -> str:
     label = OUTPUT_LABELS.get(output_name, output_name)
-    if not time_label or output_name not in {"final_x", "final_temperature"}:
+    if not time_label or output_name not in {"final_x", "final_temperature", "max_temperature"}:
         return label
     elapsed_label = time_label.removeprefix("t = ")
     if output_name == "final_x":
         return f"Mitigation share after {elapsed_label}"
+    if output_name == "max_temperature":
+        return f"Peak temperature anomaly over {elapsed_label} (°C)"
     return f"Temperature anomaly after {elapsed_label}"
 
 
@@ -390,12 +393,13 @@ def _scenario_ranking_barplots(scenario_dir, metadata, values, limits, colors) -
                 ha="center", fontsize=12)
     footer = "Source: parameter_ranking.csv. Shared axis limits per metric across norms."
     offset = metadata.get("elimination_censor_offset")
-    if horizon is not None and offset is not None:
+    has_timing_output = bool({"first_time_x95", "time_to_elimination_censored"} & set(output_names))
+    if has_timing_output and horizon is not None and offset is not None:
         replacement = f"{horizon + offset:g}"
         footer += f" Threshold time: replacement {replacement} if never reached."
-    elif horizon is not None and metadata.get("elimination_time_definition", {}).get("method") == "right_censored_at_horizon":
+    elif has_timing_output and horizon is not None and metadata.get("elimination_time_definition", {}).get("method") == "right_censored_at_horizon":
         footer += f" Threshold time: censored at {horizon:g} years; occurrence evaluated separately."
-    elif metadata.get("elimination_time_definition", {}).get("method") == "zero_if_not_reached":
+    elif has_timing_output and metadata.get("elimination_time_definition", {}).get("method") == "zero_if_not_reached":
         footer += " Threshold time: 0 = never reached; otherwise first reach."
     figure.text(0.027, 0.044, footer, fontsize=10, color="#526579")
     figure.text(0.027, 0.022, quality_note, fontsize=10, color="#526579")

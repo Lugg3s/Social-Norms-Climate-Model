@@ -180,7 +180,7 @@ class TrajectoryClassificationTests(unittest.TestCase):
         metrics = _base_metrics(self.t, np.zeros_like(self.t), np.full_like(self.t, .3),
                                 np.zeros_like(self.t), {'epsilon_max': 7, 's': 50})
         prepared = sensitivity._prepare_sensitivity_outputs(metrics, 617)
-        self.assertEqual(set(prepared), set(sensitivity.SENSITIVITY_OUTPUTS))
+        self.assertEqual(set(prepared), set(sensitivity.SENSITIVITY_OUTPUTS) | {'first_time_x95'})
         self.assertNotIn('behaviour_class', prepared)
         rows = pd.DataFrame([{**metrics, **prepared, 'status': 'completed'}] * 6)
         before, info = sensitivity.complete_sobol_blocks({'num_vars': 1}, rows)

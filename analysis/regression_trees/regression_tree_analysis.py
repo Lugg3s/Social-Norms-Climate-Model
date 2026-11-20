@@ -27,30 +27,33 @@ from sklearn.model_selection import GridSearchCV, GroupKFold, GroupShuffleSplit
 from sklearn.tree import DecisionTreeRegressor, export_text, plot_tree
 
 from analysis.regression_trees.regression_tree_plots import create_regression_tree_overview
+from analysis.sensitivity.sensitivity_analysis import SENSITIVITY_OUTPUTS
 from utils.paths import PLOTS_DIR
 
 
-SENSITIVITY_TARGETS = ("x_mean", "final_temperature", "cumulative_emissions", "first_time_x95",
-                       "bool_x95", "oscillation_occurrence", "oscillations_per_500_years")
+# Keep the default tree selection aligned with the active Sobol targets.
+SENSITIVITY_TARGETS = tuple(SENSITIVITY_OUTPUTS)
 CONDITIONAL_TARGETS = ("median_period", "oscillation_amplitude", "damping_index", "damping_rate")
 TARGETS = SENSITIVITY_TARGETS + ("final_x", *CONDITIONAL_TARGETS)
+ALL_TARGETS = TARGETS + ("first_time_x95",)  # Explicit selection for existing saved analyses.
 BOOLEAN_TARGETS = {"bool_x95", "oscillation_occurrence"}
 PERCENT_TARGETS = {"final_x", "x_mean", "oscillation_amplitude", *BOOLEAN_TARGETS}
 ANALYSIS_MODES = ("per_norm", "pooled_common", "per_norm_common")
 AGENT_SCENARIO = "Observation-based / intention motivation (agents)"
 TARGET_LABELS = {
-    "x_mean": "Zeitmittel des Mitigationsanteils x (0–1)",
-    "final_temperature": "Endtemperatur (°C)",
-    "cumulative_emissions": "Kumulierte Emissionen (GtC)",
-    "first_time_x95": "Erste Erreichung von x ≥ 95 % (Jahre; 0 = nie)",
-    "bool_x95": "x ≥ 95 % jemals erreicht (0/1)",
-    "oscillation_occurrence": "Oszillation erkannt (mindestens 2 Zyklen; 0/1)",
-    "oscillations_per_500_years": "Oszillationen pro 500 Jahre",
-    "final_x": "Finaler Mitigationsanteil x (0–1)",
-    "median_period": "Mediane Periodendauer (Jahre)",
-    "oscillation_amplitude": "Gespeicherte Oszillationsamplitude (0–1)",
-    "damping_index": "Dämpfungsindex (dimensionslos)",
-    "damping_rate": "Dämpfungsrate (1/Jahr)",
+    "x_mean": "Time-averaged mitigation share x (0–1)",
+    "final_temperature": "Final temperature anomaly (°C)",
+    "max_temperature": "Peak temperature anomaly (°C)",
+    "cumulative_emissions": "Cumulative emissions (GtC)",
+    "first_time_x95": "First time x ≥ 95% (years; 0 = never)",
+    "bool_x95": "x ≥ 95% reached at least once (0/1)",
+    "oscillation_occurrence": "Oscillation detected (at least 2 cycles; 0/1)",
+    "oscillations_per_500_years": "Oscillations per 500 years",
+    "final_x": "Final mitigation share x (0–1)",
+    "median_period": "Median period (years)",
+    "oscillation_amplitude": "Saved oscillation amplitude (0–1)",
+    "damping_index": "Damping index (dimensionless)",
+    "damping_rate": "Damping rate (1/year)",
 }
 
 
@@ -148,7 +151,7 @@ def load_scenario(directory: Path) -> SavedScenario:
 
 
 def eligible_target(data: pd.DataFrame, target: str) -> tuple[np.ndarray, dict]:
-    if target not in TARGETS:
+    if target not in ALL_TARGETS:
         raise ValueError(f"Unknown regression target: {target}")
     required = {target, "status"}
     if target in CONDITIONAL_TARGETS:
@@ -229,7 +232,7 @@ def fit_target(scenario: SavedScenario, target: str, config: TreeConfig,
         if any(not d or d.get("method") != "zero_below_minimum_otherwise_scaled_complete_cycle_count"
                for d in definitions.values()):
             report["saved_definition_note"] = (
-                "Gespeicherte ältere Rate: einzelne Zyklen können mitzählen; Werte unverändert übernommen.")
+                "Legacy saved rate: individual cycles may count; saved values are unchanged.")
     train = split[0][mask[split[0]]]
     test = split[1][mask[split[1]]]
     train_groups = data.iloc[train].sobol_block.to_numpy()
@@ -312,35 +315,35 @@ def _write_json(path: Path, data) -> None:
 
 def _leaf_prediction(target: str, value: float) -> str:
     if target in BOOLEAN_TARGETS:
-        return f"{target}: {100 * value:.1f} %\nAnteil der Läufe mit Wert 1".replace(".", ",")
+        return f"{target}: {100 * value:.1f} %\nShare of runs with value 1"
     if target in {"final_x", "x_mean"}:
-        return f"{target}: {100 * value:.1f} %".replace(".", ",")
+        return f"{target}: {100 * value:.1f} %"
     if target == "oscillation_amplitude":
-        return f"oscillation_amplitude\n{100 * value:.1f} Prozentpunkte".replace(".", ",")
+        return f"oscillation_amplitude\n{100 * value:.1f} percentage points"
     if target in {"median_period", "first_time_x95"}:
-        return f"{target}: {value:.1f} Jahre".replace(".", ",")
-    units = {"final_temperature": " °C", "cumulative_emissions": " GtC",
-             "damping_index": "", "damping_rate": " / Jahr",
-             "oscillations_per_500_years": " / 500 Jahre"}
-    return f"{target}: {value:.3g}{units[target]}".replace(".", ",")
+        return f"{target}: {value:.1f} years"
+    units = {"final_temperature": " °C", "max_temperature": " °C", "cumulative_emissions": " GtC",
+             "damping_index": "", "damping_rate": " / year",
+             "oscillations_per_500_years": " / 500 years"}
+    return f"{target}: {value:.3g}{units[target]}"
 
 
 def _leaf_spread(target: str, standard_deviation: float) -> str:
     if target in PERCENT_TARGETS:
-        value = f"{100 * standard_deviation:.1f} Prozentpunkte"
+        value = f"{100 * standard_deviation:.1f} percentage points"
     elif target in {"median_period", "first_time_x95"}:
-        value = f"{standard_deviation:.1f} Jahre"
+        value = f"{standard_deviation:.1f} years"
     elif target == "damping_rate":
-        value = f"{standard_deviation:.3g} / Jahr"
-    elif target == "final_temperature":
+        value = f"{standard_deviation:.3g} / year"
+    elif target in {"final_temperature", "max_temperature"}:
         value = f"{standard_deviation:.3g} °C"
     elif target == "cumulative_emissions":
         value = f"{standard_deviation:.3g} GtC"
     elif target == "oscillations_per_500_years":
-        value = f"{standard_deviation:.3g} / 500 Jahre"
+        value = f"{standard_deviation:.3g} / 500 years"
     else:
         value = f"{standard_deviation:.3g}"
-    return "Std.-Abw.: " + value.replace(".", ",")
+    return "Std. dev.: " + value
 
 
 def _leaf_standard_deviations(scenario: SavedScenario, target: str,
@@ -392,9 +395,9 @@ def render_tree(directory: Path, scenario: SavedScenario, target: str,
                 caption = _leaf_prediction(target, float(tree.value[node, 0, 0]))
                 caption += "\n" + _leaf_spread(target, standard_deviations[node])
             else:
-                threshold = f"{tree.threshold[node]:.3f}".replace(".", ",")
+                threshold = f"{tree.threshold[node]:.3f}"
                 caption = f"{labels[tree.feature[node]]} ≤ {threshold}?"
-            artist.set_text(caption + f"\n{count} Trainingsläufe")
+            artist.set_text(caption + f"\n{count} training runs")
             artist.set_color("#183344")
             artist.set_fontsize(13)
             bbox = artist.get_bbox_patch()
@@ -408,8 +411,8 @@ def render_tree(directory: Path, scenario: SavedScenario, target: str,
         for node in order:
             if tree.children_left[node] < 0:
                 continue
-            for child, answer in [(tree.children_left[node], "Ja"),
-                                  (tree.children_right[node], "Nein")]:
+            for child, answer in [(tree.children_left[node], "Yes"),
+                                  (tree.children_right[node], "No")]:
                 parent_x, parent_y = positions[node]
                 child_x, child_y = positions[child]
                 ax.text((parent_x + child_x) / 2, (parent_y + child_y) / 2,
@@ -417,19 +420,19 @@ def render_tree(directory: Path, scenario: SavedScenario, target: str,
                         fontsize=12, color="#183344",
                         bbox={"facecolor": "white", "edgecolor": "none", "pad": 2})
         display_target = f"{target} ({TARGET_LABELS[target].replace(' (0–1)', '')})"
-        scope = " · gemeinsame Parameter" if report.get("analysis_mode") == "per_norm_common" else ""
+        scope = " · common parameters" if report.get("analysis_mode") == "per_norm_common" else ""
         if report.get("analysis_variant_label"):
             scope += " · " + report["analysis_variant_label"]
         fig.suptitle(f"{report['scenario']}{scope}\n{display_target}",
                      fontsize=17, fontweight="bold", y=0.98, color="#183344")
-        fig.text(0.5, 0.90, "Bedingung prüfen → Ja oder Nein folgen → Zielwert am Blatt ablesen",
+        fig.text(0.5, 0.90, "Check the condition → follow Yes or No → read the target at the leaf",
                  ha="center", fontsize=11, color="#526579")
-        note = ("Zielwert = Mittelwert der Trainingsläufe im jeweiligen Blatt.\n"
-                "Std.-Abw. = Streuung dieser Zielwerte (kein Konfidenzintervall).")
+        note = ("Target value = mean of the training runs in each leaf.\n"
+                "Std. dev. = spread of these target values (not a confidence interval).")
         if report.get("analysis_mode") == "pooled_common":
-            note += "\nJeder gültige Lauf zählt gleich; Normen tragen entsprechend ihrer Fallzahl bei."
+            note += "\nEach eligible run has equal weight; norm contributions depend on their sample counts."
         if target == "first_time_x95":
-            note += "\nMittelwert einschließlich 0 (= nie erreicht); keine reine Wartezeit erfolgreicher Läufe."
+            note += "\nMean includes 0 (= never reached); not a waiting time conditional on reaching the threshold."
         if report.get("saved_definition_note"):
             note += "\n" + report["saved_definition_note"]
         fig.text(0.04, 0.025, note, fontsize=10, color="#526579", va="bottom")
@@ -454,8 +457,8 @@ def _export_tree(directory: Path, scenario: SavedScenario, target: str, report: 
         if hi == lo:
             lo, hi = lo - 0.01, hi + 0.01
         ax.plot([lo, hi], [lo, hi], "--", color="#68727e")
-        ax.set(xlabel="Simulierter Zielwert", ylabel="Vorhergesagter Zielwert",
-               title=f"Testblöcke: {target}\nMAE = {report['test_metrics']['mae']:.4g}")
+        ax.set(xlabel="Simulated target value", ylabel="Predicted target value",
+               title=f"Test blocks: {target}\nMAE = {report['test_metrics']['mae']:.4g}")
         ax.grid(alpha=0.2)
         fig.tight_layout()
         for extension in ("svg", "png"):
@@ -505,7 +508,7 @@ def common_parameter_scenarios(scenarios: list[SavedScenario]) -> tuple[list[str
         frames.append(frame)
     pooled = SavedScenario(
         directory=Path("all_norms"),
-        metadata={"scenario": "Alle Normen (gemeinsame Parameter)", "analysis_mode": "pooled_common",
+        metadata={"scenario": "All norms (common parameters)", "analysis_mode": "pooled_common",
                   "source_norms": norms, "simulation_time": scenarios[0].metadata["simulation_time"],
                   "source_rate_definitions": {s.metadata["scenario"]:
                       s.metadata.get("oscillations_per_500_years_definition") for s in scenarios}},
@@ -574,7 +577,7 @@ def run_analysis(input_root: Path, output_dir: Path, targets=TARGETS,
                  analysis_modes=None) -> list[dict]:
     config = config or TreeConfig()
     targets = tuple(targets)
-    if not targets or set(targets) - set(TARGETS):
+    if not targets or set(targets) - set(ALL_TARGETS):
         raise ValueError("Choose at least one supported regression target")
     scenarios = [load_scenario(path) for path in scenario_directories(input_root, scenario_names)]
     # Keep the single-norm entry point useful; common comparisons need multiple norms.
@@ -590,12 +593,12 @@ def run_analysis(input_root: Path, output_dir: Path, targets=TARGETS,
         common_names, restricted, pooled = common_parameter_scenarios(scenarios)
         has_agents = any(s.metadata["scenario"] == AGENT_SCENARIO for s in scenarios)
         common_variants.append(("with_agents" if has_agents else "selected_norms",
-                                "mit Agentennorm" if has_agents else "", scenarios,
+                                "with agent norm" if has_agents else "", scenarios,
                                 common_names, restricted, pooled, Path("_common_parametes")))
         without_agents = [s for s in scenarios if s.metadata["scenario"] != AGENT_SCENARIO]
         if has_agents and len(without_agents) >= 2:
             names, restricted_ode, pooled_ode = common_parameter_scenarios(without_agents)
-            common_variants.append(("without_agents", "ohne Agentennorm", without_agents,
+            common_variants.append(("without_agents", "without agent norm", without_agents,
                                     names, restricted_ode, pooled_ode,
                                     Path("_common_parametes/without_agents")))
     output_dir = Path(output_dir)
@@ -639,7 +642,7 @@ def main() -> None:
     parser.add_argument("--input-root", required=True, type=Path, help="Saved run root or a single scenario folder")
     parser.add_argument("--output-root", type=Path, default=PLOTS_DIR / "regression_tree_results")
     parser.add_argument("--scenarios", nargs="+")
-    parser.add_argument("--targets", nargs="+", choices=TARGETS, default=list(TARGETS))
+    parser.add_argument("--targets", nargs="+", choices=ALL_TARGETS, default=list(TARGETS))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test-fraction", type=float, default=0.25)
     parser.add_argument("--max-depths", nargs="+", type=int, default=[2, 3, 4])

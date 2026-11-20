@@ -71,7 +71,12 @@ class RankingBarplotTests(unittest.TestCase):
         ranking = pd.read_csv(folder / "parameter_ranking.csv", sep=";")
         for value in ranking[sensitivity.SENSITIVITY_OUTPUTS].to_numpy().ravel():
             self.assertIn(f"{value:.3f}", texts)
-        self.assertTrue(any("0 = never reached" in (text or "") for text in texts))
+        self.assertNotIn(plots.RANKING_LABELS["first_time_x95"], texts)
+        self.assertFalse(any("Threshold time:" in (text or "") for text in texts))
+        group_svg = ET.parse(folder / "ranking_balken_gruppen_gesamt.svg").getroot()
+        group_texts = [element.text or "" for element in group_svg.findall(".//s:text", ns)]
+        self.assertTrue(any("Mitigation = mean of 2 ST values; Climate = mean of 3; Dynamics = mean of 2."
+                            in text for text in group_texts))
         pixels = plt.imread(folder / "ranking_balken_zielvariablen.png")
         self.assertEqual(pixels.shape[1], 4500)
         self.assertEqual(pixels.shape[0], 1035 * ((len(sensitivity.SENSITIVITY_OUTPUTS) + 4) // 4))
@@ -121,14 +126,18 @@ class RankingBarplotTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), content)
 
     def test_horizon_censored_charts_keep_original_definition(self):
-        folder = self.write_norm("capped")
+        old_outputs = ["x_mean", "final_temperature", "cumulative_emissions",
+                       "time_to_elimination_censored", "threshold_reached",
+                       "oscillation_occurrence", "oscillations_per_500_years"]
+        old_groups = {"mitigation": ["x_mean", "time_to_elimination_censored", "threshold_reached"],
+                      "climate": ["final_temperature", "cumulative_emissions"],
+                      "dynamics": ["oscillation_occurrence", "oscillations_per_500_years"]}
+        with patch.object(sensitivity, "SENSITIVITY_OUTPUTS", old_outputs), \
+             patch.object(sensitivity, "OUTPUT_GROUPS", old_groups):
+            folder = self.write_norm("capped")
         metadata_path = folder / "metadata.json"
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         metadata["elimination_time_definition"] = {"method": "right_censored_at_horizon"}
-        ranking_path = folder / "parameter_ranking.csv"
-        ranking = pd.read_csv(ranking_path, sep=";").rename(columns={"first_time_x95": "time_to_elimination_censored", "bool_x95": "threshold_reached"})
-        ranking.to_csv(ranking_path, sep=";", index=False)
-        metadata["outputs_for_ranking"] = ["time_to_elimination_censored" if name == "first_time_x95" else "threshold_reached" if name == "bool_x95" else name for name in metadata["outputs_for_ranking"]]
         metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
         captured = {}
 
@@ -143,7 +152,32 @@ class RankingBarplotTests(unittest.TestCase):
             plots.create_parameter_ranking_barplots(self.root)
         titles, texts = captured[plots.RANKING_PLOT_STEMS[1]]
         self.assertIn("First threshold time (censored at T)", titles)
+        self.assertNotIn(plots.RANKING_LABELS["max_temperature"], titles)
         self.assertTrue(any("censored at 80 years" in text for text in texts))
+
+    def test_peak_distribution_uses_saved_peaks_and_full_horizon_label(self):
+        folder = self.write_norm("baseline")
+        pd.DataFrame({"status": ["completed", "completed", "failed"],
+                      "max_temperature": [4.5, 3.0, 99.0],
+                      "final_temperature": [1.5, 2.0, 99.0],
+                      "first_time_x95": [200.0, 0.0, 0.0]}).to_csv(
+            folder / "simulation_outputs.csv", sep=";", index=False)
+        captured = []
+
+        def capture(values, output_name, path, time_label):
+            captured.append((values, output_name, path, time_label))
+
+        with patch.object(plots, "_plot_one_output", side_effect=capture):
+            paths = plots.create_goal_variable_violin_boxplots(
+                self.root, ["max_temperature", "final_temperature"])
+        self.assertEqual([path.name for path in paths],
+                         ["violin_boxplot_max_temperature.png", "violin_boxplot_final_temperature.png"])
+        np.testing.assert_array_equal(captured[0][0][0][1], [4.5, 3.0])
+        np.testing.assert_array_equal(captured[1][0][0][1], [1.5, 2.0])
+        self.assertEqual(plots._output_label(captured[0][1], captured[0][3]),
+                         "Peak temperature anomaly over 80 years (°C)")
+        self.assertEqual(plots._output_label(captured[1][1], captured[1][3]),
+                         "Temperature anomaly after 80 years")
 
     def test_append_refreshes_old_and_new_norms_with_shared_limits_and_metadata(self):
         old = self.write_norm("old")

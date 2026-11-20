@@ -59,6 +59,8 @@ class SensitivityPipelineTests(unittest.TestCase):
             self.assertEqual(len(result_dirs), 1)
             self.assertTrue((result_dirs[0] / "summary.csv").exists())
             self.assertTrue((result_dirs[0] / "demo" / "final_x" / "tree.svg").exists())
+            self.assertTrue((result_dirs[0] / "demo" / "max_temperature" / "tree.svg").exists())
+            self.assertFalse((result_dirs[0] / "demo" / "first_time_x95").exists())
             for path, content in originals.items():
                 self.assertEqual(path.read_bytes(), content)
 
