@@ -1,0 +1,18 @@
+{
+  "input_root": "E:\\Masterarbeit\\Sensitivity\\job-3311884_samplsize2048\\job-3311884\\2026-11-19_04-50-55",
+  "sizes": [
+    256,
+    512,
+    1024,
+    2048
+  ],
+  "num_resamples": 500,
+  "seed": 42,
+  "change_tolerance": 0.03,
+  "ci_tolerance": 0.05,
+  "interpretation": "Nested prefixes of one scramble are dependent, not independent replications. Bootstrap 95% half-widths are diagnostic approximations; constant outputs are uninformative. Failure-filtered designs are not analysed. This does not test solver, horizon or ABM seed convergence.",
+  "sources": [
+    "https://salib.readthedocs.io/en/latest/_modules/SALib/analyze/sobol.html",
+    "https://docs.scipy.org/doc/scipy/reference/stats.qmc.html"
+  ]
+}

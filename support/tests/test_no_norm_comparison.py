@@ -40,8 +40,8 @@ class NoNormComparisonTests(unittest.TestCase):
         base = {"status": "completed", P + "status": "Available"}
         for left, right, label, binary in [
             (230, 240, "Earlier", True), (240, 230, "Later", False),
-            (230, 230.000001, "Equal", None), (230, None, "Only with norm reached", None),
-            (None, 230, "Only without norm reached", None), (None, None, "Neither reached", None),
+            (230, 230.000001, "Equal", None), (230, None, "Reached with norm; not reached in reference", None),
+            (None, 230, "Not reached with norm; reached in reference", None), (None, None, "Neither reached", None),
         ]:
             with self.subTest(label=label):
                 actual = {**base, P + "first_x1": left}

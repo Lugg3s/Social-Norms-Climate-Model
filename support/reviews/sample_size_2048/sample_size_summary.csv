@@ -1,0 +1,281 @@
+scenario;output;base_sample_size;status;failed_rows;AB_nonzero_count;AB_count;previous_size;max_ST_change;max_S1_change;max_ST_95_halfwidth;max_S1_95_halfwidth;top3_ST_set_unchanged;precision_check
+baseline;x_mean;256;estimated;0;512;512;;;;0.13909200901816532;0.14769680556964643;;Not assessable
+baseline;x_mean;512;estimated;0;1024;1024;256.0;0.019270639338576923;0.03487717732447737;0.09730054836678313;0.11633863481601944;True;Needs more precision
+baseline;x_mean;1024;estimated;0;2048;2048;512.0;0.02160196233719036;0.05938812777295821;0.0663237714159874;0.07850089743429696;True;Needs more precision
+baseline;x_mean;2048;estimated;0;4096;4096;1024.0;0.014276532663207053;0.005899133340278362;0.04675451211056331;0.05085152475281858;True;Needs more precision
+baseline;final_temperature;256;estimated;0;512;512;;;;0.14075139682603005;0.1507626744935872;;Not assessable
+baseline;final_temperature;512;estimated;0;1024;1024;256.0;0.02193562219398043;0.03519648370809181;0.09814974153467662;0.11854816156716305;True;Needs more precision
+baseline;final_temperature;1024;estimated;0;2048;2048;512.0;0.022928784822116466;0.0659195682364434;0.06710902416745707;0.07989274583030226;True;Needs more precision
+baseline;final_temperature;2048;estimated;0;4096;4096;1024.0;0.01517008359064101;0.00888220595914957;0.04701320551987712;0.051365078282910245;True;Needs more precision
+baseline;cumulative_emissions;256;estimated;0;512;512;;;;0.13984367416087093;0.1488805517751127;;Not assessable
+baseline;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.019894162056546066;0.036043821559560874;0.0976397994998995;0.11711512938063147;True;Needs more precision
+baseline;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.021938256297277525;0.061688247403498764;0.06661851651259347;0.07902336650163663;True;Needs more precision
+baseline;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.014561061082425025;0.006472039123528561;0.04693569671718274;0.05105973351644185;True;Needs more precision
+baseline;first_time_x95;256;estimated;0;394;512;;;;0.17364963559694138;0.198964184900241;;Not assessable
+baseline;first_time_x95;512;estimated;0;784;1024;256.0;0.05666410561750351;0.04354953979367124;0.10869867222158758;0.14431773996624242;True;Needs more precision
+baseline;first_time_x95;1024;estimated;0;1575;2048;512.0;0.04912843506380371;0.05968299917546749;0.0779775176128734;0.09643469064094658;True;Needs more precision
+baseline;first_time_x95;2048;estimated;0;3164;4096;1024.0;0.0190574007848201;0.02368862471345342;0.06028846545232287;0.06702785808634158;True;Needs more precision
+baseline;bool_x95;256;estimated;0;394;512;;;;0.1447582131265397;0.16707169355954782;;Not assessable
+baseline;bool_x95;512;estimated;0;784;1024;256.0;0.036042540564363124;0.02435984036850853;0.09804430388475945;0.13006360294710828;True;Needs more precision
+baseline;bool_x95;1024;estimated;0;1575;2048;512.0;0.02337643161563452;0.07592000530538756;0.06872497251775908;0.08685326026499689;True;Needs more precision
+baseline;bool_x95;2048;estimated;0;3164;4096;1024.0;0.012067944139097342;0.013262094377457505;0.04844176433118775;0.057231869685853594;True;Needs more precision
+baseline;oscillation_occurrence;256;constant;0;0;512;;;;;;;Not assessable
+baseline;oscillation_occurrence;512;constant;0;0;1024;;;;;;;Not assessable
+baseline;oscillation_occurrence;1024;constant;0;0;2048;;;;;;;Not assessable
+baseline;oscillation_occurrence;2048;constant;0;0;4096;;;;;;;Not assessable
+baseline;oscillations_per_500_years;256;constant;0;0;512;;;;;;;Not assessable
+baseline;oscillations_per_500_years;512;constant;0;0;1024;;;;;;;Not assessable
+baseline;oscillations_per_500_years;1024;constant;0;0;2048;;;;;;;Not assessable
+baseline;oscillations_per_500_years;2048;constant;0;0;4096;;;;;;;Not assessable
+Belief-based / intention motivation;x_mean;256;estimated;0;512;512;;;;0.1514263947199673;0.16499470470979336;;Not assessable
+Belief-based / intention motivation;x_mean;512;estimated;0;1024;1024;256.0;0.05927081026375555;0.054270215892796125;0.10829390802185312;0.1240031906905503;True;Needs more precision
+Belief-based / intention motivation;x_mean;1024;estimated;0;2048;2048;512.0;0.03535713084474579;0.015037395672304221;0.07496088601473277;0.0888897824343342;True;Needs more precision
+Belief-based / intention motivation;x_mean;2048;estimated;0;4096;4096;1024.0;0.0052782755727551756;0.007741414438862337;0.05363736272379579;0.06264724180045193;True;Needs more precision
+Belief-based / intention motivation;final_temperature;256;estimated;0;512;512;;;;0.14943770292536085;0.15666680691504734;;Not assessable
+Belief-based / intention motivation;final_temperature;512;estimated;0;1024;1024;256.0;0.06228185757479532;0.05129882622575093;0.10773183071090257;0.11880008264490421;True;Needs more precision
+Belief-based / intention motivation;final_temperature;1024;estimated;0;2048;2048;512.0;0.034641041437383835;0.02207406531357542;0.07328486272501741;0.08626118769032806;True;Needs more precision
+Belief-based / intention motivation;final_temperature;2048;estimated;0;4096;4096;1024.0;0.009362219739556643;0.010371066163452486;0.05209024456666696;0.0609216872191411;True;Needs more precision
+Belief-based / intention motivation;cumulative_emissions;256;estimated;0;512;512;;;;0.1549649305097888;0.1671662794767521;;Not assessable
+Belief-based / intention motivation;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.06093399145481204;0.05482700173546806;0.11097448014919856;0.12535009677433415;True;Needs more precision
+Belief-based / intention motivation;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.03573575528091999;0.016361462291582196;0.07687874811463045;0.09023655385142189;True;Needs more precision
+Belief-based / intention motivation;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.0056087717945702;0.008691366303422404;0.054817517835577395;0.06349233684596084;True;Needs more precision
+Belief-based / intention motivation;first_time_x95;256;estimated;0;444;512;;;;0.22205101153644433;0.20587888478513255;;Not assessable
+Belief-based / intention motivation;first_time_x95;512;estimated;0;888;1024;256.0;0.12323742048072744;0.03765919689435323;0.15384391998175945;0.15860089546922537;True;Needs more precision
+Belief-based / intention motivation;first_time_x95;1024;estimated;0;1786;2048;512.0;0.06769222788521956;0.019210168253205054;0.10969445252605552;0.11548502094543428;True;Needs more precision
+Belief-based / intention motivation;first_time_x95;2048;estimated;0;3572;4096;1024.0;0.060676034920926714;0.05925717706734098;0.07541314947008111;0.08048070671458323;True;Needs more precision
+Belief-based / intention motivation;bool_x95;256;estimated;0;444;512;;;;0.17576247665905273;0.18332966776559653;;Not assessable
+Belief-based / intention motivation;bool_x95;512;estimated;0;888;1024;256.0;0.0847906730259671;0.05859641153758801;0.1261872775213687;0.1393391691055284;True;Needs more precision
+Belief-based / intention motivation;bool_x95;1024;estimated;0;1786;2048;512.0;0.0487179433863994;0.00671099451031526;0.09137183377781231;0.10212447305991273;True;Needs more precision
+Belief-based / intention motivation;bool_x95;2048;estimated;0;3572;4096;1024.0;0.019695169383585565;0.03223423183588338;0.06458166917683439;0.07386964951323347;True;Needs more precision
+Belief-based / intention motivation;oscillation_occurrence;256;constant;0;0;512;;;;;;;Not assessable
+Belief-based / intention motivation;oscillation_occurrence;512;constant;0;0;1024;;;;;;;Not assessable
+Belief-based / intention motivation;oscillation_occurrence;1024;constant;0;0;2048;;;;;;;Not assessable
+Belief-based / intention motivation;oscillation_occurrence;2048;constant;0;0;4096;;;;;;;Not assessable
+Belief-based / intention motivation;oscillations_per_500_years;256;constant;0;0;512;;;;;;;Not assessable
+Belief-based / intention motivation;oscillations_per_500_years;512;constant;0;0;1024;;;;;;;Not assessable
+Belief-based / intention motivation;oscillations_per_500_years;1024;constant;0;0;2048;;;;;;;Not assessable
+Belief-based / intention motivation;oscillations_per_500_years;2048;constant;0;0;4096;;;;;;;Not assessable
+Descriptive, injunctive, dynamic;x_mean;256;estimated;0;512;512;;;;0.12620221530177644;0.11744164034742802;;Not assessable
+Descriptive, injunctive, dynamic;x_mean;512;estimated;0;1024;1024;256.0;0.04674509754423262;0.038772192271179506;0.0853721406666252;0.09013085715709836;True;Needs more precision
+Descriptive, injunctive, dynamic;x_mean;1024;estimated;0;2048;2048;512.0;0.01913893760222679;0.01898235447252499;0.05963238813993612;0.06325044444298587;True;Needs more precision
+Descriptive, injunctive, dynamic;x_mean;2048;estimated;0;4096;4096;1024.0;0.02112146734374762;0.011203261138776864;0.040145617055206174;0.04212970602773198;True;Meets exploratory tolerances
+Descriptive, injunctive, dynamic;final_temperature;256;estimated;0;512;512;;;;0.12401181603817882;0.12311019717902151;;Not assessable
+Descriptive, injunctive, dynamic;final_temperature;512;estimated;0;1024;1024;256.0;0.05055799644507414;0.03825380761027414;0.08624233098390303;0.09527039402800833;True;Needs more precision
+Descriptive, injunctive, dynamic;final_temperature;1024;estimated;0;2048;2048;512.0;0.018273882705084343;0.019034268858561396;0.05756860171066071;0.06706434860249855;True;Needs more precision
+Descriptive, injunctive, dynamic;final_temperature;2048;estimated;0;4096;4096;1024.0;0.02590410139682542;0.020303835365682945;0.04206410374360296;0.04419425554390899;True;Meets exploratory tolerances
+Descriptive, injunctive, dynamic;cumulative_emissions;256;estimated;0;512;512;;;;0.12336709853646403;0.11947163003728575;;Not assessable
+Descriptive, injunctive, dynamic;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.048761983122958846;0.03771526665669431;0.08322300684252304;0.0919371643486564;True;Needs more precision
+Descriptive, injunctive, dynamic;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.018350828666026164;0.01914125451117874;0.0583782758659094;0.06437577830379776;True;Needs more precision
+Descriptive, injunctive, dynamic;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.022919859755164806;0.01252084187865602;0.039302927496420115;0.04289861268306346;True;Meets exploratory tolerances
+Descriptive, injunctive, dynamic;first_time_x95;256;estimated;0;326;512;;;;0.16135687783341646;0.1345356405663219;;Not assessable
+Descriptive, injunctive, dynamic;first_time_x95;512;estimated;0;664;1024;256.0;0.10158663514246874;0.08824618035108253;0.10652245062019848;0.10040251029045447;False;Needs more precision
+Descriptive, injunctive, dynamic;first_time_x95;1024;estimated;0;1325;2048;512.0;0.03872957326536852;0.021835264197260586;0.08020554578514218;0.0709373726021733;True;Needs more precision
+Descriptive, injunctive, dynamic;first_time_x95;2048;estimated;0;2613;4096;1024.0;0.034487694134055336;0.03989963273754742;0.05789992386205908;0.05164007643842719;True;Needs more precision
+Descriptive, injunctive, dynamic;bool_x95;256;estimated;0;326;512;;;;0.1143611697074479;0.131383655127066;;Not assessable
+Descriptive, injunctive, dynamic;bool_x95;512;estimated;0;664;1024;256.0;0.06750230687245345;0.0844737783872117;0.08181006963546333;0.09357419428609384;True;Needs more precision
+Descriptive, injunctive, dynamic;bool_x95;1024;estimated;0;1325;2048;512.0;0.03300911991083927;0.032335024150798954;0.05935162939025509;0.0625322893758982;True;Needs more precision
+Descriptive, injunctive, dynamic;bool_x95;2048;estimated;0;2613;4096;1024.0;0.03517886056571351;0.025197288951175234;0.03964450115549526;0.04578434625886604;True;Needs more precision
+Descriptive, injunctive, dynamic;oscillation_occurrence;256;estimated;0;31;512;;;;0.39977843796842477;0.2109761280008673;;Not assessable
+Descriptive, injunctive, dynamic;oscillation_occurrence;512;estimated;0;62;1024;256.0;0.13734826638052441;0.06562574304509787;0.28802406153634535;0.1485121958780794;True;Needs more precision
+Descriptive, injunctive, dynamic;oscillation_occurrence;1024;estimated;0;143;2048;512.0;0.13334432353990355;0.03157723410800279;0.1657837056065528;0.08571891204429817;True;Needs more precision
+Descriptive, injunctive, dynamic;oscillation_occurrence;2048;estimated;0;307;4096;1024.0;0.0889371877316405;0.05101673424206733;0.1063804934459776;0.05194524858454007;True;Needs more precision
+Descriptive, injunctive, dynamic;oscillations_per_500_years;256;estimated;0;31;512;;;;0.7867407395009358;0.16229420348509058;;Not assessable
+Descriptive, injunctive, dynamic;oscillations_per_500_years;512;estimated;0;62;1024;256.0;0.4180977628183786;0.047597415461410074;0.5899518457306715;0.13500761700235134;False;Needs more precision
+Descriptive, injunctive, dynamic;oscillations_per_500_years;1024;estimated;0;143;2048;512.0;0.35783047999251844;0.030321530225843038;0.8557019320496784;0.0731919287403147;False;Needs more precision
+Descriptive, injunctive, dynamic;oscillations_per_500_years;2048;estimated;0;307;4096;1024.0;0.22493580251876855;0.04273208877452153;0.4266661011925881;0.05196222620443709;False;Needs more precision
+Descriptive, injunctive, dynamic2;x_mean;256;estimated;0;512;512;;;;0.1582619115322425;0.15599811536761343;;Not assessable
+Descriptive, injunctive, dynamic2;x_mean;512;estimated;0;1024;1024;256.0;0.032086887691531785;0.016234423021894484;0.11562436155706327;0.11921211334910277;False;Needs more precision
+Descriptive, injunctive, dynamic2;x_mean;1024;estimated;0;2048;2048;512.0;0.02484354471637923;0.02473874927637057;0.07698359788600129;0.08245275636757804;True;Needs more precision
+Descriptive, injunctive, dynamic2;x_mean;2048;estimated;0;4096;4096;1024.0;0.014044069694046118;0.015885581660173776;0.05570557161460884;0.056565924946101485;True;Needs more precision
+Descriptive, injunctive, dynamic2;final_temperature;256;estimated;0;512;512;;;;0.1534819833263122;0.15064846321532338;;Not assessable
+Descriptive, injunctive, dynamic2;final_temperature;512;estimated;0;1024;1024;256.0;0.034626275958585806;0.01796069855154203;0.11170530194184988;0.11318637454705253;True;Needs more precision
+Descriptive, injunctive, dynamic2;final_temperature;1024;estimated;0;2048;2048;512.0;0.024789504280048336;0.023108599170230282;0.07473630089324396;0.07844152617749112;True;Needs more precision
+Descriptive, injunctive, dynamic2;final_temperature;2048;estimated;0;4096;4096;1024.0;0.00992282299396563;0.01730440732530178;0.05493001555847539;0.05349699571084179;False;Needs more precision
+Descriptive, injunctive, dynamic2;cumulative_emissions;256;estimated;0;512;512;;;;0.162340736894219;0.1584998035924219;;Not assessable
+Descriptive, injunctive, dynamic2;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.03382072072850495;0.015681885187181673;0.11879190548084315;0.12130543861537335;False;Needs more precision
+Descriptive, injunctive, dynamic2;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.024980238967416468;0.025754747537600743;0.07900763613077834;0.0835520409678885;True;Needs more precision
+Descriptive, injunctive, dynamic2;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.014345793436694523;0.016030522483654417;0.05732105946468584;0.057442503116355036;True;Needs more precision
+Descriptive, injunctive, dynamic2;first_time_x95;256;estimated;0;211;512;;;;0.139449692293729;0.14435640985645604;;Not assessable
+Descriptive, injunctive, dynamic2;first_time_x95;512;estimated;0;419;1024;256.0;0.05321279061420847;0.057572995780472785;0.09862296579631359;0.09882382667367731;True;Needs more precision
+Descriptive, injunctive, dynamic2;first_time_x95;1024;estimated;0;827;2048;512.0;0.045223349275881675;0.06390922634168095;0.0610309204190032;0.06236934245972805;True;Needs more precision
+Descriptive, injunctive, dynamic2;first_time_x95;2048;estimated;0;1641;4096;1024.0;0.020978241486766303;0.02533627110742108;0.04452442414645659;0.048451895646985876;True;Meets exploratory tolerances
+Descriptive, injunctive, dynamic2;bool_x95;256;estimated;0;211;512;;;;0.11656558399269834;0.13697108136759162;;Not assessable
+Descriptive, injunctive, dynamic2;bool_x95;512;estimated;0;419;1024;256.0;0.05375345839573509;0.05671100580681525;0.0842272532822691;0.09794207497944861;True;Needs more precision
+Descriptive, injunctive, dynamic2;bool_x95;1024;estimated;0;827;2048;512.0;0.03997964680011756;0.057960958269880125;0.05533033826037647;0.0632345465542554;True;Needs more precision
+Descriptive, injunctive, dynamic2;bool_x95;2048;estimated;0;1641;4096;1024.0;0.026046992339469555;0.024804899598813563;0.03991863575304332;0.04858480454009521;True;Meets exploratory tolerances
+Descriptive, injunctive, dynamic2;oscillation_occurrence;256;estimated;0;69;512;;;;0.17784118322971132;0.17407212789638518;;Not assessable
+Descriptive, injunctive, dynamic2;oscillation_occurrence;512;estimated;0;132;1024;256.0;0.1600570791067708;0.06712720113921708;0.14423673797935527;0.13660262641754184;True;Needs more precision
+Descriptive, injunctive, dynamic2;oscillation_occurrence;1024;estimated;0;260;2048;512.0;0.07590625283465413;0.06852546628406612;0.10914893894302201;0.08183259266250853;True;Needs more precision
+Descriptive, injunctive, dynamic2;oscillation_occurrence;2048;estimated;0;500;4096;1024.0;0.05504651088448165;0.04701675909426506;0.07520331422728933;0.05900768817641033;True;Needs more precision
+Descriptive, injunctive, dynamic2;oscillations_per_500_years;256;estimated;0;69;512;;;;0.7150495876609251;0.13589895903406182;;Not assessable
+Descriptive, injunctive, dynamic2;oscillations_per_500_years;512;estimated;0;132;1024;256.0;2.7393991469911634;0.03259672116571144;8.556035221362986;0.09498983024430119;False;Needs more precision
+Descriptive, injunctive, dynamic2;oscillations_per_500_years;1024;estimated;0;260;2048;512.0;2.164973240874588;0.07254739473846802;2.193180328623956;0.06989995046285519;False;Needs more precision
+Descriptive, injunctive, dynamic2;oscillations_per_500_years;2048;estimated;0;500;4096;1024.0;0.2791033820741132;0.023492679679245544;0.9636326600924618;0.058623765946555176;True;Needs more precision
+Dynamic social norm;x_mean;256;estimated;0;512;512;;;;0.15125963326197367;0.17086341575027184;;Not assessable
+Dynamic social norm;x_mean;512;estimated;0;1024;1024;256.0;0.06362687451291021;0.0674438631427297;0.10593949113548218;0.1261540426725949;True;Needs more precision
+Dynamic social norm;x_mean;1024;estimated;0;2048;2048;512.0;0.01873434527665313;0.03554295778222791;0.07416252048260628;0.0946276559621591;True;Needs more precision
+Dynamic social norm;x_mean;2048;estimated;0;4096;4096;1024.0;0.009361966633033347;0.008177959961665168;0.048852605751329825;0.06117667348256695;True;Needs more precision
+Dynamic social norm;final_temperature;256;estimated;0;512;512;;;;0.1522409380597965;0.1762071516975947;;Not assessable
+Dynamic social norm;final_temperature;512;estimated;0;1024;1024;256.0;0.07269534734974442;0.0631812965292158;0.10833058762314988;0.12836817811102272;True;Needs more precision
+Dynamic social norm;final_temperature;1024;estimated;0;2048;2048;512.0;0.015069842141800183;0.03381845642075029;0.07613226730762336;0.09664640998338189;True;Needs more precision
+Dynamic social norm;final_temperature;2048;estimated;0;4096;4096;1024.0;0.010433008687186995;0.008662209586397207;0.049833780774783926;0.062462059363572346;True;Needs more precision
+Dynamic social norm;cumulative_emissions;256;estimated;0;512;512;;;;0.1524075318427278;0.17345559272669583;;Not assessable
+Dynamic social norm;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.06616421065787947;0.06781245414324447;0.1071747815884785;0.12749675827253062;True;Needs more precision
+Dynamic social norm;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.018016964194218638;0.036406998632180734;0.07510776712335718;0.09576623606121894;True;Needs more precision
+Dynamic social norm;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.009552935703621146;0.008054182181301345;0.04950651274123835;0.06188499622484682;True;Needs more precision
+Dynamic social norm;first_time_x95;256;estimated;0;442;512;;;;0.21578239780009956;0.20045572170297013;;Not assessable
+Dynamic social norm;first_time_x95;512;estimated;0;879;1024;256.0;0.06121504836453784;0.18012738556547336;0.1520255509612145;0.15143914482717444;True;Needs more precision
+Dynamic social norm;first_time_x95;1024;estimated;0;1750;2048;512.0;0.05270600460758337;0.051503820312627936;0.10839565182381049;0.11051276294356399;True;Needs more precision
+Dynamic social norm;first_time_x95;2048;estimated;0;3512;4096;1024.0;0.06238787525648504;0.03900286311815665;0.0725291502617432;0.07884282870954054;True;Needs more precision
+Dynamic social norm;bool_x95;256;estimated;0;442;512;;;;0.15149885465762805;0.19743008481791324;;Not assessable
+Dynamic social norm;bool_x95;512;estimated;0;879;1024;256.0;0.07266621878561036;0.1299251707454604;0.12011627235530475;0.14370384894335284;True;Needs more precision
+Dynamic social norm;bool_x95;1024;estimated;0;1750;2048;512.0;0.013760757551976394;0.057489977569208046;0.08227166954839812;0.10385503929032891;True;Needs more precision
+Dynamic social norm;bool_x95;2048;estimated;0;3512;4096;1024.0;0.04350301577970528;0.021683787528509968;0.05695449090890683;0.07090201607944024;True;Needs more precision
+Dynamic social norm;oscillation_occurrence;256;constant;0;0;512;;;;;;;Not assessable
+Dynamic social norm;oscillation_occurrence;512;constant;0;0;1024;;;;;;;Not assessable
+Dynamic social norm;oscillation_occurrence;1024;constant;0;0;2048;;;;;;;Not assessable
+Dynamic social norm;oscillation_occurrence;2048;constant;0;0;4096;;;;;;;Not assessable
+Dynamic social norm;oscillations_per_500_years;256;constant;0;0;512;;;;;;;Not assessable
+Dynamic social norm;oscillations_per_500_years;512;constant;0;0;1024;;;;;;;Not assessable
+Dynamic social norm;oscillations_per_500_years;1024;constant;0;0;2048;;;;;;;Not assessable
+Dynamic social norm;oscillations_per_500_years;2048;constant;0;0;4096;;;;;;;Not assessable
+dynamic social norm2;x_mean;256;estimated;0;512;512;;;;0.16370001060496783;0.18728138824741683;;Not assessable
+dynamic social norm2;x_mean;512;estimated;0;1024;1024;256.0;0.05254470881189105;0.05502167593330835;0.1252851604273387;0.13681480967184736;True;Needs more precision
+dynamic social norm2;x_mean;1024;estimated;0;2048;2048;512.0;0.012778587370498085;0.03868982689107678;0.08051572572317581;0.10057341766853727;True;Needs more precision
+dynamic social norm2;x_mean;2048;estimated;0;4096;4096;1024.0;0.007455406774971252;0.010342311482826716;0.05601946480769569;0.0673225977576385;True;Needs more precision
+dynamic social norm2;final_temperature;256;estimated;0;512;512;;;;0.16424459233519492;0.1846332323752133;;Not assessable
+dynamic social norm2;final_temperature;512;estimated;0;1024;1024;256.0;0.05197446872533801;0.056300197264924634;0.12528209118022393;0.13559718604849724;True;Needs more precision
+dynamic social norm2;final_temperature;1024;estimated;0;2048;2048;512.0;0.017214032422492365;0.024050791469277272;0.08048212017260477;0.0997421624394205;True;Needs more precision
+dynamic social norm2;final_temperature;2048;estimated;0;4096;4096;1024.0;0.009924635828312933;0.004766505028219958;0.05511138658630299;0.06629228731769997;True;Needs more precision
+dynamic social norm2;cumulative_emissions;256;estimated;0;512;512;;;;0.16619488650015374;0.1902607492653925;;Not assessable
+dynamic social norm2;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.05402186521763608;0.05538522431926962;0.12743386002096596;0.13830518754330062;True;Needs more precision
+dynamic social norm2;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.014049476204514855;0.038743902494268026;0.08189317905694503;0.10190544621385539;True;Needs more precision
+dynamic social norm2;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.007583298508805514;0.010415167003829162;0.0568927055704036;0.06816351470833396;True;Needs more precision
+dynamic social norm2;first_time_x95;256;estimated;0;453;512;;;;0.19926717767383528;0.23261146221327433;;Not assessable
+dynamic social norm2;first_time_x95;512;estimated;0;902;1024;256.0;0.13002033091068105;0.05560893322247329;0.15207128484852805;0.1687831521320619;True;Needs more precision
+dynamic social norm2;first_time_x95;1024;estimated;0;1804;2048;512.0;0.034968504797258215;0.04411985113236755;0.11211060722013007;0.12445287275177541;True;Needs more precision
+dynamic social norm2;first_time_x95;2048;estimated;0;3607;4096;1024.0;0.02664629051783607;0.02081012026881849;0.07179130379178872;0.08411045476580423;True;Needs more precision
+dynamic social norm2;bool_x95;256;estimated;0;453;512;;;;0.18242818093751242;0.21623766714286652;;Not assessable
+dynamic social norm2;bool_x95;512;estimated;0;902;1024;256.0;0.07665135186074284;0.0557346512028285;0.1393383909004441;0.1511338754593743;True;Needs more precision
+dynamic social norm2;bool_x95;1024;estimated;0;1804;2048;512.0;0.032568790665551794;0.03350377020908808;0.0902793108939372;0.11416575113717924;True;Needs more precision
+dynamic social norm2;bool_x95;2048;estimated;0;3607;4096;1024.0;0.019254571169137424;0.017267091095636247;0.06449215944778613;0.07746035420590477;True;Needs more precision
+dynamic social norm2;oscillation_occurrence;256;constant;0;0;512;;;;;;;Not assessable
+dynamic social norm2;oscillation_occurrence;512;constant;0;0;1024;;;;;;;Not assessable
+dynamic social norm2;oscillation_occurrence;1024;constant;0;0;2048;;;;;;;Not assessable
+dynamic social norm2;oscillation_occurrence;2048;constant;0;0;4096;;;;;;;Not assessable
+dynamic social norm2;oscillations_per_500_years;256;constant;0;0;512;;;;;;;Not assessable
+dynamic social norm2;oscillations_per_500_years;512;constant;0;0;1024;;;;;;;Not assessable
+dynamic social norm2;oscillations_per_500_years;1024;constant;0;0;2048;;;;;;;Not assessable
+dynamic social norm2;oscillations_per_500_years;2048;constant;0;0;4096;;;;;;;Not assessable
+No social norm;x_mean;256;estimated;0;512;512;;;;0.16479343250736753;0.18504229118899793;;Not assessable
+No social norm;x_mean;512;estimated;0;1024;1024;256.0;0.05510713755474084;0.05795356148068172;0.12530985503395076;0.13628327050863104;True;Needs more precision
+No social norm;x_mean;1024;estimated;0;2048;2048;512.0;0.006878818363642902;0.0331101500581973;0.08080241658287382;0.1002566231210897;True;Needs more precision
+No social norm;x_mean;2048;estimated;0;4096;4096;1024.0;0.006048827562890158;0.012267378219865122;0.0559600158988304;0.06708027721813264;True;Needs more precision
+No social norm;final_temperature;256;estimated;0;512;512;;;;0.1640622188209897;0.17809724205203212;;Not assessable
+No social norm;final_temperature;512;estimated;0;1024;1024;256.0;0.056178258204064746;0.059662075422691196;0.12396867457740031;0.13375001545469767;True;Needs more precision
+No social norm;final_temperature;1024;estimated;0;2048;2048;512.0;0.004954041935015023;0.012783841725911627;0.08074611394474875;0.0979703631719435;True;Needs more precision
+No social norm;final_temperature;2048;estimated;0;4096;4096;1024.0;0.012645139174265574;0.009783797793380011;0.054429546172681836;0.06538100577293172;True;Needs more precision
+No social norm;cumulative_emissions;256;estimated;0;512;512;;;;0.16728007978827528;0.18778941582064798;;Not assessable
+No social norm;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.056569984318241034;0.05826717332016494;0.12745731637638888;0.137689212397262;True;Needs more precision
+No social norm;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.007625901287306391;0.032867392654382585;0.08220548234191823;0.10154070777244817;True;Needs more precision
+No social norm;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.006046449280792898;0.012494463177669446;0.05685178998834554;0.06789020169353048;True;Needs more precision
+No social norm;first_time_x95;256;estimated;0;452;512;;;;0.19758806206279758;0.2235763423566558;;Not assessable
+No social norm;first_time_x95;512;estimated;0;901;1024;256.0;0.1328174052338485;0.07994192147855828;0.15427214411917073;0.17290284628957206;True;Needs more precision
+No social norm;first_time_x95;1024;estimated;0;1803;2048;512.0;0.036354956064824084;0.032192558568898244;0.11327344205022606;0.12246621505001105;True;Needs more precision
+No social norm;first_time_x95;2048;estimated;0;3606;4096;1024.0;0.027195005047440213;0.019569581700869133;0.07252309302573516;0.08507906640437825;True;Needs more precision
+No social norm;bool_x95;256;estimated;0;452;512;;;;0.1772257131940324;0.21116274347;;Not assessable
+No social norm;bool_x95;512;estimated;0;901;1024;256.0;0.07797084388491932;0.06972772815840678;0.13677169209795598;0.15353745340131425;True;Needs more precision
+No social norm;bool_x95;1024;estimated;0;1803;2048;512.0;0.03359374189815195;0.03324482550389564;0.08917908965282549;0.11326548654441437;True;Needs more precision
+No social norm;bool_x95;2048;estimated;0;3606;4096;1024.0;0.02086318720499858;0.017250161295799524;0.06416844488340125;0.07805076228054103;True;Needs more precision
+No social norm;oscillation_occurrence;256;constant;0;0;512;;;;;;;Not assessable
+No social norm;oscillation_occurrence;512;constant;0;0;1024;;;;;;;Not assessable
+No social norm;oscillation_occurrence;1024;constant;0;0;2048;;;;;;;Not assessable
+No social norm;oscillation_occurrence;2048;constant;0;0;4096;;;;;;;Not assessable
+No social norm;oscillations_per_500_years;256;constant;0;0;512;;;;;;;Not assessable
+No social norm;oscillations_per_500_years;512;constant;0;0;1024;;;;;;;Not assessable
+No social norm;oscillations_per_500_years;1024;constant;0;0;2048;;;;;;;Not assessable
+No social norm;oscillations_per_500_years;2048;constant;0;0;4096;;;;;;;Not assessable
+Observation-based / intention motivation (agents);x_mean;256;estimated;0;512;512;;;;0.14079770935919472;0.22617471927288219;;Not assessable
+Observation-based / intention motivation (agents);x_mean;512;estimated;0;1024;1024;256.0;0.027067079888235895;0.057245893389054156;0.11053743915230202;0.15722216594639657;True;Needs more precision
+Observation-based / intention motivation (agents);x_mean;1024;estimated;0;2048;2048;512.0;0.018379764057786296;0.030445426969603506;0.06964083588412304;0.11376846824283492;True;Needs more precision
+Observation-based / intention motivation (agents);x_mean;2048;estimated;0;4096;4096;1024.0;0.013406051870504254;0.005017642760164254;0.0505925699649954;0.08053152109873032;True;Needs more precision
+Observation-based / intention motivation (agents);final_temperature;256;estimated;0;512;512;;;;0.13540961072651486;0.21599737630735316;;Not assessable
+Observation-based / intention motivation (agents);final_temperature;512;estimated;0;1024;1024;256.0;0.03136181591185272;0.05274247551888306;0.10487188818349655;0.14888842073123745;True;Needs more precision
+Observation-based / intention motivation (agents);final_temperature;1024;estimated;0;2048;2048;512.0;0.014674917378685426;0.03425359355744195;0.06676327596850598;0.10841391174111042;True;Needs more precision
+Observation-based / intention motivation (agents);final_temperature;2048;estimated;0;4096;4096;1024.0;0.014123896261069024;0.005403294473476317;0.04891732852476369;0.07567880275979212;True;Needs more precision
+Observation-based / intention motivation (agents);cumulative_emissions;256;estimated;0;512;512;;;;0.14243747309625973;0.22951459082810322;;Not assessable
+Observation-based / intention motivation (agents);cumulative_emissions;512;estimated;0;1024;1024;256.0;0.027508335088438363;0.05742795435609574;0.11207963980684292;0.15889530425101864;True;Needs more precision
+Observation-based / intention motivation (agents);cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.019219212002491437;0.031074213629740055;0.07054053072478794;0.11524649974222033;True;Needs more precision
+Observation-based / intention motivation (agents);cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.013604934998776907;0.005865058974614201;0.05116211782742052;0.08159354377568667;True;Needs more precision
+Observation-based / intention motivation (agents);first_time_x95;256;estimated;0;227;512;;;;0.11532155756448383;0.1456544804801561;;Not assessable
+Observation-based / intention motivation (agents);first_time_x95;512;estimated;0;456;1024;256.0;0.03874609316126926;0.08476119316486369;0.08981922551880658;0.10980283910749739;False;Needs more precision
+Observation-based / intention motivation (agents);first_time_x95;1024;estimated;0;907;2048;512.0;0.04969719120416305;0.03717731907268185;0.06454602405126027;0.07734712822441671;True;Needs more precision
+Observation-based / intention motivation (agents);first_time_x95;2048;estimated;0;1811;4096;1024.0;0.025137267407658814;0.01709864547253806;0.04667767585942025;0.05335123367690845;True;Needs more precision
+Observation-based / intention motivation (agents);bool_x95;256;estimated;0;227;512;;;;0.11615982274155262;0.141823403305012;;Not assessable
+Observation-based / intention motivation (agents);bool_x95;512;estimated;0;456;1024;256.0;0.0119581699175655;0.06289686492087992;0.08904872337430582;0.10734489194010734;False;Needs more precision
+Observation-based / intention motivation (agents);bool_x95;1024;estimated;0;907;2048;512.0;0.044381342433195026;0.04299169291598587;0.0624033119533247;0.07305374185237148;True;Needs more precision
+Observation-based / intention motivation (agents);bool_x95;2048;estimated;0;1811;4096;1024.0;0.012899391806696164;0.01775798152204075;0.043384194039417096;0.05042292933778035;True;Needs more precision
+Observation-based / intention motivation (agents);oscillation_occurrence;256;estimated;0;113;512;;;;0.13585799978100832;0.17519706958769965;;Not assessable
+Observation-based / intention motivation (agents);oscillation_occurrence;512;estimated;0;220;1024;256.0;0.055665490258709566;0.04670661897476125;0.10663260119267014;0.13005072661363928;False;Needs more precision
+Observation-based / intention motivation (agents);oscillation_occurrence;1024;estimated;0;439;2048;512.0;0.032085113957880315;0.06087134974076852;0.07140610764042767;0.09412332092074506;True;Needs more precision
+Observation-based / intention motivation (agents);oscillation_occurrence;2048;estimated;0;880;4096;1024.0;0.01694613871323536;0.015242250916707056;0.05107487960319146;0.06223488906163412;True;Needs more precision
+Observation-based / intention motivation (agents);oscillations_per_500_years;256;estimated;0;113;512;;;;0.19812768924814442;0.14789622379184053;;Not assessable
+Observation-based / intention motivation (agents);oscillations_per_500_years;512;estimated;0;220;1024;256.0;0.061640900321503544;0.02989042113614851;0.1618092607626038;0.09801761364092974;True;Needs more precision
+Observation-based / intention motivation (agents);oscillations_per_500_years;1024;estimated;0;439;2048;512.0;0.06252661172127472;0.07201028681247165;0.11741943409146322;0.09703118653774177;True;Needs more precision
+Observation-based / intention motivation (agents);oscillations_per_500_years;2048;estimated;0;880;4096;1024.0;0.03237834265943901;0.00863600330201629;0.08487237789712068;0.0664376846340323;True;Needs more precision
+Observation based / approval (punish only one behaviour);x_mean;256;estimated;0;512;512;;;;0.17986851629502196;0.20025091377775414;;Not assessable
+Observation based / approval (punish only one behaviour);x_mean;512;estimated;0;1024;1024;256.0;0.0527670107351329;0.07218711532126709;0.13156489287235507;0.14148296297513852;True;Needs more precision
+Observation based / approval (punish only one behaviour);x_mean;1024;estimated;0;2048;2048;512.0;0.01666176364018529;0.05449289950402461;0.08417759660053448;0.10511180505475662;True;Needs more precision
+Observation based / approval (punish only one behaviour);x_mean;2048;estimated;0;4096;4096;1024.0;0.006821469268937119;0.006304787062678674;0.05806458943673184;0.07072372131778011;True;Needs more precision
+Observation based / approval (punish only one behaviour);final_temperature;256;estimated;0;512;512;;;;0.18869766150844283;0.2078921395436403;;Not assessable
+Observation based / approval (punish only one behaviour);final_temperature;512;estimated;0;1024;1024;256.0;0.05642325189589448;0.07137827471446577;0.14022181577759465;0.14522348026241402;True;Needs more precision
+Observation based / approval (punish only one behaviour);final_temperature;1024;estimated;0;2048;2048;512.0;0.021040449251318816;0.05192214637623466;0.08884392301189148;0.10873985970994743;True;Needs more precision
+Observation based / approval (punish only one behaviour);final_temperature;2048;estimated;0;4096;4096;1024.0;0.0037354237040389295;0.009034444982100598;0.06100877119923111;0.07321043631669734;True;Needs more precision
+Observation based / approval (punish only one behaviour);cumulative_emissions;256;estimated;0;512;512;;;;0.18507184809271793;0.20445608866072779;;Not assessable
+Observation based / approval (punish only one behaviour);cumulative_emissions;512;estimated;0;1024;1024;256.0;0.05539605419012511;0.07377660223975974;0.13604604765262404;0.1435075676083666;True;Needs more precision
+Observation based / approval (punish only one behaviour);cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.017121561482199565;0.05431076799490239;0.08681979668365906;0.10684997636739924;True;Needs more precision
+Observation based / approval (punish only one behaviour);cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.0067408539284368185;0.006086922403538031;0.05981775963738046;0.07190120427194537;True;Needs more precision
+Observation based / approval (punish only one behaviour);first_time_x95;256;estimated;0;457;512;;;;0.2284286609885963;0.21181816356646066;;Not assessable
+Observation based / approval (punish only one behaviour);first_time_x95;512;estimated;0;910;1024;256.0;0.13989573285663504;0.14189552323290977;0.14727773658981438;0.1609765499168406;False;Needs more precision
+Observation based / approval (punish only one behaviour);first_time_x95;1024;estimated;0;1820;2048;512.0;0.02510829740884926;0.03819675992060001;0.10520203985123229;0.12570485669844514;True;Needs more precision
+Observation based / approval (punish only one behaviour);first_time_x95;2048;estimated;0;3638;4096;1024.0;0.0223872670537255;0.02892823946395806;0.0752192142625824;0.08196632994146169;True;Needs more precision
+Observation based / approval (punish only one behaviour);bool_x95;256;estimated;0;457;512;;;;0.2067545380919617;0.22000050852093875;;Not assessable
+Observation based / approval (punish only one behaviour);bool_x95;512;estimated;0;910;1024;256.0;0.08004071631850046;0.07214309741086211;0.15487719352308185;0.15569272760253944;True;Needs more precision
+Observation based / approval (punish only one behaviour);bool_x95;1024;estimated;0;1820;2048;512.0;0.019741661846924885;0.03619304671936252;0.09685856866423541;0.1208136885873311;True;Needs more precision
+Observation based / approval (punish only one behaviour);bool_x95;2048;estimated;0;3638;4096;1024.0;0.023534890671422892;0.015812298713324683;0.06881955397955226;0.07979794078545692;True;Needs more precision
+Observation based / approval (punish only one behaviour);oscillation_occurrence;256;constant;0;0;512;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillation_occurrence;512;constant;0;0;1024;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillation_occurrence;1024;constant;0;0;2048;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillation_occurrence;2048;constant;0;0;4096;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillations_per_500_years;256;constant;0;0;512;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillations_per_500_years;512;constant;0;0;1024;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillations_per_500_years;1024;constant;0;0;2048;;;;;;;Not assessable
+Observation based / approval (punish only one behaviour);oscillations_per_500_years;2048;constant;0;0;4096;;;;;;;Not assessable
+Static injunctive;x_mean;256;estimated;0;512;512;;;;0.1708007327291247;0.1993987491454446;;Not assessable
+Static injunctive;x_mean;512;estimated;0;1024;1024;256.0;0.07033030109289987;0.09018174555894301;0.13175119829357196;0.14459514124599915;True;Needs more precision
+Static injunctive;x_mean;1024;estimated;0;2048;2048;512.0;0.04348275847688421;0.04627971118021165;0.08578638314393908;0.10229394096135715;True;Needs more precision
+Static injunctive;x_mean;2048;estimated;0;4096;4096;1024.0;0.006047901336123582;0.006470166926037449;0.06061014542934332;0.06866523044986746;True;Needs more precision
+Static injunctive;final_temperature;256;estimated;0;512;512;;;;0.16302476260969492;0.1914184407619938;;Not assessable
+Static injunctive;final_temperature;512;estimated;0;1024;1024;256.0;0.06788936467883488;0.07760306136319524;0.12869841190584488;0.14145363675687753;False;Needs more precision
+Static injunctive;final_temperature;1024;estimated;0;2048;2048;512.0;0.03636397402985925;0.04107508886318477;0.08289396979380928;0.09985746908097595;True;Needs more precision
+Static injunctive;final_temperature;2048;estimated;0;4096;4096;1024.0;0.004543079154786245;0.0071530235201735515;0.059274402508296006;0.06670801255120543;True;Needs more precision
+Static injunctive;cumulative_emissions;256;estimated;0;512;512;;;;0.17430867317039359;0.20208517966480607;;Not assessable
+Static injunctive;cumulative_emissions;512;estimated;0;1024;1024;256.0;0.07215628017335393;0.0905768951960262;0.13445954934167648;0.14633625149001303;True;Needs more precision
+Static injunctive;cumulative_emissions;1024;estimated;0;2048;2048;512.0;0.045606349128195056;0.04612804640136765;0.08725338736888211;0.1035415471589372;True;Needs more precision
+Static injunctive;cumulative_emissions;2048;estimated;0;4096;4096;1024.0;0.006407828363322335;0.006908380852329447;0.06175700059776339;0.06949125364723259;True;Needs more precision
+Static injunctive;first_time_x95;256;estimated;0;353;512;;;;0.15878013784882877;0.16258252767786346;;Not assessable
+Static injunctive;first_time_x95;512;estimated;0;722;1024;256.0;0.05174375290609756;0.025108349552781628;0.10315521240524694;0.1162436407431205;True;Needs more precision
+Static injunctive;first_time_x95;1024;estimated;0;1436;2048;512.0;0.049213690153810274;0.01865558008022533;0.0663402324496719;0.08346495415671532;True;Needs more precision
+Static injunctive;first_time_x95;2048;estimated;0;2849;4096;1024.0;0.01925188517204174;0.03549258363469005;0.04674538146245977;0.05185877012830326;True;Needs more precision
+Static injunctive;bool_x95;256;estimated;0;353;512;;;;0.12444869976418305;0.15023011432394087;;Not assessable
+Static injunctive;bool_x95;512;estimated;0;722;1024;256.0;0.029872841325736643;0.03173617929656286;0.09080522815469633;0.10701348828881355;True;Needs more precision
+Static injunctive;bool_x95;1024;estimated;0;1436;2048;512.0;0.04279894064848255;0.025539294017154157;0.06213008903127696;0.07751618100582797;True;Needs more precision
+Static injunctive;bool_x95;2048;estimated;0;2849;4096;1024.0;0.02300674167232225;0.036219085188135935;0.043615038507071685;0.051250817853298214;True;Needs more precision
+Static injunctive;oscillation_occurrence;256;estimated;0;166;512;;;;0.12381956987468677;0.14142181681810945;;Not assessable
+Static injunctive;oscillation_occurrence;512;estimated;0;328;1024;256.0;0.050989960610562435;0.08680167928044132;0.09458727577166157;0.09968193894925491;True;Needs more precision
+Static injunctive;oscillation_occurrence;1024;estimated;0;655;2048;512.0;0.023000275606625986;0.06610314023323037;0.06581380460241582;0.07749448820821826;True;Needs more precision
+Static injunctive;oscillation_occurrence;2048;estimated;0;1309;4096;1024.0;0.037337935957519885;0.02981303204068403;0.046301293418055424;0.05103458791365323;True;Needs more precision
+Static injunctive;oscillations_per_500_years;256;estimated;0;166;512;;;;0.1490008609918258;0.15002939572503765;;Not assessable
+Static injunctive;oscillations_per_500_years;512;estimated;0;328;1024;256.0;0.058472839153307754;0.06520351084416044;0.1144354987962511;0.10032345286746705;True;Needs more precision
+Static injunctive;oscillations_per_500_years;1024;estimated;0;655;2048;512.0;0.02772825326491235;0.06937473301921346;0.07726452332352181;0.07961473889692179;True;Needs more precision
+Static injunctive;oscillations_per_500_years;2048;estimated;0;1309;4096;1024.0;0.028248891154789735;0.03403130591087405;0.05781289389809168;0.05305033588439817;True;Needs more precision

@@ -1,0 +1,61 @@
+scenario;parameter;perturbation;max_row_change;ST;minimum_ST_bound;maximum_ST_bound
+Descriptive, injunctive, dynamic;social_norm_factor;one_cycle;0.8333333333333334;0.6043203221502657;0.0;inf
+Descriptive, injunctive, dynamic;social_norm_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.6043203221502657;0.0;inf
+Descriptive, injunctive, dynamic;temperature_factor;one_cycle;0.8333333333333334;0.27750504370330803;0.0;inf
+Descriptive, injunctive, dynamic;temperature_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.27750504370330803;0.0;inf
+Descriptive, injunctive, dynamic;beta;one_cycle;0.8333333333333334;0.5434923683424069;0.0;inf
+Descriptive, injunctive, dynamic;beta;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.5434923683424069;0.0;inf
+Descriptive, injunctive, dynamic;kappa;one_cycle;0.8333333333333334;0.5384533662518152;0.0;inf
+Descriptive, injunctive, dynamic;kappa;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.5384533662518152;0.0;inf
+Descriptive, injunctive, dynamic;c_inj;one_cycle;0.8333333333333334;0.8530310681930491;0.0;inf
+Descriptive, injunctive, dynamic;c_inj;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.8530310681930491;0.0;inf
+Descriptive, injunctive, dynamic;x_target;one_cycle;0.8333333333333334;0.7648485316076916;0.0;inf
+Descriptive, injunctive, dynamic;x_target;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.7648485316076916;0.0;inf
+Descriptive, injunctive, dynamic;c_dyn;one_cycle;0.8333333333333334;0.7781658942756845;0.0;inf
+Descriptive, injunctive, dynamic;c_dyn;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.7781658942756845;0.0;inf
+Descriptive, injunctive, dynamic;tau_ref;one_cycle;0.8333333333333334;0.5593292320556957;0.0;inf
+Descriptive, injunctive, dynamic;tau_ref;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.5593292320556957;0.0;inf
+Descriptive, injunctive, dynamic;tau_xp;one_cycle;0.8333333333333334;0.4272353915380374;0.0;inf
+Descriptive, injunctive, dynamic;tau_xp;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.4272353915380374;0.0;inf
+Descriptive, injunctive, dynamic2;social_norm_factor;one_cycle;0.8333333333333334;0.3291679053239399;0.00016385578416328958;3.4642593271007813
+Descriptive, injunctive, dynamic2;social_norm_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.3291679053239399;0.0;62.12928409708081
+Descriptive, injunctive, dynamic2;temperature_factor;one_cycle;0.8333333333333334;0.12335308851813968;0.0;2.2338954086827525
+Descriptive, injunctive, dynamic2;temperature_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.12335308851813968;0.0;46.80809381017575
+Descriptive, injunctive, dynamic2;beta;one_cycle;0.8333333333333334;0.07242750151523807;0.0;1.847860901769059
+Descriptive, injunctive, dynamic2;beta;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.07242750151523807;0.0;41.702462240777656
+Descriptive, injunctive, dynamic2;kappa;one_cycle;0.8333333333333334;0.8308037986310418;0.0651530783850881;5.8455405541849155
+Descriptive, injunctive, dynamic2;kappa;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.8308037986310418;0.0;89.52339802697213
+Descriptive, injunctive, dynamic2;c_desc;one_cycle;0.8333333333333334;0.0792175797822916;0.0;1.9035181484913253
+Descriptive, injunctive, dynamic2;c_desc;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.0792175797822916;0.0;42.450652417072305
+Descriptive, injunctive, dynamic2;c_inj;one_cycle;0.8333333333333334;0.8788624636989639;0.0750262107984258;6.054462663916102
+Descriptive, injunctive, dynamic2;c_inj;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.8788624636989639;0.0;91.8383103821263
+Descriptive, injunctive, dynamic2;x_target;one_cycle;0.8333333333333334;0.1619433666692275;0.0;2.4932134661892196
+Descriptive, injunctive, dynamic2;x_target;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.1619433666692275;0.0;50.14198460627187
+Descriptive, injunctive, dynamic2;c_dyn;one_cycle;0.8333333333333334;0.5999034148941816;0.024631300438937697;4.805335583778991
+Descriptive, injunctive, dynamic2;c_dyn;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.5999034148941816;0.0;77.81440187292424
+Descriptive, injunctive, dynamic2;tau;one_cycle;0.8333333333333334;1.2607289209066492;0.16561333436015394;7.650581219496428
+Descriptive, injunctive, dynamic2;tau;one_cycle_plus_two_cycle_gate;1.6666666666666667;1.2607289209066492;3.808750525326231e-05;109.20206182499437
+Descriptive, injunctive, dynamic2;rho;one_cycle;0.8333333333333334;0.18054063658954617;0.0;2.6115493778144443
+Descriptive, injunctive, dynamic2;rho;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.18054063658954617;0.0;51.64176749829753
+Observation-based / intention motivation (agents);temperature_factor;one_cycle;0.8333333333333334;0.22101451607726103;0.0;5.44272586268823
+Observation-based / intention motivation (agents);temperature_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.22101451607726103;0.0;107008.59428242325
+Observation-based / intention motivation (agents);beta;one_cycle;0.8333333333333334;0.7876395011937074;0.015177045506484597;10.00420314818341
+Observation-based / intention motivation (agents);beta;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.7876395011937074;0.0;159912.3091658146
+Observation-based / intention motivation (agents);network_size;one_cycle;0.8333333333333334;0.03958108723633177;0.0;3.2174107834963164
+Observation-based / intention motivation (agents);network_size;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.03958108723633177;0.0;78311.86866234503
+Observation-based / intention motivation (agents);eta;one_cycle;0.8333333333333334;0.36503899051799893;0.0;6.757719846879416
+Observation-based / intention motivation (agents);eta;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.36503899051799893;0.0;122847.21237344269
+Observation-based / intention motivation (agents);phi;one_cycle;0.8333333333333334;0.39369907655040387;0.0;7.000447151854822
+Observation-based / intention motivation (agents);phi;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.39369907655040387;0.0;125707.68402917236
+Observation-based / intention motivation (agents);psi;one_cycle;0.8333333333333334;0.11319225557219262;0.0;4.273015188588908
+Observation-based / intention motivation (agents);psi;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.11319225557219262;0.0;92303.07607957943
+Static injunctive;social_norm_factor;one_cycle;0.8333333333333334;0.7532614009885062;0.0;62.44706444797503
+Static injunctive;social_norm_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.7532614009885062;0.0;inf
+Static injunctive;temperature_factor;one_cycle;0.8333333333333334;0.4767036767157476;0.0;51.521436012837334
+Static injunctive;temperature_factor;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.4767036767157476;0.0;inf
+Static injunctive;beta;one_cycle;0.8333333333333334;0.5236085348334725;0.0;53.48377051454365
+Static injunctive;beta;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.5236085348334725;0.0;inf
+Static injunctive;kappa;one_cycle;0.8333333333333334;0.2633352865244362;0.0;41.65582418974681
+Static injunctive;kappa;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.2633352865244362;0.0;inf
+Static injunctive;x_target;one_cycle;0.8333333333333334;0.311771163749861;0.0;44.07191796656044
+Static injunctive;x_target;one_cycle_plus_two_cycle_gate;1.6666666666666667;0.311771163749861;0.0;inf

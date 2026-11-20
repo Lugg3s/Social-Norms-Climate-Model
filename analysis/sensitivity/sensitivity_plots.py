@@ -232,18 +232,12 @@ def create_goal_variable_violin_boxplots(
 
 
 RANKING_LABELS = {
-    "first_time_x95": "Erste Erreichung von x ≥ 95 % (0 = nie)",
-    "bool_x95": "x ≥ 95 % jemals erreicht (0/1)",
-    "final_x": "Endanteil x",
-    "x_mean": "Zeitmittel x",
-    "final_temperature": "Endtemperatur",
-    "cumulative_emissions": "Kumulierte Emissionen",
-    "time_to_elimination_censored": "Erste Schwelle (zensiert bei T)",
-    "threshold_reached": "Schwelle jemals erreicht",
-    "oscillation_occurrence": "Oszillation erkannt (mindestens 2 Zyklen, 0/1)",
-    "oscillation_amplitude": "Oszillationsamplitude",
-    "oscillations_per_500_years": "Oszillationen pro 500 Jahre",
-    "damping_index": "Dämpfungsindex",
+    **OUTPUT_LABELS,
+    "first_time_x95": "First x ≥ 95% (0 = never)",
+    "bool_x95": "x ≥ 95% ever reached (0/1)",
+    "oscillation_occurrence": "Oscillation detected (≥2 cycles, 0/1)",
+    "x_mean": "Time-averaged mitigation x",
+    "time_to_elimination_censored": "First threshold time (censored at T)",
     "mitigation": "Mitigation",
     "climate": "Climate",
     "dynamics": "Dynamics",
@@ -270,7 +264,7 @@ RANKING_STYLE = {
 
 
 def _ranking_number(value: float) -> str:
-    return f"{value:.3f}".replace(".", ",")
+    return f"{value:.3f}"
 
 
 def _ranking_limits(values: np.ndarray) -> tuple[float, float]:
@@ -290,7 +284,7 @@ def _ranking_bars(axis, values, metric, limits, colors, label=None) -> None:
     )
     axis.bar_label(bars, labels=[_ranking_number(v) for v in numbers[finite]], padding=4, fontsize=9)
     for position in positions[~finite]:
-        axis.annotate("n. v.", (0, position), xytext=(4, 0), textcoords="offset points",
+        axis.annotate("n/a", (0, position), xytext=(4, 0), textcoords="offset points",
                       va="center", fontsize=9, color="#9B4D36")
     axis.set_yticks(positions, values.index, fontsize=9)
     axis.invert_yaxis()
@@ -299,7 +293,7 @@ def _ranking_bars(axis, values, metric, limits, colors, label=None) -> None:
     axis.grid(axis="x", color="#E4EAF0", linewidth=0.8)
     axis.tick_params(axis="y", length=0, pad=7)
     axis.xaxis.set_major_locator(MaxNLocator(nbins=5))
-    axis.set_xlabel("Mittlerer ST" if metric in RANKING_SCORES else "Total-Order-Index ST",
+    axis.set_xlabel("Mean ST" if metric in RANKING_SCORES else "Total-order index ST",
                     fontsize=9, labelpad=7)
     axis.axvline(0, color="#708090", linewidth=0.7)
     axis.set_title(label or RANKING_LABELS[metric], loc="left", fontsize=13, fontweight="bold", pad=13)
@@ -330,7 +324,7 @@ def _scenario_ranking_barplots(scenario_dir, metadata, values, limits, colors) -
     if metadata.get("base_sample_size") is not None:
         details.append(f"N = {metadata['base_sample_size']}")
     if horizon is not None:
-        details.append(f"{horizon:,g} Jahre".replace(",", "."))
+        details.append(f"{horizon:g} years")
     if metadata.get("constant_temperature_costs", False):
         details.append("f_T(T) = 1")
     analysis = metadata.get("analysis", {})
@@ -341,31 +335,31 @@ def _scenario_ranking_barplots(scenario_dir, metadata, values, limits, colors) -
         retained = analysis.get("retained_base_samples")
         if retained is None and "retained_base_samples" in values:
             retained = values.retained_base_samples.iloc[0]
-        details.append(f"VORLÄUFIG: {retained} vollständige Basisblöcke"
-                       if retained is not None else "VORLÄUFIG: unvollständiges Design")
+        details.append(f"PROVISIONAL: {retained} complete base blocks"
+                       if retained is not None else "PROVISIONAL: incomplete design")
     suffix = "   ·   " + "   ·   ".join(details) if details else ""
-    quality_note = "Punktschätzer ohne Unsicherheitsgewichtung."
+    quality_note = "Point estimates without uncertainty weighting."
     if status == "provisional":
-        quality_note += " Unvollständige Blöcke ausgeschlossen; mögliche Auswahlverzerrung."
+        quality_note += " Incomplete blocks excluded; possible selection bias."
     if not np.isfinite(values[[*RANKING_SCORES, *output_names]].to_numpy(dtype=float)).all():
-        quality_note += " n. v. = nicht verfügbar; siehe CSV."
+        quality_note += " n/a = unavailable; see CSV."
 
     figure, axes = plt.subplots(2, 2, figsize=(15, 10))
     for axis, metric in zip(axes.flat, RANKING_SCORES):
         _ranking_bars(axis, values, metric, limits[metric], colors)
     figure.suptitle(title, fontsize=18, fontweight="bold", y=0.981)
-    figure.text(0.5, 0.895, "Gruppen und Gesamtscore" + suffix, ha="center", fontsize=11)
+    figure.text(0.5, 0.895, "Groups and overall score" + suffix, ha="center", fontsize=11)
     group_sizes = metadata.get("output_groups", {})
     counts = [len(group_sizes[group]) if group in group_sizes else default
               for group, default in zip(RANKING_SCORES[:3], (2, 2, 3))]
     figure.text(0.035, 0.068,
-                f"Mitigation = Mittel aus {counts[0]} ST-Werten; Climate = Mittel aus {counts[1]}; "
-                f"Dynamics = Mittel aus {counts[2]}.", fontsize=10)
+                f"Mitigation = mean of {counts[0]} ST values; Climate = mean of {counts[1]}; "
+                f"Dynamics = mean of {counts[2]}.", fontsize=10)
     mode = metadata.get("score_mode", "simple_mean")
-    overall_label = {"simple_mean": f"Overall score = Mittel aller {len(output_names)} ST-Werte.",
-                     "grouped_mean": "Overall score = Mittel der 3 Gruppenscores."}.get(
-                         mode, f"Overall score gemäß gespeichertem Ranking ({mode}).")
-    figure.text(0.035, 0.044, overall_label + " Parameterreihenfolge: ursprüngliches Gesamtranking.", fontsize=10)
+    overall_label = {"simple_mean": f"Overall score = mean of all {len(output_names)} ST values.",
+                     "grouped_mean": "Overall score = mean of the 3 group scores."}.get(
+                         mode, f"Overall score from saved ranking ({mode}).")
+    figure.text(0.035, 0.044, overall_label + " Parameter order: original overall ranking.", fontsize=10)
     figure.text(0.035, 0.020, quality_note, fontsize=9, color="#526579")
     figure.subplots_adjust(left=0.17, right=0.975, bottom=0.16, top=0.855, wspace=0.64, hspace=0.43)
     paths = _save_ranking_figure(figure, scenario_dir, RANKING_PLOT_STEMS[0])
@@ -373,36 +367,36 @@ def _scenario_ranking_barplots(scenario_dir, metadata, values, limits, colors) -
     rows = (len(output_names) + 1 + 3) // 4
     figure, axes = plt.subplots(rows, 4, figsize=(25, 5.75 * rows), squeeze=False)
     for axis, metric in zip(axes.flat, output_names):
-        label = ("Erste Schwelle mit Ersatzwert"
+        label = ("First threshold time with replacement value"
                  if metric == "time_to_elimination_censored" and "elimination_censor_offset" in metadata
                  else RANKING_LABELS[metric])
         if (metric == "time_to_elimination_censored"
                 and metadata.get("elimination_time_definition", {}).get("method") == "zero_if_not_reached"):
-            label = "Erste Schwelle (0 = nie erreicht)"
+            label = "First threshold time (0 = never reached)"
         _ranking_bars(axis, values, metric, limits[metric], colors, label=label)
     for axis in list(axes.flat)[len(output_names):]:
         axis.axis("off")
     info = axes.flat[len(output_names)]
-    info.text(0, 0.96, "Leseschlüssel", fontsize=13, fontweight="bold", va="top")
+    info.text(0, 0.96, "Reading guide", fontsize=13, fontweight="bold", va="top")
     info.text(0, 0.84,
-              "Jeder Balken: ST eines Parameters\nfür genau eine Zielvariable.\n\n"
-              "Reihenfolge in allen Teilplots:\nGesamtranking der Norm.\n\n"
-              "Farben kennzeichnen Parameter\nüber alle Normen hinweg.\n\n"
-              "Punktschätzer ohne Fehlerbalken.\nKonfidenzhalbbreiten: ST_conf\nin sobol_indices.csv.\n\n"
-              "Werte über 1 werden unverändert\ngezeigt, nicht abgeschnitten.\n"
-              "n. v. = nicht verfügbar.", fontsize=11, linespacing=1.6, va="top")
+              "Each bar: ST of one parameter\nfor one output variable.\n\n"
+              "Order in all panels:\noverall ranking of this norm.\n\n"
+              "Colours identify parameters\nconsistently across norms.\n\n"
+              "Point estimates without error bars.\nConfidence half-widths: ST_conf\nin sobol_indices.csv.\n\n"
+              "Values above 1 are shown\nwithout clipping.\n"
+              "n/a = unavailable.", fontsize=11, linespacing=1.6, va="top")
     figure.suptitle(title, fontsize=20, fontweight="bold", y=0.983)
-    figure.text(0.5, 0.904, f"{len(output_names)} Zielvariablen   ·   Total-Order-Indizes" + suffix,
+    figure.text(0.5, 0.904, f"{len(output_names)} outputs   ·   Total-order indices" + suffix,
                 ha="center", fontsize=12)
-    footer = "Quelle: parameter_ranking.csv. Gleiche Achsenbereiche je Kennzahl über alle Normen."
+    footer = "Source: parameter_ranking.csv. Shared axis limits per metric across norms."
     offset = metadata.get("elimination_censor_offset")
     if horizon is not None and offset is not None:
-        replacement = f"{horizon + offset:,g}".replace(",", ".")
-        footer += f" Schwellenzeit: Ersatzwert {replacement} bei Nichterreichen."
+        replacement = f"{horizon + offset:g}"
+        footer += f" Threshold time: replacement {replacement} if never reached."
     elif horizon is not None and metadata.get("elimination_time_definition", {}).get("method") == "right_censored_at_horizon":
-        footer += f" Schwellenzeit: bei {horizon:g} Jahren zensiert; Erreichung separat ausgewertet."
+        footer += f" Threshold time: censored at {horizon:g} years; occurrence evaluated separately."
     elif metadata.get("elimination_time_definition", {}).get("method") == "zero_if_not_reached":
-        footer += " Schwellenzeit: 0 = nie erreicht; sonst Zeitpunkt der ersten Erreichung."
+        footer += " Threshold time: 0 = never reached; otherwise first reach."
     figure.text(0.027, 0.044, footer, fontsize=10, color="#526579")
     figure.text(0.027, 0.022, quality_note, fontsize=10, color="#526579")
     figure.subplots_adjust(left=0.086, right=0.982, bottom=0.105, top=0.85, wspace=0.85, hspace=0.47)
@@ -491,7 +485,7 @@ def _ranking_formula_content(metadata, parameters):
         norm = load_scenarios().get(scenario, {}).get("social_norm")
     archived_injunctive = norm == "Injunctive, dynamic2"
     if norm not in SUPPORTED_NORMS and not archived_injunctive:
-        return [], ["Für dieses gespeicherte Szenario ist keine Formel hinterlegt."]
+        return [], ["No formula is available for this saved scenario."]
 
     names = set(parameters) | set(metadata.get("problem", {}).get("names", []))
     legacy = bool(names & {"delta", "tau_STref"})
@@ -500,19 +494,19 @@ def _ranking_formula_content(metadata, parameters):
     legacy |= archived_injunctive or (norm == "Descriptive, injunctive, dynamic2" and "c_desc" not in names)
     independent_theta = "theta" in names and "rho" not in names
     legacy |= (norm in DELAY_NORMS or archived_injunctive) and independent_theta
-    notes = ["Formel des gespeicherten Modells (historische Parameterdefinition)."
-             if legacy else "Formel des aktuellen Modells."]
+    notes = ["Saved model equation (historical parameter definitions)."
+             if legacy else "Current model equation."]
     temperature = (r"f_T(T)=\frac{f_{\mathrm{max}}}"
                    r"{1+\exp[-\omega(T-T_c)]}")
-    codes = ["β = beta", "ω = omega", "f_max und T_c wie im Code"]
+    codes = ["β = beta", "ω = omega", "f_max and T_c as in the code"]
     if metadata.get("constant_temperature_costs", False):
         temperature = r"f_T(T)=1"
         codes = ["β = beta"]
-        notes.append("Konstanter Temperaturbeitrag: temperature_factor; f_T(T) = 1.")
+        notes.append("Constant temperature contribution: temperature_factor; f_T(T) = 1.")
     if norm in ABM_NORMS:
         rows = [
             r"A_i(t)=-\beta_i+\mathtt{temperature\_factor}\,f_T(T(t))"
-            r",\quad \beta_i\sim\mathrm{Uniform}(0,2\beta)\;\mathrm{(einmalig)}",
+            r",\quad \beta_i\sim\mathrm{Uniform}(0,2\beta)\;\mathrm{(once)}",
             r"BI_i(t)=A_i(t)+\eta q_i(t)\,\mathbf{1}_{q_i(t)\geq\phi}",
             r"b_i(t)=\mathbf{1}_{BI_i(t)\geq\psi},\quad "
             r"x(t)=\frac{1}{n}\sum_{i=1}^{n}b_i(t)",
@@ -521,8 +515,8 @@ def _ranking_formula_content(metadata, parameters):
             temperature,
         ]
         codes += ["η = eta", "φ = phi", "ψ = psi"]
-        notes += ["Jährliche, gleichzeitige Entscheidungen ab t = 217; BI bleibt kontinuierlich. "
-                  "Ohne Nachbarn ist der Normbeitrag null."]
+        notes += ["Annual, simultaneous decisions from t = 217; BI remains continuous. "
+                  "Without neighbours the norm contribution is zero."]
     else:
         term = _ranking_social_norm_term(norm, names)
         if "delta" in names:
@@ -556,26 +550,26 @@ def _ranking_formula_content(metadata, parameters):
             rows.insert(2, r"\dot{x}_p=\frac{x-x_p}{\tau_{xp}},\quad "
                         r"\dot{x}_{\mathrm{ref}}=\frac{x_p-x_{\mathrm{ref}}}{\tau_{\mathrm{ref}}}")
             codes += ["τ_xp = tau_xp", "τ_ref = tau_ref"]
-            notes.append("Bei |x_ref| < 10⁻¹² wird der dynamische Beitrag null gesetzt.")
+            notes.append("For |x_ref| < 10⁻¹² the dynamic contribution is set to zero.")
         if norm in DELAY_NORMS or archived_injunctive:
             if independent_theta:
-                rows.insert(2, r"\theta\;\mathrm{ist\ ein\ freier\ Parameter}")
+                rows.insert(2, r"\theta\;\mathrm{is\ a\ free\ parameter}")
                 codes += ["τ = tau", "θ = theta"]
             else:
                 rows.insert(2, r"\tau>0,\quad \rho>1")
                 codes += ["τ = tau", "ρ = rho"]
         if norm == "Descriptive, injunctive, dynamic2" and "c_desc" in names:
-            codes.append("c_desc wie im Code")
+            codes.append("c_desc as in the code")
         if norm in {"dynamic social norm2", "Descriptive, injunctive, dynamic",
                     "Descriptive, injunctive, dynamic2", "Injunctive, dynamic2"}:
-            codes.append("c_dyn wie im Code")
+            codes.append("c_dyn as in the code")
         if norm == "Static injunctive" and "c_inj" not in names:
-            codes.append("x_target wie im Code")
+            codes.append("x_target as in the code")
         elif norm in {"Static injunctive", "Descriptive, injunctive, dynamic",
                     "Descriptive, injunctive, dynamic2", "Injunctive, dynamic2"}:
-            codes.append("c_inj und x_target wie im Code")
-        notes.append("Verhaltensdynamik ab t = 217; davor bleibt x auf dem Anfangswert.")
-    notes.append("Code-Namen: " + " · ".join(codes))
+            codes.append("c_inj and x_target as in the code")
+        notes.append("Behavioural dynamics from t = 217; x stays at its initial value before that.")
+    notes.append("Code names: " + " · ".join(codes))
     return rows, notes
 
 
@@ -642,10 +636,10 @@ def create_ranking_overview_svg(run_root: Path, scenario_dirs: Iterable[Path]) -
         "width": "1600", "height": f"{1600 * height / width:g}",
         "role": "img", "aria-labelledby": "overview_title overview_description",
     })
-    ET.SubElement(sheet, f"{{{ns}}}title", id="overview_title").text = "Sensitivitätsanalyse – alle Normen"
+    ET.SubElement(sheet, f"{{{ns}}}title", id="overview_title").text = "Sensitivity analysis — all norms"
     ET.SubElement(sheet, f"{{{ns}}}desc", id="overview_description").text = (
-        "Je Norm die Modellformel und beide vollständigen Balkenübersichten: links Gruppen und Gesamtscore, "
-        "rechts die Zielvariablen. Alle Grafiken sind als Vektoren eingebettet."
+        "For each norm, the equation and both complete bar charts: groups and overall score on the left, "
+        "outputs on the right. All charts are embedded vectors."
     )
     ET.SubElement(sheet, f"{{{ns}}}rect", width=f"{width:g}", height=f"{height:g}", fill="#EAF0F5")
 
@@ -655,9 +649,9 @@ def create_ranking_overview_svg(run_root: Path, scenario_dirs: Iterable[Path]) -
             "font-size": str(size), "font-weight": "700" if bold else "400", "fill": "#172D44",
         }).text = content
 
-    label(sheet, margin, 44, "Sensitivitätsanalyse – alle Normen", 30, True)
+    label(sheet, margin, 44, "Sensitivity analysis — all norms", 30, True)
     label(sheet, margin, 78,
-          "Je Abschnitt: Modellformel oben · Gruppen und Gesamtscore links · Zielvariablen rechts", 19)
+          "Each section: equation above · groups and overall score left · outputs right", 19)
     top = 110
     for index, ((scenario, panels, _, _), (formula, formula_height)) in enumerate(zip(sections, formulas)):
         section = ET.SubElement(sheet, f"{{{ns}}}g", id=f"norm_section_{index}")

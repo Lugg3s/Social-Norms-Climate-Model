@@ -31,3 +31,9 @@
 
 - Alle neu erstellten Plots auf Englisch beschriften: Titel, Achsen, Legenden, Klassenbezeichnungen, Annotationen und Bildtexte.
 - Bestehende Plots müssen nicht gesammelt umgestellt werden. Sobald ein Plot künftig bearbeitet wird, seine sichtbaren Beschriftungen im selben Arbeitsschritt auf Englisch umstellen. Modellparameter und Variablennamen beibehalten.
+
+# Bearbeitung von Markdown-Dateien in results
+
+- Diese Regel gilt für alle Markdown-Dateien im Ordner `results/` einschließlich seiner Unterordner.
+- Eigene Ergänzungen und Änderungen ausschließlich unter der exakten Überschrift `# Additional findings by Codex:` schreiben.
+- Für Änderungen außerhalb dieses Abschnitts vorher ausdrücklich die Erlaubnis des Nutzers anfragen und abwarten.

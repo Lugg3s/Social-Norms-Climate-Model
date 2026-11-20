@@ -1,0 +1,91 @@
+scenario;parameter;largest_numerator_block;category;replicates;mean_ST;mean_AB_variance
+Descriptive, injunctive, dynamic;social_norm_factor;1325;omitted;193;0.5852502219117589;0.45651161510263055
+Descriptive, injunctive, dynamic;social_norm_factor;1325;once;168;0.6076610981472825;0.46895023474775094
+Descriptive, injunctive, dynamic;social_norm_factor;1325;twice_or_more;139;0.6253094727772517;0.4953712227938105
+Descriptive, injunctive, dynamic;temperature_factor;1458;omitted;174;0.267730581452965;0.46739373427469444
+Descriptive, injunctive, dynamic;temperature_factor;1458;once;182;0.27367648736729466;0.47826375971491997
+Descriptive, injunctive, dynamic;temperature_factor;1458;twice_or_more;144;0.29935879115537817;0.4678921325615087
+Descriptive, injunctive, dynamic;beta;1325;omitted;193;0.5272972213829835;0.45651161510263055
+Descriptive, injunctive, dynamic;beta;1325;once;168;0.5524895303809663;0.46895023474775094
+Descriptive, injunctive, dynamic;beta;1325;twice_or_more;139;0.5686873306608026;0.4953712227938105
+Descriptive, injunctive, dynamic;kappa;689;omitted;220;0.3390689912962063;0.46874583821103516
+Descriptive, injunctive, dynamic;kappa;689;once;159;0.5396010306869878;0.4719053182274504
+Descriptive, injunctive, dynamic;kappa;689;twice_or_more;121;0.8359897761128524;0.4759500092246045
+Descriptive, injunctive, dynamic;c_inj;1527;omitted;176;0.8192143848894348;0.4709287174986748
+Descriptive, injunctive, dynamic;c_inj;1527;once;169;0.857261038151275;0.4700805702877962
+Descriptive, injunctive, dynamic;c_inj;1527;twice_or_more;155;0.9137136898049302;0.47367684169267876
+Descriptive, injunctive, dynamic;x_target;1325;omitted;193;0.7534845733362316;0.45651161510263055
+Descriptive, injunctive, dynamic;x_target;1325;once;168;0.7738893382002714;0.46895023474775094
+Descriptive, injunctive, dynamic;x_target;1325;twice_or_more;139;0.7798010489989552;0.4953712227938105
+Descriptive, injunctive, dynamic;c_dyn;1805;omitted;169;0.7390996318215792;0.4763078037588113
+Descriptive, injunctive, dynamic;c_dyn;1805;once;194;0.7835974910185683;0.46882522628478956
+Descriptive, injunctive, dynamic;c_dyn;1805;twice_or_more;137;0.8397872728247487;0.46933480573927894
+Descriptive, injunctive, dynamic;tau_ref;1277;omitted;182;0.5430606456196934;0.4596610832163351
+Descriptive, injunctive, dynamic;tau_ref;1277;once;187;0.5664857604775345;0.46684553672958284
+Descriptive, injunctive, dynamic;tau_ref;1277;twice_or_more;131;0.5780999014999817;0.49456907333560707
+Descriptive, injunctive, dynamic;tau_xp;1325;omitted;193;0.4005273439413969;0.45651161510263055
+Descriptive, injunctive, dynamic;tau_xp;1325;once;168;0.43401839984427654;0.46895023474775094
+Descriptive, injunctive, dynamic;tau_xp;1325;twice_or_more;139;0.4607182550783729;0.4953712227938105
+Descriptive, injunctive, dynamic2;social_norm_factor;592;omitted;187;0.37508284118304114;4.292166152934664
+Descriptive, injunctive, dynamic2;social_norm_factor;592;once;189;0.37997050521635745;4.626700461024735
+Descriptive, injunctive, dynamic2;social_norm_factor;592;twice_or_more;124;0.41402616143941673;4.855179619444661
+Descriptive, injunctive, dynamic2;temperature_factor;529;omitted;185;0.12985810630209693;4.432826392330199
+Descriptive, injunctive, dynamic2;temperature_factor;529;once;158;0.1468257893177674;4.49494686915573
+Descriptive, injunctive, dynamic2;temperature_factor;529;twice_or_more;157;0.1629463897480795;4.769740398954794
+Descriptive, injunctive, dynamic2;beta;157;omitted;176;0.07113083354839776;4.464991215494172
+Descriptive, injunctive, dynamic2;beta;157;once;175;0.08624981369928725;4.550746667952792
+Descriptive, injunctive, dynamic2;beta;157;twice_or_more;149;0.1055107798592037;4.6772121458045754
+Descriptive, injunctive, dynamic2;kappa;790;omitted;173;0.7557386807576844;2.77722828908465
+Descriptive, injunctive, dynamic2;kappa;790;once;204;0.8478725941887307;4.499114868038405
+Descriptive, injunctive, dynamic2;kappa;790;twice_or_more;123;0.9084194764555994;7.161331735383054
+Descriptive, injunctive, dynamic2;c_desc;529;omitted;185;0.07479515452717024;4.432826392330199
+Descriptive, injunctive, dynamic2;c_desc;529;once;158;0.09360111310398324;4.49494686915573
+Descriptive, injunctive, dynamic2;c_desc;529;twice_or_more;157;0.11557600561520058;4.769740398954794
+Descriptive, injunctive, dynamic2;c_inj;790;omitted;173;0.9712089313130089;2.77722828908465
+Descriptive, injunctive, dynamic2;c_inj;790;once;204;0.9037951737985017;4.499114868038405
+Descriptive, injunctive, dynamic2;c_inj;790;twice_or_more;123;0.9038959170315453;7.161331735383054
+Descriptive, injunctive, dynamic2;x_target;157;omitted;176;0.1458328465020686;4.464991215494172
+Descriptive, injunctive, dynamic2;x_target;157;once;175;0.18961958707460505;4.550746667952792
+Descriptive, injunctive, dynamic2;x_target;157;twice_or_more;149;0.2519096968364753;4.6772121458045754
+Descriptive, injunctive, dynamic2;c_dyn;293;omitted;181;0.40605354117810954;4.5701953784281475
+Descriptive, injunctive, dynamic2;c_dyn;293;once;193;0.7029365033324558;4.567899948514617
+Descriptive, injunctive, dynamic2;c_dyn;293;twice_or_more;126;1.1605081497444267;4.526299023688724
+Descriptive, injunctive, dynamic2;tau;790;omitted;173;1.501621201897075;2.77722828908465
+Descriptive, injunctive, dynamic2;tau;790;once;204;1.2866910612087128;4.499114868038405
+Descriptive, injunctive, dynamic2;tau;790;twice_or_more;123;1.209117905573478;7.161331735383054
+Descriptive, injunctive, dynamic2;rho;1845;omitted;186;0.05772764505079885;4.243455450478945
+Descriptive, injunctive, dynamic2;rho;1845;once;177;0.21504579118070719;4.585917137811126
+Descriptive, injunctive, dynamic2;rho;1845;twice_or_more;137;0.3807524829489373;4.949880900452129
+Observation-based / intention motivation (agents);temperature_factor;1798;omitted;173;0.21448726742423538;2.7866889279415163
+Observation-based / intention motivation (agents);temperature_factor;1798;once;188;0.22433133950836037;2.805928269458469
+Observation-based / intention motivation (agents);temperature_factor;1798;twice_or_more;139;0.23413696689275926;2.828022319790765
+Observation-based / intention motivation (agents);beta;1811;omitted;173;0.7776813842606425;2.8092674078395143
+Observation-based / intention motivation (agents);beta;1811;once;179;0.7922947049907391;2.800333669870504
+Observation-based / intention motivation (agents);beta;1811;twice_or_more;148;0.812443897708023;2.8070527917563135
+Observation-based / intention motivation (agents);network_size;650;omitted;189;0.038288592700690634;2.8169164003729312
+Observation-based / intention motivation (agents);network_size;650;once;185;0.03956560615154351;2.7980675528178502
+Observation-based / intention motivation (agents);network_size;650;twice_or_more;126;0.04225818338393771;2.7989452754063837
+Observation-based / intention motivation (agents);eta;1118;omitted;165;0.36581662943348975;2.769020387169126
+Observation-based / intention motivation (agents);eta;1118;once;212;0.36797579567348493;2.809104487393669
+Observation-based / intention motivation (agents);eta;1118;twice_or_more;123;0.3726206609477231;2.8478722474197338
+Observation-based / intention motivation (agents);phi;398;omitted;171;0.39121353404187725;2.8056765678372364
+Observation-based / intention motivation (agents);phi;398;once;196;0.3916067306270299;2.7974356956307154
+Observation-based / intention motivation (agents);phi;398;twice_or_more;133;0.39931325019055175;2.816832422550399
+Observation-based / intention motivation (agents);psi;881;omitted;186;0.10575020591666262;2.8003472574456114
+Observation-based / intention motivation (agents);psi;881;once;184;0.11439337338845625;2.803239465470725
+Observation-based / intention motivation (agents);psi;881;twice_or_more;130;0.12150354911613374;2.8157396162422583
+Static injunctive;social_norm_factor;812;omitted;187;0.7501171422539427;1.2169388256218943
+Static injunctive;social_norm_factor;812;once;186;0.7545169075894871;1.2171395243175571
+Static injunctive;social_norm_factor;812;twice_or_more;127;0.7557209763800926;1.2155378222700166
+Static injunctive;temperature_factor;2041;omitted;209;0.47303751047198056;1.218027945712865
+Static injunctive;temperature_factor;2041;once;169;0.47746020173340586;1.217869157798196
+Static injunctive;temperature_factor;2041;twice_or_more;122;0.4788965882818234;1.2126318608259679
+Static injunctive;beta;698;omitted;181;0.5227478990751082;1.217073450485866
+Static injunctive;beta;698;once;202;0.5256485266212785;1.21526052402814
+Static injunctive;beta;698;twice_or_more;117;0.5296202794361979;1.2184264525728716
+Static injunctive;kappa;934;omitted;179;0.2615194972956878;1.2121441463629423
+Static injunctive;kappa;934;once;181;0.2642791212167589;1.2162873005760884
+Static injunctive;kappa;934;twice_or_more;140;0.26553511277919767;1.222907226710095
+Static injunctive;x_target;202;omitted;187;0.3125725619945586;1.2130396213743275
+Static injunctive;x_target;202;once;184;0.3126793883814884;1.2192186809500387
+Static injunctive;x_target;202;twice_or_more;129;0.31344509473860166;1.2182493709367874

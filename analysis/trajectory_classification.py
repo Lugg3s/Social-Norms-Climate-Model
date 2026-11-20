@@ -13,8 +13,8 @@ import numpy as np
 
 CLASSIFICATION_VERSION = 1
 MIN_COMPLETE_CYCLES = 2
-COLLAPSE = "Collapse to 0 (no oscillation detected)"
-HIGH = "Approach to 1 (no oscillation detected)"
+COLLAPSE = "Average x ≤ 5% over the last 100 years"
+HIGH = "Average x ≥ 95% over the last 100 years"
 MIDDLE = "Stable intermediate level (no oscillation detected)"
 DAMPED = "Damped oscillations"
 PERSISTENT = "Persistent oscillations (within observation window)"
@@ -25,6 +25,12 @@ UNAVAILABLE = "Not classified (classification unavailable)"
 CLASS_ORDER = (COLLAPSE, HIGH, MIDDLE, DAMPED, PERSISTENT, UNRESOLVED)
 CLASS_COLORS = dict(zip(CLASS_ORDER, ("#d62728", "#2ca02c", "#e6a23c", "#2878b5", "#9467bd", "#7f8c8d")))
 CLASS_COLORS.update({INVALID: "#444444", FAILED: "#bbbbbb", UNAVAILABLE: "#dddddd"})
+LEGACY_CLASS_LABELS = {
+    "Collapse to 0 (no oscillation detected)": COLLAPSE,
+    "Approach to 1 (no oscillation detected)": HIGH,
+    "End-window mean x ≤ 5% (no oscillation detected)": COLLAPSE,
+    "End-window mean x ≥ 95% (no oscillation detected)": HIGH,
+}
 
 
 @dataclass(frozen=True)

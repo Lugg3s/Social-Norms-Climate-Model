@@ -1,0 +1,121 @@
+scenario;variant;parameter;ST;ST_1024;change
+Descriptive, injunctive, dynamic;without_two_cycle_gate;social_norm_factor;0.5114670840296907;0.43806869415525995;0.0733983898744307
+Descriptive, injunctive, dynamic;without_two_cycle_gate;temperature_factor;0.22581255228977323;0.23215017624395481;-0.0063376239541815815
+Descriptive, injunctive, dynamic;without_two_cycle_gate;beta;0.47278469952324426;0.45774243790474745;0.01504226161849681
+Descriptive, injunctive, dynamic;without_two_cycle_gate;kappa;0.48700130237604095;0.6630051643577355;-0.17600386198169454
+Descriptive, injunctive, dynamic;without_two_cycle_gate;c_inj;0.7901786236787026;0.6630051643577364;0.12717345932096624
+Descriptive, injunctive, dynamic;without_two_cycle_gate;x_target;0.688017454341164;0.6282482170669745;0.05976923727418948
+Descriptive, injunctive, dynamic;without_two_cycle_gate;c_dyn;0.7128138546658098;0.6662841216493172;0.04652973301649266
+Descriptive, injunctive, dynamic;without_two_cycle_gate;tau_ref;0.5108058466876995;0.5010246741536202;0.009781172534079285
+Descriptive, injunctive, dynamic;without_two_cycle_gate;tau_xp;0.36665610613376015;0.36527584228215465;0.001380263851605501
+Descriptive, injunctive, dynamic;log1p_rate;social_norm_factor;0.5990615495844362;0.5706389208108914;0.028422628773544845
+Descriptive, injunctive, dynamic;log1p_rate;temperature_factor;0.3291216455152815;0.36992958407289106;-0.04080793855760956
+Descriptive, injunctive, dynamic;log1p_rate;beta;0.5284684140622841;0.5530984284770483;-0.0246300144147642
+Descriptive, injunctive, dynamic;log1p_rate;kappa;0.3709204697534312;0.4372220192056196;-0.06630154945218841
+Descriptive, injunctive, dynamic;log1p_rate;c_inj;0.8311463630087256;0.8310944183797114;5.194462901414454e-05
+Descriptive, injunctive, dynamic;log1p_rate;x_target;0.773549829168873;0.8062889885696475;-0.03273915940077443
+Descriptive, injunctive, dynamic;log1p_rate;c_dyn;0.7043231660627044;0.7197038678700384;-0.015380701807333974
+Descriptive, injunctive, dynamic;log1p_rate;tau_ref;0.5548168503053125;0.6038066243700375;-0.048989774064725045
+Descriptive, injunctive, dynamic;log1p_rate;tau_xp;0.33223669289169305;0.3608692440100134;-0.02863255111832036
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;social_norm_factor;0.6359818590319615;0.55537390306854;0.08060795596342152
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;temperature_factor;0.32737900389230346;0.35615348437051886;-0.028774480478215403
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;beta;0.5666545405606501;0.5112071121307713;0.05544742842987882
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;kappa;0.605651157200763;0.8664208775451685;-0.2607697203444055
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;c_inj;0.8670729206029995;0.7094878118726695;0.15758510873032994
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;x_target;0.7202338085630692;0.6249131058216228;0.09532070274144633
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;c_dyn;0.7794508930906479;0.7038494981359334;0.07560139495471441
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;tau_ref;0.5632844625794057;0.5610122168052767;0.002272245774128989
+Descriptive, injunctive, dynamic;classification_detector_same_denominator;tau_xp;0.4920313852616688;0.4999304846572985;-0.007899099395629716
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;social_norm_factor;0.584014816925489;0.5722403572068546;0.011774459718634334
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;temperature_factor;0.30226527995440927;0.34050665883383097;-0.038241378879421695
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;beta;0.5407038039606789;0.5703486535466668;-0.029644849585987898
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;kappa;0.36745975210143905;0.4209040643918189;-0.053444312290379825
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;c_inj;0.8270123949280539;0.8380247214632623;-0.01101232653520845
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;x_target;0.7882604359595401;0.8323496104826986;-0.044089174523158525
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;c_dyn;0.703006126228809;0.7377644274733004;-0.03475830124449142
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;tau_ref;0.5707935603362311;0.634666577993057;-0.06387301765682596
+Descriptive, injunctive, dynamic;capped_at_99th_percentile;tau_xp;0.33417865792847967;0.380232435697778;-0.04605377776929831
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;social_norm_factor;0.30695761138702427;0.27442018531857587;0.032537426068448394
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;temperature_factor;0.12029624194101168;0.11448104803131015;0.005815193909701533
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;beta;0.06281255234243262;0.05856166658596491;0.004250885756467711
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;kappa;0.8204936891421323;0.8020144264576936;0.01847926268443867
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;c_desc;0.06806582838069845;0.06762092992523011;0.0004448984554683427
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;c_inj;0.8659212991996598;1.0268782843430284;-0.16095698514336865
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;x_target;0.15317645887116588;0.18366577936629383;-0.030489320495127953
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;c_dyn;0.59611455360842;0.6827341258240323;-0.08661957221561223
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;tau;1.2524717115693278;0.9780768955213892;0.2743948160479386
+Descriptive, injunctive, dynamic2;without_two_cycle_gate;rho;0.17955621912087702;0.04410998459237493;0.13544623452850207
+Descriptive, injunctive, dynamic2;log1p_rate;social_norm_factor;0.7065014261116187;0.6413193206982603;0.06518210541335845
+Descriptive, injunctive, dynamic2;log1p_rate;temperature_factor;0.30825310559699115;0.2890844814189682;0.019168624178022953
+Descriptive, injunctive, dynamic2;log1p_rate;beta;0.28600261194105636;0.25278877639886893;0.03321383554218743
+Descriptive, injunctive, dynamic2;log1p_rate;kappa;0.36448987417571016;0.36285596990306584;0.0016339042726443154
+Descriptive, injunctive, dynamic2;log1p_rate;c_desc;0.30423907295236746;0.2813803701717551;0.02285870278061236
+Descriptive, injunctive, dynamic2;log1p_rate;c_inj;0.7566193172437715;0.7956595469867734;-0.03904022974300192
+Descriptive, injunctive, dynamic2;log1p_rate;x_target;0.3588940904543147;0.38583385962256644;-0.026939769168251748
+Descriptive, injunctive, dynamic2;log1p_rate;c_dyn;0.21303340973663049;0.284171791271813;-0.07113838153518254
+Descriptive, injunctive, dynamic2;log1p_rate;tau;0.36376172508735877;0.35381825412641266;0.00994347096094611
+Descriptive, injunctive, dynamic2;log1p_rate;rho;0.06274033126794003;0.05170898405899512;0.011031347208944907
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;social_norm_factor;0.3187867757702455;0.2817548130117286;0.03703196275851689
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;temperature_factor;0.12724257525561175;0.11800177030316447;0.009240804952447279
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;beta;0.07262118257790498;0.06539057313564961;0.00723060944225537
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;kappa;0.8387979846364431;0.8195397211772516;0.01925826345919146
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;c_desc;0.06978320274482841;0.06649701261341015;0.0032861901314182596
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;c_inj;0.8775189149617055;1.0329165744633766;-0.15539765950167106
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;x_target;0.16273676138710402;0.19052887807036972;-0.0277921166832657
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;c_dyn;0.6048007159338682;0.6878734233237438;-0.0830727073898756
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;tau;1.269665525595179;0.9853949988935606;0.28427052670161834
+Descriptive, injunctive, dynamic2;classification_detector_same_denominator;rho;0.18474082420246465;0.04519805266651917;0.1395427715359455
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;social_norm_factor;0.7319536367113386;0.6612085940218483;0.07074504268949033
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;temperature_factor;0.33574023008933945;0.3208231047916652;0.01491712529767425
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;beta;0.3328877217623274;0.30740889831954;0.0254788234427874
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;kappa;0.2838245785377167;0.30461427197118046;-0.020789693433463763
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;c_desc;0.3500027717244008;0.3415033397695252;0.008499431954875625
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;c_inj;0.7858660440918692;0.8333575770807908;-0.047491532988921614
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;x_target;0.3947871524584927;0.42142965333260557;-0.02664250087411285
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;c_dyn;0.12807762388284885;0.1710311325195986;-0.04295350863674974
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;tau;0.18712454625200176;0.20177202235155262;-0.01464747609955086
+Descriptive, injunctive, dynamic2;capped_at_99th_percentile;rho;0.04649588573029922;0.05421575115817341;-0.007719865427874194
+Observation-based / intention motivation (agents);without_two_cycle_gate;temperature_factor;0.27487940433578884;0.29925292675556403;-0.024373522419775195
+Observation-based / intention motivation (agents);without_two_cycle_gate;beta;0.7636557342306464;0.7500931475581765;0.0135625866724699
+Observation-based / intention motivation (agents);without_two_cycle_gate;network_size;0.0349679878303549;0.03544578517518041;-0.00047779734482551045
+Observation-based / intention motivation (agents);without_two_cycle_gate;eta;0.3694198714335864;0.37934531793863174;-0.009925446505045343
+Observation-based / intention motivation (agents);without_two_cycle_gate;phi;0.3569413757763837;0.38718864061569314;-0.03024726483930945
+Observation-based / intention motivation (agents);without_two_cycle_gate;psi;0.1144919601542262;0.12081733585242356;-0.006325375698197355
+Observation-based / intention motivation (agents);log1p_rate;temperature_factor;0.22165563672036345;0.22717424642250808;-0.005518609702144628
+Observation-based / intention motivation (agents);log1p_rate;beta;0.7578999084792909;0.7742395915021363;-0.016339683022845386
+Observation-based / intention motivation (agents);log1p_rate;network_size;0.0438727617881337;0.05152399386198421;-0.00765123207385051
+Observation-based / intention motivation (agents);log1p_rate;eta;0.27491207915191357;0.2722657674467932;0.0026463117051203633
+Observation-based / intention motivation (agents);log1p_rate;phi;0.34567823008503873;0.3620027792713714;-0.016324549186332693
+Observation-based / intention motivation (agents);log1p_rate;psi;0.1014343938697512;0.09873558732014473;0.0026988065496064695
+Observation-based / intention motivation (agents);classification_detector_same_denominator;temperature_factor;0.23242969259142135;0.2570337225799414;-0.024604029988520043
+Observation-based / intention motivation (agents);classification_detector_same_denominator;beta;0.8043174553776304;0.7873403907017367;0.01697706467589377
+Observation-based / intention motivation (agents);classification_detector_same_denominator;network_size;0.05150840961121595;0.05552766561169922;-0.004019256000483272
+Observation-based / intention motivation (agents);classification_detector_same_denominator;eta;0.48307186023229215;0.4969551456946415;-0.013883285462349348
+Observation-based / intention motivation (agents);classification_detector_same_denominator;phi;0.4651000786856998;0.5156389828658736;-0.050538904180173816
+Observation-based / intention motivation (agents);classification_detector_same_denominator;psi;0.1340662810908752;0.14510531485321415;-0.011039033762338946
+Observation-based / intention motivation (agents);capped_at_99th_percentile;temperature_factor;0.2191919928821515;0.23898858075040788;-0.019796587868256388
+Observation-based / intention motivation (agents);capped_at_99th_percentile;beta;0.7650631308411382;0.7865687873844499;-0.021505656543311713
+Observation-based / intention motivation (agents);capped_at_99th_percentile;network_size;0.04064318002129691;0.044181620445894514;-0.003538440424597604
+Observation-based / intention motivation (agents);capped_at_99th_percentile;eta;0.34361380341904657;0.36201740076128314;-0.018403597342236566
+Observation-based / intention motivation (agents);capped_at_99th_percentile;phi;0.4031087729156307;0.43909733550842867;-0.03598856259279798
+Observation-based / intention motivation (agents);capped_at_99th_percentile;psi;0.09739026156046633;0.10195758564437196;-0.00456732408390563
+Static injunctive;without_two_cycle_gate;social_norm_factor;0.639001696322992;0.6410638458049276;-0.0020621494819356156
+Static injunctive;without_two_cycle_gate;temperature_factor;0.5029212366631743;0.5168731613121761;-0.013951924649001746
+Static injunctive;without_two_cycle_gate;beta;0.4634421816142425;0.4635981801803409;-0.00015599856609838092
+Static injunctive;without_two_cycle_gate;kappa;0.2302362590906834;0.237796935648059;-0.007560676557375606
+Static injunctive;without_two_cycle_gate;x_target;0.26587222028529517;0.24273633787220236;0.023135882413092806
+Static injunctive;log1p_rate;social_norm_factor;0.7456609794802272;0.7166436725279074;0.029017306952319855
+Static injunctive;log1p_rate;temperature_factor;0.47466318758720155;0.4953126694696198;-0.020649481882418275
+Static injunctive;log1p_rate;beta;0.5026534803776389;0.4925380734299542;0.010115406947684702
+Static injunctive;log1p_rate;kappa;0.25836184228348164;0.26631641102254455;-0.007954568739062917
+Static injunctive;log1p_rate;x_target;0.29798958325482233;0.2758758964077887;0.02211368684703363
+Static injunctive;classification_detector_same_denominator;social_norm_factor;0.7526743428067146;0.7425128881373376;0.010161454669377012
+Static injunctive;classification_detector_same_denominator;temperature_factor;0.47743456144997326;0.49722978449196986;-0.0197952230419966
+Static injunctive;classification_detector_same_denominator;beta;0.5529662010543639;0.5610097377037663;-0.008043536649402383
+Static injunctive;classification_detector_same_denominator;kappa;0.26622571737103057;0.28494725365270457;-0.018721536281674
+Static injunctive;classification_detector_same_denominator;x_target;0.35108225075373994;0.30747649085687195;0.04360575989686799
+Static injunctive;capped_at_99th_percentile;social_norm_factor;0.7537349223154294;0.7367674981980331;0.016967424117396268
+Static injunctive;capped_at_99th_percentile;temperature_factor;0.4743057252219244;0.49147139796265044;-0.017165672740726057
+Static injunctive;capped_at_99th_percentile;beta;0.5173059695414949;0.5125721377678445;0.004733831773650388
+Static injunctive;capped_at_99th_percentile;kappa;0.26581969215734247;0.2760680124512917;-0.010248320293949231
+Static injunctive;capped_at_99th_percentile;x_target;0.31345295943390294;0.2851530532007505;0.028299906233152428

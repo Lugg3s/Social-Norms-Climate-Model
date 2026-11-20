@@ -137,6 +137,11 @@ Speichert außerdem pro Lauf `behaviour_class` und Klassifikationsdiagnostik in
 Die vertikalen Balken zeigen relative Klassenhäufigkeiten über alle angeforderten
 Sobol-Läufe; Fehler/Timeouts erscheinen separat, zusätzliche Nullrandfälle zählen
 nicht mit. Die Klassifizierung wird nicht als Sobol-Zielvariable verwendet.
+Nach Abschluss entsteht im Ergebnis-Hauptordner `klassifikationen_alle_normen.svg`:
+ein Abschnitt je Norm, Verhaltensklassen links und vorhandene Ohne-Norm-Vergleiche
+(Timing und jährliche Veränderung) rechts. Die SVG bettet alle Diagramme als
+Vektoren in lesbarer Originalgröße ein und berücksichtigt bei Append auch bereits
+vorhandene Normen. Gilt ebenfalls für die Sensi-Pipeline.
 Regeln: [`analysis/BEHAVIOURAL_CLASSIFICATION.md`](analysis/BEHAVIOURAL_CLASSIFICATION.md).
 
 Alle Normen verwenden gemeinsame A/B-Grundwerte; pro Norm entstehen weiterhin
@@ -246,6 +251,14 @@ sbatch --cpus-per-task=8 --mem=16G --time=00:30:00 support/hpc/run_sensi.sbatch 
 `python -m analysis.behaviour_classification_plots --input-root "<Sensi-Lauf>"`
 erstellt pro Norm ein vertikales Balkendiagramm (PNG/SVG) sowie Klassentabellen,
 ohne Simulationen auszuführen. Die ursprünglichen Ergebnisdateien bleiben erhalten.
+Zusätzlich entsteht `<output-root>/klassifikationen_alle_normen.svg` für die
+ausgewählten Normen, einschließlich vorhandener Ohne-Norm-Vergleiche.
+Außerdem entstehen `classification_<comparison>_<category>.png`: ein Vergleich
+zwischen den Normen pro Verhaltensklasse und pro Ohne-Norm-Vergleichskategorie.
+Diese PNGs werden auch am Ende eines Sensi-Laufs direkt im Laufordner erstellt.
+Die Balken tragen nur Prozentangaben. `No social norm` bleibt in den
+Verhaltensklassen enthalten und wird aus den Vergleichen gegen die
+Ohne-Norm-Referenz ausgeschlossen (einschließlich des Selbstvergleichs im SVG).
 Alle neuen oder künftig bearbeiteten Plots werden auf Englisch beschriftet.
 
 | Argument | Standard bei Weglassen | Bedeutung |
@@ -254,6 +267,27 @@ Alle neuen oder künftig bearbeiteten Plots werden auf Englisch beschriftet.
 | `--output-root PFAD` | `<input-root>/behaviour_classification` | Ziel; darunter ein Ordner pro Norm. |
 | `--scenarios NAME ...` | Alle im Eingabeordner vorhandenen Szenarien | Normen nach Szenarioname oder Ordnername auswählen. |
 | `--reclassify` | `False`; gespeicherte Klassen verwenden | Klassen anhand gespeicherter NPZ-Zeitreihen mit aktuellen Regeln neu berechnen. Für ältere Läufe ohne Klassen; Zeitreihen müssen vorhanden sein. |
+
+### Stichprobengröße anhand vorhandener Sensi-Daten prüfen
+
+`python -m analysis.sensitivity.sample_size_review --input-root "<Sensi-Lauf>"`
+
+Berechnet S1/ST für verschachtelte, vollständige A/AB/B-Präfixe erneut, ohne
+Simulationen zu starten. Ausgabe: `sample_size_summary.csv`,
+`indices_by_sample_size.csv` und `review_settings.json`. Konstante Zielvariablen
+sind nicht aussagekräftig; unvollständige Designs werden nicht bereinigt.
+Die Genauigkeitsziele sind Orientierung, kein Konvergenzbeweis. Verschachtelte
+Präfixe ersetzen keine unabhängigen Scrambling-Wiederholungen.
+
+| Argument | Standard bei Weglassen | Bedeutung |
+| --- | --- | --- |
+| `--input-root PFAD` | Pflichtargument | Sensi-Lauf oder einzelner Szenarioordner. |
+| `--output-root PFAD` | `<input-root>/sample_size_review` | Ordner für die Prüftabellen. |
+| `--sizes N ...` | `256 512 1024 2048` | Zweierpotenzen; größere als vorhandene Stichproben werden ausgelassen. |
+| `--num-resamples N` | `500` | Bootstrap-Wiederholungen für approximative 95%-Konfidenzhalbbreiten. |
+| `--seed N` | `42` | Seed der Bootstrap-Auswertung, kein neuer Simulationsseed. |
+| `--change-tolerance WERT` | `0.03` | Maximaler absoluter Unterschied von S1/ST zum vorherigen Präfix. |
+| `--ci-tolerance WERT` | `0.05` | Maximale 95%-Konfidenzhalbbreite von S1/ST. |
 
 ## 3. Sensi mit anschließenden Regressionsbäumen
 
@@ -461,7 +495,19 @@ mit bekannten Regeln, ohne Klimasimulation.
 | `--port NUMMER` | `8765` | Port auf `127.0.0.1`. |
 | `--no-browser` | `False`; Browser automatisch öffnen | Browser nicht automatisch öffnen. |
 
-## Notebook und Bibliotheksaufrufe
+## Historische Spezialauswertungen
+
+### Historische Ursachenprüfung: Oszillations-Indizes im 2048er-Lauf
+
+Diese beiden Spezialauswertungen besitzen **keine CLI-Argumente**. Eingabelauf
+und Diagnosefälle stehen fest im Code; sie sind keine allgemeinen Simulations-CLIs.
+
+| Aufruf | Festgelegtes Verhalten / Standard | Ausgabe |
+| --- | --- | --- |
+| `python -m support.reviews.sample_size_2048.diagnose_oscillation_uncertainty` | Liest den archivierten Lauf `job-3311884_samplsize2048/job-3311884/2026-11-19_04-50-55`; keine Simulationen. Zerlegt ST in quadratische Differenzen und A/B-Varianz; alternative Zieldefinitionen dienen nur der Diagnose. | `support/reviews/sample_size_2048/oscillation_diagnosis/`: Tabellen und Einflussgrafik. |
+| `python -m support.reviews.sample_size_2048.probe_influential_oscillations` | Vier festgelegte Parameterkombinationen, drei Varianten pro Fall, drei parallele Prozesse. Je 620 Jahre mit archivierten Einstellungen, dichterem Ausgaberaster oder Kopplungsintervall 0,025 Jahre. Beim ersten Aufruf **12 neue Diagnose-Simulationen**; danach Wiederverwendung vorhandener Diagnose-Zeitreihen bei gleichen Parametern/Einstellungen. Verändert den Sensi-Lauf nicht. | Derselbe Diagnoseordner: kompakte Zeitreihen, numerische Vergleiche und verschobene 100-Jahres-Fenster. |
+
+## Notebook und Bibliotheksaufrufe (ohne CLI)
 
 `main.ipynb` in VSCode/Jupyter öffnen. `visualization/plotting.py`,
 `analysis/symbolic_analysis.py` und `analysis/simulation_metrics.py` werden über

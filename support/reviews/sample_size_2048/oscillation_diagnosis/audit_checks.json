@@ -1,0 +1,10 @@
+{
+  "recomputed_ST_matches_saved_indices": true,
+  "original_samples_outputs_metadata_unchanged": true,
+  "all_four_baseline_cycle_counts_reproduced": true,
+  "baseline_final_x_max_absolute_error": 1.3988584328661346e-06,
+  "key_dynamic2_cycle_counts_unchanged_in_all_three_numerical_variants": true,
+  "paired_9480_9489_only_different_parameter": [
+    "tau"
+  ]
+}

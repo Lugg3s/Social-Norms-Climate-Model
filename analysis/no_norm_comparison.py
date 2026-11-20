@@ -13,6 +13,13 @@ TIME_TOLERANCE = 1e-4  # Years; numerical equality, not substantive equivalence.
 SLOPE_RTOL = 1e-4
 SLOPE_ATOL = 1e-8  # Fraction/year.
 ANNUAL_CHANGE_ZERO_TOLERANCE = 1e-12
+LEGACY_TIMING_LABELS = {
+    "Only with norm reached": "Reached with norm; not reached in reference",
+    "Only without norm reached": "Not reached with norm; reached in reference",
+}
+TIMING_ORDER = ["Earlier", "Later", "Equal", *LEGACY_TIMING_LABELS.values(),
+                "Neither reached", "Not comparable"]
+SLOPE_ORDER = ["Steeper", "Flatter", "Equal", "Opposite directions", "Not comparable"]
 
 
 def comparison_definition():
@@ -122,9 +129,9 @@ def compare_profiles(actual, reference):
         elif left is None and right is None:
             label = "Neither reached"
         elif right is None:
-            label = "Only with norm reached"
+            label = LEGACY_TIMING_LABELS["Only with norm reached"]
         elif left is None:
-            label = "Only without norm reached"
+            label = LEGACY_TIMING_LABELS["Only without norm reached"]
         elif abs(left - right) <= TIME_TOLERANCE:
             label = "Equal"
         else:
@@ -161,9 +168,8 @@ def save_comparison_frequencies(outputs, destination, scenario, *, definition=No
     from pathlib import Path
     import textwrap
 
-    timing = ["Earlier", "Later", "Equal", "Only with norm reached",
-              "Only without norm reached", "Neither reached", "Not comparable"]
-    slope = ["Steeper", "Flatter", "Equal", "Opposite directions", "Not comparable"]
+    timing = TIMING_ORDER
+    slope = SLOPE_ORDER
     definition = comparison_definition() if definition is None else definition
     annual = definition.get("version", 2) >= 3
     slope_title = "Largest annual change in x" if annual else "10%–90% transition speed"
@@ -176,7 +182,7 @@ def save_comparison_frequencies(outputs, destination, scenario, *, definition=No
     model = str(models[0]) if len(models) == 1 else "No social norm"
     fig, axes = plt.subplots(3, 1, figsize=(14, 16))
     for ax, (name, title, order) in zip(axes, panels):
-        counts = outputs[PREFIX + name].fillna("Not comparable").value_counts()
+        counts = outputs[PREFIX + name].fillna("Not comparable").replace(LEGACY_TIMING_LABELS).value_counts()
         if set(counts.index) - set(order):
             raise ValueError(f"Unknown without-norm comparison category: {set(counts.index) - set(order)}")
         for label in order:

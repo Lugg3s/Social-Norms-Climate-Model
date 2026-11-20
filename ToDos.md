@@ -1,8 +1,19 @@
 # Aktuelle ToDos:
-1. zielvariablen und klassifikationen an kleinem testlauf prüfen.
-1. globale sensi laufen lassen
-1. zielvariablen anpassen
-    - WICHTIG: CHati soll zunächst für kleinere Löufe testen, ob die neuen Zielvariablen dann wirklich belastbar sind, bevor ich wieder 50+ Stunden Simulationen laufen lasse
+1. globale sensi analysieren und auswerten
+    1. jeden Ordner einzeln durchgehen
+    1. Vergleiche zwischen den Normen
+    1. Research Questions beantworten
+1. globale sensi mit konsanten Temperaturkosten auswerten und vergleichen
+
+# Punkte aus der sensi, die ich noch analysieren muss
+1. 0.1% der runs in baseline sind als "stable intermediate level" klassifiziert. Wie kann das sein?
+
+## Themen zum besprechen mit Hannah
+1. 
+
+
+## ToDos für codex
+1. 
 
 # ToDos die ich auf jeden Fall noch machen muss
 1. related work chapter (chatis Entwurf) kontrollieren

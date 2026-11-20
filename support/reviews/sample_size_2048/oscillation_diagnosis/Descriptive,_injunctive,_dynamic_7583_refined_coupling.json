@@ -1,0 +1,18 @@
+{
+  "folder": "Descriptive,_injunctive,_dynamic",
+  "sample_index": 7583,
+  "variant": "refined_coupling",
+  "coupling_interval": 0.025,
+  "output_points_per_year": 200,
+  "saved_cycles": 24.0,
+  "cycles": 23.0,
+  "saved_filtered_cycles": 23,
+  "filtered_post_cycles": 23.0,
+  "median_period": 13.504999999987717,
+  "saved_median_period": 13.50000000000307,
+  "final_x": 0.8925115330214042,
+  "saved_final_x": 0.8919521120791578,
+  "end100_range": 0.053519686288979296,
+  "elapsed_seconds": 0.8280000000086147,
+  "reused_probe_archive": true
+}

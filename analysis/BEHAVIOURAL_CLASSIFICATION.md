@@ -28,8 +28,8 @@ asymptotic stability, irreversibility, or a bifurcation.
 
 | Class | Rule after sufficient observation |
 | --- | --- |
-| Collapse to 0 (no oscillation detected) | No qualifying oscillations; stationary low end window. This retains the user's preferred descriptive name; a previous high state is not required. |
-| Approach to 1 (no oscillation detected) | No qualifying oscillations; stationary high end window. No S-shape is inferred. |
+| Average x ≤ 5% over the last 100 years | No qualifying oscillations; stationary low end window. A previous high state is not required. |
+| Average x ≥ 95% over the last 100 years | No qualifying oscillations; stationary high end window. No S-shape is inferred. |
 | Stable intermediate level (no oscillation detected) | No qualifying oscillations; stationary intermediate end window. "Stable" describes this observation window only. |
 | Damped oscillations | After checking for persistent/growing end-window oscillations: at least two complete post-historical cycles; `log(A_initial/A_final) >= 0.15` and positive fitted `damping_rate`. Amplitudes are median half-cycle amplitudes in the first/second halves of detected swings. |
 | Persistent oscillations (within observation window) | At least two cycles in the 100-year end window, with `abs(log(A_initial/A_final)) <= 0.15` there. Takes precedence over earlier damping, which remains in `classification_transient_damping`. Weak amplitude trends within this tolerance are allowed. |
@@ -81,6 +81,13 @@ Per scenario, the Sensi also writes:
 - `behaviour_class_frequencies.csv`: counts and relative frequencies.
 - `behaviour_class_frequencies.svg` and `.png`: one vertical bar per class.
 - `metadata.json`: versioned settings and definitions.
+
+After all scenarios finish, `klassifikationen_alle_normen.svg` in the run root
+combines every norm's class-frequency chart and available without-norm comparison
+charts. Each norm has one section; all charts retain their native vector size,
+category labels, colours and denominator. Appending includes earlier scenario
+charts as well. The standalone plotting command writes the same overview into
+its output root for the selected norms, without simulations or source changes.
 
 The denominator is **all requested Sobol sample rows**, including failed/time-out
 rows, independently of which complete blocks enter Sobol estimation. Boundary
@@ -161,8 +168,10 @@ the same run. Metadata distinguishes additional simulations from reused referenc
   that start. These are first reaches, not the stationary-end-state test or the
   separate 20-year collapse-event persistence test. ODE crossings are linearly
   interpolated; ABM decisions retain their exact step times.
-- Timing labels are `Earlier`, `Later`, `Equal`, `Only with norm reached`,
-  `Only without norm reached`, `Neither reached`, and `Not comparable`.
+- Timing labels are `Earlier`, `Later`, `Equal`, `Reached with norm; not reached in reference`,
+  `Not reached with norm; reached in reference`, `Neither reached`, and `Not comparable`.
+  The reference is the matched ODE without social norms, or the matched ABM with eta = 0.
+  Old saved labels are translated for plots without changing their numerical definitions.
   "Not reached" always refers to the finite common observation horizon.
 - The change metric is `max(abs(x(y+1)-x(y)))` over complete integer-year
   intervals after t=217. ODE values are linearly interpolated at year boundaries;

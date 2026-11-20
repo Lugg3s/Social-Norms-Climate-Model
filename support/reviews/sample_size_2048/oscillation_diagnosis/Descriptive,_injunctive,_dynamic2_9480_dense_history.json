@@ -1,0 +1,18 @@
+{
+  "folder": "Descriptive,_injunctive,_dynamic2",
+  "sample_index": 9480,
+  "variant": "dense_history",
+  "coupling_interval": 0.1,
+  "output_points_per_year": 200,
+  "saved_cycles": 102.0,
+  "cycles": 102.0,
+  "saved_filtered_cycles": 101,
+  "filtered_post_cycles": 101.0,
+  "median_period": 3.745000000000857,
+  "saved_median_period": 3.7500000000008527,
+  "final_x": 0.9562679704048708,
+  "saved_final_x": 0.9399319760500848,
+  "end100_range": 0.4557808541998384,
+  "elapsed_seconds": 0.9690000000118744,
+  "reused_probe_archive": true
+}

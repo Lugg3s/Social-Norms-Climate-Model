@@ -1148,6 +1148,14 @@ def _run_scenarios(scenario_names, run_root, config, overwrite_existing=True):
     print(f"Created {len(ranking_plot_paths)} ranking plot file(s), including the combined SVG overview.", flush=True)
     plot_paths = create_goal_variable_violin_boxplots(run_root, SENSITIVITY_OUTPUTS)
     print(f"Created {len(plot_paths)} goal-variable violin-boxplot(s).", flush=True)
+    from analysis.behaviour_classification_plots import (
+        create_classification_overview_svg, create_cross_norm_classification_plots,
+    )
+    classification_overview = create_classification_overview_svg(run_root)
+    if classification_overview is not None:
+        print(f"Created classification overview: {classification_overview}", flush=True)
+    comparison_plots = create_cross_norm_classification_plots(run_root)
+    print(f"Created {len(comparison_plots)} cross-norm classification PNGs.", flush=True)
     print(
         f"Sensitivity analysis completed in {(monotonic() - overall_started_at) / 60:.1f} min.",
         flush=True,

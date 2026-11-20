@@ -70,8 +70,8 @@ class RankingBarplotTests(unittest.TestCase):
         self.assertEqual(len(svg.findall(".//s:clipPath", ns)), len(sensitivity.SENSITIVITY_OUTPUTS))
         ranking = pd.read_csv(folder / "parameter_ranking.csv", sep=";")
         for value in ranking[sensitivity.SENSITIVITY_OUTPUTS].to_numpy().ravel():
-            self.assertIn(f"{value:.3f}".replace(".", ","), texts)
-        self.assertTrue(any("0 = nie erreicht" in (text or "") for text in texts))
+            self.assertIn(f"{value:.3f}", texts)
+        self.assertTrue(any("0 = never reached" in (text or "") for text in texts))
         pixels = plt.imread(folder / "ranking_balken_zielvariablen.png")
         self.assertEqual(pixels.shape[1], 4500)
         self.assertEqual(pixels.shape[0], 1035 * ((len(sensitivity.SENSITIVITY_OUTPUTS) + 4) // 4))
@@ -114,9 +114,9 @@ class RankingBarplotTests(unittest.TestCase):
             plots.create_parameter_ranking_barplots(self.root)
         titles, texts = captured[plots.RANKING_PLOT_STEMS[1]]
         self.assertEqual(len([title for title in titles if title]), 7)
-        self.assertIn("Erste Schwelle mit Ersatzwert", titles)
-        self.assertTrue(any("Ersatzwert 980" in text for text in texts))
-        self.assertTrue(any("7 Zielvariablen" in text for text in texts))
+        self.assertIn("First threshold time with replacement value", titles)
+        self.assertTrue(any("replacement 980" in text for text in texts))
+        self.assertTrue(any("7 outputs" in text for text in texts))
         for path, content in original.items():
             self.assertEqual(path.read_bytes(), content)
 
@@ -142,8 +142,8 @@ class RankingBarplotTests(unittest.TestCase):
              patch.object(plots, "create_ranking_overview_svg", return_value=None):
             plots.create_parameter_ranking_barplots(self.root)
         titles, texts = captured[plots.RANKING_PLOT_STEMS[1]]
-        self.assertIn("Erste Schwelle (zensiert bei T)", titles)
-        self.assertTrue(any("bei 80 Jahren zensiert" in text for text in texts))
+        self.assertIn("First threshold time (censored at T)", titles)
+        self.assertTrue(any("censored at 80 years" in text for text in texts))
 
     def test_append_refreshes_old_and_new_norms_with_shared_limits_and_metadata(self):
         old = self.write_norm("old")
@@ -186,11 +186,11 @@ class RankingBarplotTests(unittest.TestCase):
             self.assertEqual(snapshots["old", stem]["limits"], snapshots["new", stem]["limits"])
         self.assertGreater(snapshots["old", plots.RANKING_PLOT_STEMS[0]]["limits"][0][1], old_limit[1])
         texts = snapshots["new", plots.RANKING_PLOT_STEMS[0]]["texts"]
-        self.assertTrue(any("Mittel der 3 Gruppenscores" in t for t in texts))
-        self.assertTrue(any("VORLÄUFIG: 12" in t for t in texts))
-        self.assertTrue(any("N = 16" in t and "80 Jahre" in t for t in texts))
+        self.assertTrue(any("mean of the 3 group scores" in t for t in texts))
+        self.assertTrue(any("PROVISIONAL: 12" in t for t in texts))
+        self.assertTrue(any("N = 16" in t and "80 years" in t for t in texts))
         target = snapshots["new", plots.RANKING_PLOT_STEMS[1]]
-        self.assertIn("n. v.", target["texts"])
+        self.assertIn("n/a", target["texts"])
         self.assertEqual(target["widths"][0], [-0.1])
         self.assertTrue(any(width > 1 for widths in target["widths"] for width in widths))
         self.assertEqual((old / "parameter_ranking.csv").read_bytes(), old_bytes)
@@ -253,7 +253,7 @@ class RankingBarplotTests(unittest.TestCase):
         self.assertIn(r"\mathtt{network\_size}", equation)
         self.assertIn(r"\mathtt{temperature\_factor}", equation)
         self.assertNotIn(r"\dot{x}", equation)
-        self.assertTrue(any("BI bleibt kontinuierlich" in note for note in notes))
+        self.assertTrue(any("BI remains continuous" in note for note in notes))
 
     def test_formulas_distinguish_current_delay_factor_from_saved_free_theta(self):
         metadata = {"scenario": "Descriptive, injunctive, dynamic2"}
@@ -264,7 +264,7 @@ class RankingBarplotTests(unittest.TestCase):
         self.assertNotIn(r"\rho", "\n".join(legacy))
         self.assertIn(r"x(t-\tau-\theta)", "\n".join(legacy))
         self.assertIn(r"\delta", legacy[1])
-        self.assertTrue(any("historische Parameterdefinition" in note for note in legacy_notes))
+        self.assertTrue(any("historical parameter definitions" in note for note in legacy_notes))
 
     def test_saved_dynamic_scaling_is_not_replaced_by_current_equation(self):
         metadata = {"scenario": "Descriptive, injunctive, dynamic",
