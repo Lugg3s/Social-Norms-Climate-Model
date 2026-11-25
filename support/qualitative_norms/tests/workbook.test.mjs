@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 await import('../dist/model-data.js');
 await import('../dist/papers.js');
 const { NORMS, NORM_FIELDS, PARAM_FIELDS, emptyWorkbook, validateWorkbook, progress, markdown } = globalThis.NormWorkbook;
-test('all nine distinct active norms start with empty qualitative fields', () => {
+test('all ten distinct active norms start with empty qualitative fields', () => {
   const book = emptyWorkbook();
-  assert.equal(NORMS.length, 9);
-  assert.equal(new Set(NORMS.map(model => model.key)).size, 9);
+  assert.equal(NORMS.length, 10);
+  assert.equal(new Set(NORMS.map(model => model.key)).size, 10);
   for (const model of NORMS) {
     assert.deepEqual(NORM_FIELDS.map(key => book.notes[model.key][key]), ['', '', '']);
     assert.equal(progress(book, model).filled, 0);
@@ -23,7 +23,7 @@ test('backup roundtrip preserves every norm and does not share repeated paramete
   assert.equal(restored.notes.baseline.parameters.beta.explanation, 'Meine eigene Notiz');
   assert.equal(restored.notes.agents.parameters.beta.explanation, '');
   assert.equal(restored.notes.agents.parameters.beta.larger, 'Eine andere Hypothese');
-  assert.equal(progress(restored, NORMS[0]).filled, 1);
+  assert.equal(progress(restored, NORMS.find(model => model.key === 'baseline')).filled, 1);
   assert.match(markdown(restored), /Meine eigene Notiz/);
   assert.match(markdown(restored), /https:\/\/doi.org\/10.1371\/journal.pcbi.1007000/);
   assert.match(markdown(restored), /https:\/\/doi.org\/10.1038\/s41558-017-0031-7/);
@@ -49,17 +49,40 @@ test('retired approval notes survive import without restoring the alpha paramete
   assert.match(restored.notes.approval.parameters.social_norm_factor.larger, /Meine Erwartung/);
   assert.deepEqual(validateWorkbook(restored), restored);
 });
-test('the annual agent model has no replicator parameters and preserves intention/behaviour distinction', () => {
+test('the annual agent model shares the norm weight and preserves intention/behaviour distinction', () => {
   const agents = NORMS.find(model => model.key === 'agents');
   assert.ok(!agents.parameters.includes('kappa'));
-  assert.ok(!agents.parameters.includes('social_norm_factor'));
+  assert.ok(agents.parameters.includes('social_norm_factor'));
+  assert.ok(!agents.parameters.includes('eta'));
+  assert.match(agents.auxiliary.join(''), />sf<\/mi>/);
+  assert.doesNotMatch(agents.auxiliary.join(''), /η/);
   assert.ok(agents.variables.includes('BI_i') && agents.variables.includes('actual_behavior_i'));
   assert.match(agents.auxiliary.join(''), /BIᵢ ≥ ψ/);
-  for (const model of NORMS.filter(model => model.key !== 'agents')) {
+  for (const model of NORMS.filter(model => !['agents', 'no-social-norm'].includes(model.key))) {
     assert.ok(model.parameters.includes('kappa'));
     assert.ok(model.parameters.includes('social_norm_factor'));
     assert.match(model.formula, />sf<\/mi>/);
   }
+});
+test('the renamed agent weight preserves old eta notes and current sf notes through import and export', () => {
+  const oldBook = emptyWorkbook();
+  delete oldBook.notes.agents.parameters.social_norm_factor;
+  oldBook.notes.agents.parameters.eta = { explanation: 'My old norm-weight note', larger: 'My higher-weight hypothesis', smaller: '' };
+  const oldRestored = validateWorkbook(oldBook);
+  assert.deepEqual(oldRestored.notes.agents.parameters.social_norm_factor, oldBook.notes.agents.parameters.eta);
+  assert.ok(!('eta' in oldRestored.notes.agents.parameters));
+  assert.match(markdown(oldRestored), /### social_norm_factor/);
+  assert.doesNotMatch(markdown(oldRestored), /### eta/);
+  assert.deepEqual(validateWorkbook(oldRestored), oldRestored);
+
+  const mixedBook = emptyWorkbook();
+  mixedBook.notes.agents.parameters.social_norm_factor.explanation = 'My current note';
+  mixedBook.notes.agents.parameters.eta = structuredClone(oldBook.notes.agents.parameters.eta);
+  const mixedRestored = validateWorkbook(mixedBook);
+  assert.match(mixedRestored.notes.agents.parameters.social_norm_factor.explanation, /My current note/);
+  assert.match(mixedRestored.notes.agents.parameters.social_norm_factor.explanation, /My old norm-weight note/);
+  assert.match(mixedRestored.notes.agents.parameters.social_norm_factor.larger, /My higher-weight hypothesis/);
+  assert.deepEqual(validateWorkbook(mixedRestored), mixedRestored);
 });
 test('static c_inj notes migrate to sf while combined-norm c_inj notes stay separate', () => {
   const book = emptyWorkbook();

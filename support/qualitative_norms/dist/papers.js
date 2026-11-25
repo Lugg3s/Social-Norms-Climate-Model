@@ -122,7 +122,7 @@
         reference('abebe', 'Im Review genanntes Beispielmodell', 'Prawitz-Review, Abschnitt 4.3; Originalpaper in Anara.'),
         reference('james', 'Im Review genanntes Beispielmodell', 'Prawitz-Review, Abschnitt 4.3; Originalpaper in Anara.'),
         reference('schwarz', 'Parameteranalogie: Normgewicht', 'model/agent.py: Literaturkommentar; README.md; Originalpaper in Anara.',
-          'Gleichung (2) und Tabelle 1 des zitierten Preprints. Keine Kalibrierung dieser Modellversion.'),
+          'Gleichung (2) und Tabelle 1 des zitierten Preprints dienen nur als Analogie für den unveränderten Standardwert 0.5. Der gemeinsame Sensi-Bereich social_norm_factor ∈ [0, 5] ist eine Projektannahme, kein Literaturintervall.'),
         reference('torren', 'Parameteranalogie: Initialisierung', 'README.md: Literaturverweis zu individuellen Barrieren.',
           'Gleichung (1). Die uniforme Verteilung und Skalierung im Projekt sind eigene Annahmen.'),
         foundation,

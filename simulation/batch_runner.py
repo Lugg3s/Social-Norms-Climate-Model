@@ -118,7 +118,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     scenarios=["Observation-based / intention motivation (agents)"],
     #     sweep_parameters={
     #         "network_size": [2, 5, 10, 20, 50, 100, 150, 200],
-    #         "eta": [0.0, 0.25, 0.5, 2/3, 1.0],
+    #         "social_norm_factor": [0.0, 0.25, 0.5, 2/3, 1.0, 5.0],
     #     },
     # ),
 
@@ -325,7 +325,7 @@ DEFAULT_EXPERIMENT_GROUPS: list[ExperimentGroup] = [
     #     scenarios=["Observation-based / intention motivation (agents)"],
     #     sweep_parameters={
     #         "phi": [0.25, 0.5, 0.75],
-    #         "eta": [0.0, 0.25, 0.5, 2/3, 1.0],
+    #         "social_norm_factor": [0.0, 0.25, 0.5, 2/3, 1.0, 5.0],
     #         "psi": [0.0, 0.25, 0.5],
     #         "network_size": [20, 50, 100, 200],
     #     },
@@ -837,7 +837,7 @@ def run_single_combination(
                 raise ValueError("Saved agent results use the replaced model. Use a new "
                                  "output directory or explicitly enable overwrite.")
             if params.get("ABM", False):
-                if not {"eta", "phi", "psi"}.issubset(saved_params):
+                if not {"social_norm_factor", "phi", "psi"}.issubset(saved_params) or "eta" in saved_params:
                     raise ValueError("Saved agent parameters use outdated names. "
                                      "Use a new output directory or enable overwrite.")
                 history_path = run_dir / "agent_history.npz"

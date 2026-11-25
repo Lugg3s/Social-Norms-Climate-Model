@@ -67,16 +67,34 @@ class NoNormComparisonTests(unittest.TestCase):
         self.assertAlmostEqual(fast[P + "slope"], .08)
         self.assertEqual(compare_profiles(fast, slow)[C + "slope"], "Steeper")
 
-    def test_threshold_passage_is_not_required_but_oscillations_are_excluded(self):
+    def test_threshold_passage_is_not_required_and_oscillations_are_included(self):
         partial = completed([217, 230, 240], [.3, .8, .85])
         self.assertAlmostEqual(partial[P + "slope"], .5 / 13)
         self.assertIsNone(partial[P + "first_x1"])
-        oscillating = completed([217, 230, 240], [0, .9, 1], oscillatory=True)
         complete = completed([217, 230, 240], [0, .9, 1])
-        self.assertIsNone(oscillating[P + "slope"])
-        self.assertEqual(compare_profiles(oscillating, complete)[C + "slope"], "Not comparable")
         decreasing = completed([217, 230, 240], [1, .1, 0])
         self.assertEqual(compare_profiles(complete, decreasing)[C + "slope"], "Opposite directions")
+        t = np.arange(217, 230)
+        x = np.resize([.5, .75, .5, .25], len(t))
+        oscillating = completed(t, x)
+        smaller = completed(t, .5 + (x - .5) / 2)
+        falling_first = completed(t, 1 - x)
+        self.assertEqual(oscillating[P + "slope"], .25)
+        self.assertEqual(oscillating[P + "slope_status"], "Available")
+        self.assertEqual(compare_profiles(oscillating, smaller)[C + "slope"], "Steeper")
+        self.assertEqual(compare_profiles(smaller, oscillating)[C + "slope"], "Flatter")
+        self.assertEqual(compare_profiles(oscillating, oscillating)[C + "slope"], "Equal")
+        self.assertEqual(compare_profiles(oscillating, falling_first)[C + "slope"], "Opposite directions")
+
+    def test_detected_oscillations_keep_their_annual_change_in_simulation_metrics(self):
+        from analysis.simulation_metrics import _base_metrics
+        t = np.arange(217., 618.)
+        x = np.resize([.5, .75, .5, .25], len(t))
+        metrics = _base_metrics(t, np.zeros_like(t), x, np.zeros_like(t),
+                                resolve_parameters("baseline"))
+        self.assertTrue(metrics["classification_oscillation_detected"])
+        self.assertEqual(metrics[P + "slope_status"], "Available")
+        self.assertEqual(metrics[P + "slope"], .25)
 
     def test_largest_annual_change_keeps_reversals_and_annual_jumps(self):
         interrupted = completed([217, 220, 225, 230, 240], [0, .2, 0, .1, .9])
@@ -132,24 +150,24 @@ class NoNormComparisonTests(unittest.TestCase):
             actual = resolve_parameters(name)
             reference = without_norm_parameters(actual)
             changed = {key for key in reference if reference[key] != actual[key]}
-            self.assertEqual(changed, {"eta"} if actual["ABM"] else {"social_norm"})
+            self.assertEqual(changed, {"social_norm_factor"} if actual["ABM"] else {"social_norm"})
             resolve_parameters(reference)
 
     def test_reference_diagnostics_archive_seed_and_agent_control(self):
         params = resolve_parameters("Observation-based / intention motivation (agents)")
-        params.update(network_size=2, eta=.5)
+        params.update(network_size=2, social_norm_factor=.5)
         config = sensi.SensitivityConfig(simulation_time=219, n_agents=7,
                                          coupling_interval=1, output_points_per_year=2)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            job = (params, ["eta"], np.array([.8]), config)
+            job = (params, ["social_norm_factor"], np.array([.8]), config)
             sensi._run_tracked_sample(job, 17, root / "diagnostics", "reference", None, root / "series")
             events = [json.loads(line) for line in (root / "diagnostics/reference_000017.jsonl").read_text().splitlines()]
             self.assertEqual(events[0]["sample_index"], 17)
-            self.assertEqual(events[0]["parameters"]["eta"], 0)
+            self.assertEqual(events[0]["parameters"]["social_norm_factor"], 0)
             _, metadata = load_time_series(root / "series/reference_000017.npz")
             self.assertTrue(metadata["parameters"]["ABM"])
-            self.assertEqual(metadata["parameters"]["eta"], 0)
+            self.assertEqual(metadata["parameters"]["social_norm_factor"], 0)
             self.assertEqual(metadata["solver_settings"]["seed"], config.seed)
 
     def test_reference_failure_preserves_original_sobol_success_and_rows(self):
@@ -199,12 +217,12 @@ class NoNormComparisonTests(unittest.TestCase):
 
     def test_reference_timeout_records_actual_disabled_agent_weight(self):
         params = resolve_parameters("Observation-based / intention motivation (agents)")
-        task = ((params, ["eta"], np.array([.9]), sensi.SensitivityConfig()),
+        task = ((params, ["social_norm_factor"], np.array([.9]), sensi.SensitivityConfig()),
                 23, None, "reference", None, None)
         record = sensi._record_timeout(task, {"elapsed_seconds": 1200})
         self.assertEqual(record["phase"], "reference")
         self.assertEqual(record["sample_index"], 23)
-        self.assertEqual(record["parameters"]["eta"], 0)
+        self.assertEqual(record["parameters"]["social_norm_factor"], 0)
 
     def test_zero_norm_strength_gives_equal_real_posthistorical_timing(self):
         params = {**resolve_parameters("baseline"), "social_norm_factor": 0.0, "kappa": .5}
@@ -229,6 +247,55 @@ class NoNormComparisonTests(unittest.TestCase):
             self.assertIn("10%–90% transition speed", (path / "without_norm_comparison_frequencies.svg").read_text(encoding="utf-8"))
             save_comparison_frequencies(paired, path, "baseline")
             self.assertIn("Largest annual change in x", (path / "without_norm_comparison_frequencies.svg").read_text(encoding="utf-8"))
+
+    def test_only_annual_change_plot_omits_unavailable_and_normalizes_comparable_pairs(self):
+        import matplotlib.pyplot as plt
+        actual = completed([217, 218], [.3, .6])
+        reference = completed([217, 218], [.3, .5])
+        paired = pd.DataFrame([compare_profiles(actual, reference),
+                               compare_profiles(reference, actual),
+                               compare_profiles(actual, {"status": "failed"})])
+        original = paired.copy(deep=True)
+        with tempfile.TemporaryDirectory() as directory, patch.object(plt, "close"):
+            frequencies = save_comparison_frequencies(paired, directory, "Test norm")
+            figure = plt.gcf()
+            self.addCleanup(figure.clear)
+            labels = [[label.get_text().replace("\n", " ") for label in ax.get_xticklabels()]
+                      for ax in figure.axes]
+            self.assertIn("Not comparable", labels[0])
+            self.assertIn("Not comparable", labels[1])
+            self.assertEqual(labels[2], ["Steeper", "Flatter", "Equal", "Opposite directions"])
+            self.assertEqual(figure.axes[2].get_ylabel(), "Share of comparable runs")
+            self.assertTrue(any("33.3%" in text.get_text() for text in figure.axes[2].texts))
+        slope = frequencies[frequencies.comparison.eq("slope")].set_index("category")
+        self.assertNotIn("Not comparable", slope.index)
+        self.assertEqual(slope.loc["Steeper", "relative_frequency"], .5)
+        self.assertEqual(slope.loc["Flatter", "relative_frequency"], .5)
+        self.assertTrue(slope.frequency_denominator.eq(2).all())
+        self.assertTrue(slope.total_requested_runs.eq(3).all())
+        self.assertTrue(slope.excluded_runs.eq(1).all())
+        timing = frequencies[frequencies.comparison.eq("x1_timing")].set_index("category")
+        self.assertEqual(timing.loc["Not comparable", "relative_frequency"], 1 / 3)
+        pd.testing.assert_frame_equal(paired, original)
+
+    def test_annual_change_plot_handles_no_comparable_runs_and_legacy_definitions(self):
+        import matplotlib.pyplot as plt
+        paired = pd.DataFrame([compare_profiles({"status": "failed"}, {"status": "failed"})])
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(plt, "close"):
+                frequencies = save_comparison_frequencies(paired, directory, "Test norm")
+                figure = plt.gcf()
+                self.addCleanup(figure.clear)
+                self.assertTrue(any(text.get_text() == "No comparable runs" for text in figure.axes[2].texts))
+                self.assertFalse(any(text.get_text() == "0.0%" for text in figure.axes[2].texts))
+            annual = frequencies[frequencies.comparison.eq("slope")]
+            self.assertTrue(annual.relative_frequency.isna().all())
+            self.assertTrue(annual.frequency_denominator.eq(0).all())
+            legacy = save_comparison_frequencies(paired, directory, "Test norm", definition={"version": 2})
+            self.assertIn("Not comparable", set(legacy.loc[legacy.comparison.eq("slope"), "category"]))
+            historical = save_comparison_frequencies(paired, directory, "Test norm", definition={"version": 3})
+            self.assertNotIn("Not comparable", set(historical.loc[historical.comparison.eq("slope"), "category"]))
+            self.assertIn("saved results excluded oscillations", (Path(directory) / "without_norm_comparison_frequencies.svg").read_text(encoding="utf-8"))
 
     def test_cli_defaults_and_opt_out(self):
         self.assertTrue(sensi.parse_args([]).compare_without_norm)

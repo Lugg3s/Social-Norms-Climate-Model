@@ -126,7 +126,7 @@ class SensitivityInitialShareTests(unittest.TestCase):
                 self.assertEqual(actual["x0"], 0.05)
                 self.assertEqual(actual["beta"], 1.2)
                 if actual["ABM"]:
-                    self.assertEqual(actual["eta"], 0)
+                    self.assertEqual(actual["social_norm_factor"], 0)
                 else:
                     self.assertEqual(actual["social_norm"], "No social norm")
 

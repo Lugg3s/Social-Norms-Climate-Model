@@ -41,7 +41,7 @@
     beta: 'β', kappa: 'κ', x0: 'x₀', f_max: 'fₘₐₓ', omega: 'ω', T_c: 'T꜀',
     N: 'N', c_desc: 'c_desc', c_inj: 'cᵢₙⱼ', x_target: 'xₜₐᵣɡₑₜ', c_dyn: 'c_dᵧₙ',
     tau_ref: 'τᵣₑ𝒻', tau_xp: 'τₓₚ', tau: 'τ', rho: 'ρ',
-    network_size: 'network_size', eta: 'η', phi: 'φ', psi: 'ψ', n_agents: 'n_agents',
+    network_size: 'network_size', phi: 'φ', psi: 'ψ', n_agents: 'n_agents',
   };
   const STATES = { x: 'x', t: 't', T: 'T', x_p: 'xₚ', x_ref: 'xᵣₑ𝒻',
     A_i: 'Aᵢ', BI_i: 'BIᵢ', actual_behavior_i: 'actual_behaviorᵢ', q_i: 'qᵢ', beta_i: 'βᵢ', P_i: 'Pᵢ' };
@@ -83,7 +83,7 @@
     formula: equation(row(x, par(sub('t', 'k'))), frac(row(`<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow>${id('n_agents')}</munderover>`, actual, par(row(sub('t', 'k'), op('⁺')))), id('n_agents'))),
     auxiliary: [
       equation(ai, row(op('−'), sub('β', 'i'), op('+'), temperature)),
-      equation(bi, cases([[row(ai, op('+'), times(id('η'), qi)), 'qᵢ ≥ φ'], [ai, 'qᵢ < φ']])),
+      equation(bi, cases([[row(ai, op('+'), times(id('sf'), qi)), 'qᵢ ≥ φ'], [ai, 'qᵢ < φ']])),
       equation(row(actual, par(row(sub('t', 'k'), op('⁺')))), cases([[n(1), 'BIᵢ ≥ ψ'], [n(0), 'BIᵢ < ψ']])),
       equation(qi, cases([[frac(row('<munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><msub><mi>P</mi><mi>i</mi></msub></mrow></munder>', sub('actual_behavior', 'j'), par(row(sub('t', 'k'), op('⁻')))), row(op('|'), sub('P', 'i'), op('|'))), '|Pᵢ| > 0'], [n(0), '|Pᵢ| = 0']])),
       math(row(sub('β', 'i'), op('∼'), id('Uniform'), par(row(n(0), op(','), n(2), id('β'))))),
@@ -93,8 +93,8 @@
       equation(row(x, par(n(0))), frac(row(id('round'), par(times(id('n_agents'), sub('x', '0')))), id('n_agents'))),
       sigmoid,
     ],
-    parameters: ['temperature_factor', 'beta', 'network_size', 'eta', 'phi', 'psi', 'n_agents', ...response],
-    specificParameters: ['network_size', 'eta', 'phi', 'psi', 'n_agents'],
+    parameters: ['social_norm_factor', 'temperature_factor', 'beta', 'network_size', 'phi', 'psi', 'n_agents', ...response],
+    specificParameters: ['network_size', 'phi', 'psi', 'n_agents'],
     variables: [...baseVariables, 'A_i', 'BI_i', 'actual_behavior_i', 'q_i', 'beta_i', 'P_i'],
     note: 'Alle Agenten entscheiden gleichzeitig auf Basis des vorherigen Verhaltens. BI_i bleibt ein kontinuierlicher Wert. β_i und P_i werden bei der Initialisierung gezogen und anschließend beibehalten.',
     source: 'model/agent.py · initialize_agents / evaluate_intentions / update_agents; model/model_equations.py · jährliche Ereignisse',
@@ -130,8 +130,19 @@
       for (const name of [...model.parameters, ...model.variables]) {
         // Older workbooks predate this note field; model inputs have no fallback.
         if (model.key === 'combined2' && name === 'c_desc' && !Object.hasOwn(note.parameters, name)) continue;
-        if (!note.parameters[name]) throw new Error(`Der Bereich ${name} fehlt.`);
-        for (const key of PARAM_FIELDS) clean.notes[model.key].parameters[name][key] = string(note.parameters[name][key]);
+        // Renaming the agent weight must preserve notes from earlier browser saves.
+        const fields = note.parameters[name] || (model.key === 'agents' && name === 'social_norm_factor' ? note.parameters.eta : null);
+        if (!fields) throw new Error(`Der Bereich ${name} fehlt.`);
+        for (const key of PARAM_FIELDS) clean.notes[model.key].parameters[name][key] = string(fields[key]);
+      }
+      if (model.key === 'agents' && note.parameters.social_norm_factor && note.parameters.eta) {
+        for (const key of PARAM_FIELDS) {
+          const previous = string(note.parameters.eta[key]);
+          if (previous.trim()) {
+            const target = clean.notes.agents.parameters.social_norm_factor;
+            target[key] += `${target[key].trim() ? '\n\n' : ''}Frühere Notiz zu eta (jetzt social_norm_factor):\n${previous}`;
+          }
+        }
       }
       // Preserve existing user notes when retiring the redundant parameter.
       const retired = model.key === 'approval' ? 'alpha' : model.key === 'static-injunctive' ? 'c_inj' : null;

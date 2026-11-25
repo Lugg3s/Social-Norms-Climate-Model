@@ -19,24 +19,25 @@ LEGACY_TIMING_LABELS = {
 }
 TIMING_ORDER = ["Earlier", "Later", "Equal", *LEGACY_TIMING_LABELS.values(),
                 "Neither reached", "Not comparable"]
-SLOPE_ORDER = ["Steeper", "Flatter", "Equal", "Opposite directions", "Not comparable"]
+SLOPE_ORDER = ["Steeper", "Flatter", "Equal", "Opposite directions"]
 
 
 def comparison_definition():
     return {
-        "version": 3,
+        "version": 4,
         "enabled_by_default": True,
         "scope": "Paired descriptive classifications only; excluded from Sobol targets and row validity.",
-        "reference": "ODE: identical inputs with social_norm='No social norm'. ABM: identical agents, network, seed and annual decisions with eta=0.",
+        "reference": "ODE: identical inputs with social_norm='No social norm'. ABM: identical agents, network, seed and annual decisions with social_norm_factor=0.",
         "reference_reuse": "Run-local cache keyed by effective control inputs, simulation settings, numerical versions and source/data hashes. Shared A/B coordinates make continuous references reusable across norms.",
         "climate": "Both runs evolve their own climate under the same settings and forcing; includes indirect climate feedback effects.",
         "start": SETTINGS.behaviour_start,
         "x0_threshold": SETTINGS.low_threshold,
         "x1_threshold": SETTINGS.high_threshold,
         "timing": "First threshold reach after the historical phase; no persistence requirement. Already reached at window start counts at that start.",
-        "slope": "max(abs(x(y+1)-x(y))) over complete integer-year intervals after the historical phase. Save the sign/direction and earliest interval attaining the maximum. ODE: linear interpolation at years; ABM: actual behaviour held until the next decision. Detected oscillations are excluded; opposite nonzero directions are not compared.",
+        "slope": "max(abs(x(y+1)-x(y))) over complete integer-year intervals after the historical phase, including oscillating trajectories. Save the sign/direction and earliest interval attaining the maximum. ODE: linear interpolation at years; ABM: actual behaviour held until the next decision. Opposite nonzero directions have their own category.",
         "annual_change_zero_tolerance": ANNUAL_CHANGE_ZERO_TOLERANCE,
-        "incomplete_passage": "No threshold passage is required. Unavailable only if no complete calendar-year interval is observed, the trajectory is invalid, or oscillations are detected. A constant trajectory has zero annual change.",
+        "incomplete_passage": "No threshold passage is required. Unavailable only if no complete calendar-year interval is observed or the trajectory is invalid. A constant trajectory has zero annual change.",
+        "annual_change_plot": "Four categories over comparable pairs only. Unavailable comparisons remain in the per-run audit, are omitted from this plot, and their share of requested runs is annotated. Timing plots retain Not comparable and use all requested runs.",
         "time_equality_tolerance_years": TIME_TOLERANCE,
         "slope_equality_rtol": SLOPE_RTOL,
         "slope_equality_atol": SLOPE_ATOL,
@@ -49,7 +50,7 @@ def without_norm_parameters(params):
     """Keep all actual inputs; never import another scenario's defaults."""
     reference = dict(params)
     if reference["ABM"]:
-        reference["eta"] = 0.0
+        reference["social_norm_factor"] = 0.0
     else:
         reference["social_norm"] = "No social norm"
     return reference
@@ -83,7 +84,7 @@ def _annual_change(t, x, stepwise):
             "slope_start": float(years[index]), "slope_end": float(years[index + 1])}
 
 
-def transition_profile(t_values, x_values, *, stepwise=False, oscillatory=False):
+def transition_profile(t_values, x_values, *, stepwise=False):
     """Small audit record, also available when full time-series saving is disabled."""
     fields = dict(status="Invalid trajectory", first_x0=None, first_x1=None,
                   slope=None, direction=None, slope_status="Unavailable",
@@ -103,11 +104,10 @@ def transition_profile(t_values, x_values, *, stepwise=False, oscillatory=False)
         fields.update(status="Available",
                       first_x0=_crossing(t, x, SETTINGS.low_threshold, False, stepwise),
                       first_x1=_crossing(t, x, SETTINGS.high_threshold, True, stepwise),
-                      slope_status="Oscillations detected" if oscillatory else "No complete calendar-year interval")
-        if not oscillatory:
-            annual = _annual_change(t, x, stepwise)
-            if annual is not None:
-                fields.update(annual, slope_status="Available")
+                      slope_status="No complete calendar-year interval")
+        annual = _annual_change(t, x, stepwise)
+        if annual is not None:
+            fields.update(annual, slope_status="Available")
     return {PROFILE_PREFIX + key: value for key, value in fields.items()}
 
 
@@ -162,16 +162,16 @@ def compare_profiles(actual, reference):
 
 
 def save_comparison_frequencies(outputs, destination, scenario, *, definition=None):
-    """Keep all requested rows and all unavailable/non-event categories visible."""
+    """Show timing for all rows and annual changes for comparable pairs only."""
     import matplotlib.pyplot as plt
     from matplotlib.ticker import PercentFormatter
     from pathlib import Path
     import textwrap
 
     timing = TIMING_ORDER
-    slope = SLOPE_ORDER
     definition = comparison_definition() if definition is None else definition
     annual = definition.get("version", 2) >= 3
+    slope = SLOPE_ORDER if annual else [*SLOPE_ORDER, "Not comparable"]
     slope_title = "Largest annual change in x" if annual else "10%–90% transition speed"
     panels = [("x0_timing", f"First reach of x ≤ {SETTINGS.low_threshold:.0%}", timing),
               ("x1_timing", f"First reach of x ≥ {SETTINGS.high_threshold:.0%}", timing),
@@ -183,32 +183,49 @@ def save_comparison_frequencies(outputs, destination, scenario, *, definition=No
     fig, axes = plt.subplots(3, 1, figsize=(14, 16))
     for ax, (name, title, order) in zip(axes, panels):
         counts = outputs[PREFIX + name].fillna("Not comparable").replace(LEGACY_TIMING_LABELS).value_counts()
-        if set(counts.index) - set(order):
-            raise ValueError(f"Unknown without-norm comparison category: {set(counts.index) - set(order)}")
+        allowed = set(order) | {"Not comparable"}
+        if set(counts.index) - allowed:
+            raise ValueError(f"Unknown without-norm comparison category: {set(counts.index) - allowed}")
+        comparable_only = annual and name == "slope"
+        excluded = int(counts.get("Not comparable", 0)) if comparable_only else 0
+        denominator = len(outputs) - excluded
         for label in order:
             count = int(counts.get(label, 0))
             rows.append(dict(comparison=name, category=label, count=count,
                              total_requested_runs=len(outputs),
-                             relative_frequency=count / len(outputs) if len(outputs) else 0.0))
-        heights = [counts.get(label, 0) / len(outputs) if len(outputs) else 0.0 for label in order]
+                             frequency_denominator=denominator, excluded_runs=excluded,
+                             relative_frequency=count / denominator if denominator else
+                             float("nan") if comparable_only else 0.0))
+        heights = [counts.get(label, 0) / denominator if denominator else 0.0 for label in order]
         ax.bar(range(len(order)), heights, color=["#999999" if label == "Not comparable" else "#4c78a8"
                                                 for label in order])
-        for i, height in enumerate(heights):
+        for i, height in enumerate(heights if denominator else []):
             ax.annotate(f"{height:.1%}", (i, height), xytext=(0, -6 if height > .94 else 4),
                         textcoords="offset points", ha="center", va="top" if height > .94 else "bottom")
         ax.set_xticks(range(len(order)), [textwrap.fill(label, 18) for label in order])
         ax.set_ylim(0, 1)
         ax.yaxis.set_major_formatter(PercentFormatter(1))
-        ax.set_ylabel("Share of all requested runs")
+        ax.set_ylabel("Share of comparable runs" if comparable_only else "Share of all requested runs")
+        if comparable_only and not denominator:
+            ax.text(.5, .5, "No comparable runs", transform=ax.transAxes, ha="center")
+        if comparable_only and excluded:
+            ax.text(.02, .96, f"Unavailable comparisons omitted: {excluded / len(outputs):.1%} of requested runs",
+                    transform=ax.transAxes, va="top", fontsize=9)
         ax.set_title(title + "\nReference: " + model)
         ax.grid(axis="y", alpha=.2)
         ax.set_axisbelow(True)
     fig.suptitle(f"{scenario}\nReference comparisons | {len(outputs):,} requested runs", fontsize=15)
-    slope_note = ("Annual changes use complete calendar-year intervals; oscillations are excluded."
-                  if annual else "Transition speed uses complete passages in matching directions.")
+    if annual:
+        oscillation_note = ("including oscillations" if definition.get("version", 2) >= 4 else
+                            "saved results excluded oscillations")
+        slope_note = (f"Annual changes use complete calendar-year intervals ({oscillation_note}); "
+                      "percentages use comparable pairs only.")
+    else:
+        slope_note = "Transition speed uses complete passages in matching directions."
+    weight = "eta" if "with eta=0" in definition.get("reference", "") else "social_norm_factor"
     fig.text(.5, .01, "First reaches after 2017; missing thresholds are separate categories. "
              + slope_note + "\n"
-             "ABM reference: eta = 0 with the same agents and annual decisions. "
+             f"ABM reference: {weight} = 0 with the same agents and annual decisions. "
              "Descriptive sample shares, not real-world probabilities.", ha="center", fontsize=9)
     fig.tight_layout(rect=(0, .045, 1, .95), h_pad=3)
     destination = Path(destination)

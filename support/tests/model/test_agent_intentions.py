@@ -28,7 +28,7 @@ class IntentionRuleTests(unittest.TestCase):
         people = [agent.Agent(0, 0, np.array([1, 2]), .5),
                   agent.Agent(1, 1, np.array([0, 2]), .3),
                   agent.Agent(2, 0, np.array([1]), .2)]
-        self.p.update(eta=.8, phi=.5)
+        self.p.update(social_norm_factor=.8, phi=.5)
         agent.update_agents(people, temperature=.1, p=self.p, f_T=lambda t: t)
         # Agent 0 observes q=.5 exactly at tau and BI=0 exactly at the action
         # threshold. Agent 1 must still observe both peers' OLD zeros.
@@ -40,7 +40,7 @@ class IntentionRuleTests(unittest.TestCase):
     def test_low_observation_adds_no_norm_and_intention_is_not_behavior(self):
         people = [agent.Agent(0, 0, np.array([1]), .2),
                   agent.Agent(1, 0, np.array([], dtype=int), .2)]
-        self.p.update(eta=10, psi=1)
+        self.p.update(social_norm_factor=10, psi=1)
         agent.update_agents(people, .7, self.p, lambda t: t)
         np.testing.assert_allclose([a.behavioral_intention for a in people], [.5, .5])
         np.testing.assert_array_equal(agent.actual_behaviors_array(people), [0, 0])
@@ -48,7 +48,7 @@ class IntentionRuleTests(unittest.TestCase):
     def test_continuous_BI_survives_thresholding_into_actual_behavior(self):
         people = [agent.Agent(agent_id=0, actual_behavior=0,
                               peers=np.array([], dtype=int), beta=0)]
-        self.p.update(eta=0, psi=.5)
+        self.p.update(social_norm_factor=0, psi=.5)
         # Evaluating BI alone does not enact it, even above the threshold.
         agent.evaluate_intentions(people, .6, self.p, lambda t: t)
         self.assertEqual(people[0].behavioral_intention, .6)
@@ -62,7 +62,7 @@ class IntentionRuleTests(unittest.TestCase):
 
     def test_temperature_drives_reversible_decisions_without_redrawing_costs(self):
         people = [agent.Agent(0, 0, np.array([], dtype=int), 1)]
-        self.p["eta"] = 0
+        self.p["social_norm_factor"] = 0
         agent.update_agents(people, 5, self.p, lambda t: t)
         self.assertEqual(people[0].actual_behavior, 1)
         self.assertEqual(people[0].behavioral_intention, 4)  # BI must not be clipped to 1.
@@ -98,11 +98,11 @@ class IntentionRuleTests(unittest.TestCase):
         for name in ("agent_susceptibility", "agent_update_rate"):
             with self.subTest(parameter=name), self.assertRaisesRegex(ValueError, "has been removed"):
                 resolve_parameters({**self.p, name: 1})
-        for old, new in (("agent_norm_weight", "eta"), ("agent_norm_threshold", "phi"),
+        for old, new in (("eta", "social_norm_factor"), ("agent_norm_weight", "social_norm_factor"), ("agent_norm_threshold", "phi"),
                          ("agent_behavior_threshold", "psi")):
             with self.subTest(parameter=old), self.assertRaisesRegex(ValueError, f"renamed to {new}"):
                 resolve_parameters({**self.p, old: 1})
-        for name, value in (("eta", -1), ("phi", 1.1),
+        for name, value in (("social_norm_factor", -1), ("phi", 1.1),
                             ("psi", float("nan"))):
             with self.subTest(parameter=name), self.assertRaises(ValueError):
                 resolve_parameters({**self.p, name: value})
@@ -114,13 +114,13 @@ class IntentionRuleTests(unittest.TestCase):
         names = build_problem(SCENARIO)["names"]
         self.assertIn("beta", names)
         self.assertIn("temperature_factor", names)
-        self.assertIn("eta", names)
-        self.assertNotIn("social_norm_factor", names)
+        self.assertIn("social_norm_factor", names)
+        self.assertNotIn("eta", names)
         self.assertNotIn("kappa", names)
         self.assertNotIn("agent_susceptibility", names)
 
     def test_missing_decision_parameters_raise_native_key_errors(self):
-        for name in ("eta", "phi", "psi", "network_size"):
+        for name in ("social_norm_factor", "phi", "psi", "network_size"):
             params = dict(self.p)
             del params[name]
             with self.subTest(parameter=name), self.assertRaises(KeyError) as error:
@@ -196,7 +196,7 @@ class AnnualCouplingTests(unittest.TestCase):
                                            err_msg=name)
 
     def test_unused_replicator_parameters_cannot_influence_agents(self):
-        params = {**self.params, "social_norm_factor": 123, "kappa": 123}
+        params = {**self.params, "kappa": 123}
         other = simulate(params, simulation_time=220.3, n_agents=11, seed=9,
                          simulate_only_x=True, verbose=False, coupling_interval=1.7,
                          output_points_per_year=1)
@@ -243,8 +243,8 @@ class AnnualCouplingTests(unittest.TestCase):
     def test_climate_uses_actual_behavior_and_crossing_is_at_decision(self):
         options = dict(simulation_time=220, n_agents=11, seed=9, verbose=False,
                        coupling_interval=1, output_points_per_year=2)
-        all_act = simulate({**self.params, "beta": 0, "eta": 0}, **options)
-        none_act = simulate({**self.params, "beta": 100, "eta": 0}, **options)
+        all_act = simulate({**self.params, "beta": 0, "social_norm_factor": 0}, **options)
+        none_act = simulate({**self.params, "beta": 100, "social_norm_factor": 0}, **options)
         self.assertEqual(all_act["simulation"].x[-1], 1)
         self.assertEqual(none_act["simulation"].x[-1], 0)
         self.assertLess(all_act["simulation"].C_at[-1], none_act["simulation"].C_at[-1])

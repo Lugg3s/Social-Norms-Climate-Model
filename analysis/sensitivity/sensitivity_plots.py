@@ -316,6 +316,18 @@ def _save_ranking_figure(figure, scenario_dir: Path, stem: str) -> list[Path]:
     return paths
 
 
+def _model_run_count(metadata):
+    """Count Sobol model runs, never label the base block count as runs."""
+    count = metadata.get("number_of_model_runs")
+    if count is not None:
+        return int(count)
+    base = metadata.get("base_sample_size")
+    dimensions = (metadata.get("problem") or {}).get("num_vars")
+    if base is not None and dimensions is not None and not metadata.get("calc_second_order", False):
+        return int(base) * (int(dimensions) + 2)
+    return None
+
+
 def _scenario_ranking_barplots(scenario_dir, metadata, values, limits, colors) -> list[Path]:
     output_names = metadata["outputs_for_ranking"]
     scenario = metadata.get("scenario", scenario_dir.name)
@@ -324,8 +336,9 @@ def _scenario_ranking_barplots(scenario_dir, metadata, values, limits, colors) -
         title = "Observation based / approval\n(punish only one behaviour)"
     horizon = metadata.get("simulation_time")
     details = []
-    if metadata.get("base_sample_size") is not None:
-        details.append(f"N = {metadata['base_sample_size']}")
+    model_runs = _model_run_count(metadata)
+    if model_runs is not None:
+        details.append(f"{model_runs:,} model runs")
     if horizon is not None:
         details.append(f"{horizon:g} years")
     if metadata.get("constant_temperature_costs", False):
@@ -498,6 +511,8 @@ def _ranking_formula_content(metadata, parameters):
     legacy |= archived_injunctive or (norm == "Descriptive, injunctive, dynamic2" and "c_desc" not in names)
     independent_theta = "theta" in names and "rho" not in names
     legacy |= (norm in DELAY_NORMS or archived_injunctive) and independent_theta
+    legacy_agent_weight = norm in ABM_NORMS and "eta" in names
+    legacy |= legacy_agent_weight
     notes = ["Saved model equation (historical parameter definitions)."
              if legacy else "Current model equation."]
     temperature = (r"f_T(T)=\frac{f_{\mathrm{max}}}"
@@ -508,17 +523,20 @@ def _ranking_formula_content(metadata, parameters):
         codes = ["β = beta"]
         notes.append("Constant temperature contribution: temperature_factor; f_T(T) = 1.")
     if norm in ABM_NORMS:
+        # Keep archived results labelled with the weight they actually sampled.
+        weight = r"\eta" if legacy_agent_weight else r"\mathtt{social\_norm\_factor}"
         rows = [
             r"A_i(t)=-\beta_i+\mathtt{temperature\_factor}\,f_T(T(t))"
             r",\quad \beta_i\sim\mathrm{Uniform}(0,2\beta)\;\mathrm{(once)}",
-            r"BI_i(t)=A_i(t)+\eta q_i(t)\,\mathbf{1}_{q_i(t)\geq\phi}",
+            rf"BI_i(t)=A_i(t)+{weight}\,q_i(t)\,\mathbf{{1}}_{{q_i(t)\geq\phi}}",
             r"b_i(t)=\mathbf{1}_{BI_i(t)\geq\psi},\quad "
             r"x(t)=\frac{1}{n}\sum_{i=1}^{n}b_i(t)",
             r"q_i(t)=\frac{1}{k}\sum_{j\in\mathcal{N}_i}b_j(t^-),\quad "
             r"k=\mathtt{network\_size},\quad n=\mathtt{n\_agents}",
             temperature,
         ]
-        codes += ["η = eta", "φ = phi", "ψ = psi"]
+        codes += (["η = eta (saved historical norm weight)"] if legacy_agent_weight else [])
+        codes += ["φ = phi", "ψ = psi"]
         notes += ["Annual, simultaneous decisions from t = 217; BI remains continuous. "
                   "Without neighbours the norm contribution is zero."]
     else:

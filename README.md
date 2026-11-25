@@ -38,23 +38,38 @@ see [the classification rules](analysis/BEHAVIOURAL_CLASSIFICATION.md).
 Sensitivity runs additionally compare each successful sample with a matched
 without-norm reference by default: first reach of x <= 5% / x >= 95%, and
 largest annual change in x across complete calendar-year intervals after 2017,
-with its direction and interval saved. No threshold passage is required;
-detected oscillations remain excluded from this change comparison. All norms project a
+with its direction and interval saved. No threshold passage is required, and
+oscillating trajectories are included. The annual-change plot shows `Steeper`,
+`Flatter`, `Equal` and `Opposite directions`, with percentages calculated over
+comparable pairs. Truly unavailable comparisons remain in the audit tables but
+are omitted from this panel; its annotation reports their share. Timing plots
+retain `Not comparable` and use all requested samples as their denominator.
+All norms project a
 shared Sobol A/B design into their own valid N*(D+2) sampling blocks. When selected
 (as it is by default), `No social norm` runs first and supplies references to
 the other continuous norms. A run-local cache reuses identical effective controls;
 only missing unique references are simulated. Different physical inputs or
 settings cannot share a reference. The ABM uses a separate **Agent model without
-social influence**, retaining the same agents and setting only `eta=0`.
-Missing reaches, equal outcomes and incomparable slopes are separate categories.
+social influence**, retaining the same agents and setting only `social_norm_factor=0`.
+Missing reaches and equal outcomes remain separate categories.
 Comparisons and frequency plots are saved per norm and never enter Sobol estimation.
 Use `--no-compare-without-norm` to disable comparisons and additional controls.
+Comparison protocol version 4 includes oscillations in annual-change profiles;
+saved older results retain their historical definitions and values. Rerendering
+version-3 annual-change plots also hides unavailable comparisons and identifies
+their saved oscillation exclusions. It cannot recover their missing changes
+without time series. Historical version-2 full-passage plots retain their
+original categories, including `Not comparable`.
 
 Keep `sampling_design.json`, `sampling_AB.npz`, and `reference_cache.sqlite3`
 with the complete result folder when copying it. New shared sampling preserves
 parameter ranges and per-norm sample counts but changes sampled values relative
 to older independent designs, even with the same seed. Legacy results remain
 unchanged; start a new folder instead of appending the new design to them.
+Renaming the agent norm weight from `eta` to `social_norm_factor` also removes
+one coordinate from the shared Sobol design. With an identical seed, this can
+change draws for other norms as well. The agent weight now uses `[0,5]` instead
+of `[0,1]`. Start a new result folder; appending to an older design is rejected.
 Append operations within a new run reuse its saved A/B values and require matching
 sample size, seed and ranges. Explicit `--scenarios` selections are preserved;
 if no no-norm scenario is selected, needed unique controls are computed on demand.
@@ -298,8 +313,9 @@ Source: [Bury, Bauch & Anand (2019), Methods, temperature projection, Eq. (8)](h
 ## Social norm strength
 
 `social_norm_factor` controls the overall strength of the social-norm contribution
-in the replicator scenarios. The agent intention scenario uses its own
-`eta`. The descriptive term is
+in both the replicator scenarios and the agent intention scenario. All active
+norms use the shared sensitivity range `[0,5]` for this weight; the zero-norm
+reference has no social weight. The descriptive term is
 `2*x - 1`; `c_inj` and `c_dyn` weight the injunctive and dynamic components
 relative to it in combined norms.
 
@@ -465,19 +481,22 @@ reversible decisions, starting in 2017 (`t = 217`):
 ```text
 q_i = actual mitigators among agent i's peers / number of peers
 A_i(t) = -beta_i + temperature_factor * f_T(T(t))
-BI_i(t) = A_i(t) + eta * q_i   if q_i >= phi
-BI_i(t) = A_i(t)                           otherwise
+BI_i(t) = A_i(t) + social_norm_factor * q_i   if q_i >= phi
+BI_i(t) = A_i(t)                            otherwise
 actual_behavior_i(t) = 1 if BI_i(t) >= psi, otherwise 0
 x(t) = mean(actual_behavior_i(t))
 ```
 
 All agents observe the old actual behaviours before switching together. The
 climate ODE uses `epsilon(t) * (1 - x)` with this actual share. There is no
-replicator equation, `kappa`, or `social_norm_factor` in this scenario's decisions.
-Temperature still affects behaviour through `f_T`, whose existing steepness
-parameter `omega` is separate from the new `eta`.
-The agent parameters use free Greek letters: `eta` (η, norm weight),
-`phi` (φ, norm-activation threshold), and `psi` (ψ, action threshold).
+replicator equation or `kappa` in this scenario's decisions.
+Temperature still affects behaviour through `f_T`; `omega` controls its steepness,
+while `social_norm_factor` weights the social contribution.
+The agent-specific thresholds use free Greek letters:
+`phi` (φ, norm-activation threshold) and `psi` (ψ, action threshold).
+The former agent norm-weight key `eta` has been renamed to `social_norm_factor`,
+with the same meaning and unchanged configured value `0.5`. Existing custom
+parameter inputs must use the new name; archived results keep their original keys.
 The previous keys `agent_norm_weight`, `agent_norm_threshold`, and
 `agent_behavior_threshold` must be renamed; outdated keys are rejected.
 BI is a continuous net score, may be negative or greater than one, and is not
@@ -493,10 +512,12 @@ uses individual static barriers on `[0,1]` and Beta-distributed initialization.
 Our uniform choice (Beta(1,1)) and rescaling to preserve expected cost `beta`
 are modelling assumptions, not empirical cost bounds.
 
-The configured independent norm weight is `0.5`. [InSEEDS, Schwarz et al. (2025),
+The configured `social_norm_factor` is `0.5`. [InSEEDS, Schwarz et al. (2025),
 Eq. (2) and Table 1, preprint](https://doi.org/10.5194/egusphere-2025-4079)
 uses norm/attitude weight ratios of `0.25` and `2/3`; our configured value is an
-illustrative intermediate value, not a calibration. `eta`, `phi`, `psi`, and
+illustrative intermediate value, not a calibration. The shared Sobol range `[0,5]`
+is a project assumption for comparing norm weights, not an empirical interval
+from that paper. `social_norm_factor`, `phi`, `psi`, and
 `network_size` must be explicitly configured. The agent module supplies no
 fallback parameter values. The base thresholded BI rule follows
 [Prawitz et al. (2026), section 4.3](https://doi.org/10.1088/1748-9326/ae3b55);
@@ -530,9 +551,9 @@ field names unless explicitly overwritten.
 `agent_susceptibility` and `agent_update_rate` are rejected as removed inputs.
 The automated Sobol runner includes this scenario, both in the default scenario
 selection and when selected explicitly. It varies `temperature_factor` and
-`beta` on `[0,5]`, `eta`, `phi`, and `psi` on `[0,1]`, and `network_size` on
-`[1,999]`, rounded to the nearest integer. `kappa` and `social_norm_factor` are
-excluded because they do not enter agent decisions. All seven active targets use the
+`beta` and `social_norm_factor` on `[0,5]`, `phi` and `psi` on `[0,1]`, and
+`network_size` on `[1,999]`, rounded to the nearest integer. `kappa` is
+excluded because it does not enter agent decisions. All seven active targets use the
 same definitions as the ODE scenarios, respecting annual behaviour steps.
 
 Sensitivity runs default to 1,000 agents (configurable centrally or via
@@ -746,8 +767,10 @@ For inputs containing multiple norms, the default analysis additionally creates
 inputs). Both groups include their own reports, summary and
 `regressiontrees_alle_normen.svg`. Decision features are the intersection of
 sampled input names across the selected norms, never the norm label. In the
-current ten-scenario sensitivity configuration, these are `temperature_factor` and `beta`;
-the agent model does not sample `kappa` or `social_norm_factor`.
+current ten-scenario sensitivity configuration, these are `temperature_factor`
+and `beta`: the agent model does not sample `kappa`, and the zero-norm reference
+does not sample `social_norm_factor`. When the zero-norm reference is excluded,
+`social_norm_factor` is shared by all selected norm types, including agents.
 
 When the selected sources contain the agent norm and at least two other norms,
 both common-input groups are also created without the agent norm under
@@ -929,7 +952,10 @@ The first shows `mitigation`, `climate`, `dynamics`, and `overall_score`; the
 second shows all saved output-specific ST indices (seven for new runs). Both use the values and
 parameter order in `parameter_ranking.csv`. Each metric has the same axis range
 across all available norms, so existing figures are regenerated when a new norm
-is appended. Metadata supplies each norm's sample size, simulation horizon,
+is appended. Captions show the number of Sobol model runs (for example,
+`12,300 model runs`), not the base sample size; additional reference and boundary
+runs are excluded. The count comes from saved metadata, or is reconstructed from
+the saved first-order Sobol design when possible. Metadata also supplies the simulation horizon,
 non-occurrence convention, and score mode (`simple_mean` or `grouped_mean`).
 Provisional analyses are labelled; unavailable analyses are skipped and undefined
 values are marked `n. v.`. These are point estimates without error bars; the

@@ -39,6 +39,7 @@ class RankingBarplotTests(unittest.TestCase):
         ranking.to_csv(folder / "parameter_ranking.csv", sep=";", index=False)
         metadata = {
             "scenario": name, "base_sample_size": 16, "simulation_time": 80,
+            "number_of_model_runs": 64, "problem": {"num_vars": 2},
             "outputs_for_ranking": sensitivity.SENSITIVITY_OUTPUTS,
             "elimination_time_definition": {"method": "zero_if_not_reached"},
             "score_mode": mode,
@@ -222,12 +223,31 @@ class RankingBarplotTests(unittest.TestCase):
         texts = snapshots["new", plots.RANKING_PLOT_STEMS[0]]["texts"]
         self.assertTrue(any("mean of the 3 group scores" in t for t in texts))
         self.assertTrue(any("PROVISIONAL: 12" in t for t in texts))
-        self.assertTrue(any("N = 16" in t and "80 years" in t for t in texts))
+        self.assertTrue(any("64 model runs" in t and "80 years" in t for t in texts))
+        self.assertFalse(any("N =" in t for t in texts))
         target = snapshots["new", plots.RANKING_PLOT_STEMS[1]]
         self.assertIn("n/a", target["texts"])
         self.assertEqual(target["widths"][0], [-0.1])
         self.assertTrue(any(width > 1 for widths in target["widths"] for width in widths))
         self.assertEqual((old / "parameter_ranking.csv").read_bytes(), old_bytes)
+
+    def test_run_count_prefers_saved_total_over_base_sample_size(self):
+        self.assertEqual(plots._model_run_count({
+            "number_of_model_runs": 640, "base_sample_size": 16,
+            "problem": {"num_vars": 2},
+        }), 640)
+
+    def test_legacy_run_count_uses_saved_sobol_dimension(self):
+        self.assertEqual(plots._model_run_count({
+            "base_sample_size": 16, "problem": {"num_vars": 2},
+        }), 64)
+
+    def test_base_count_without_design_does_not_become_run_count(self):
+        self.assertIsNone(plots._model_run_count({"base_sample_size": 16}))
+        self.assertIsNone(plots._model_run_count({
+            "base_sample_size": 16, "problem": {"num_vars": 2},
+            "calc_second_order": True,
+        }))
 
     def test_empty_unavailable_and_incomplete_folders_are_skipped(self):
         (self.root / "interrupted").mkdir()
@@ -280,7 +300,8 @@ class RankingBarplotTests(unittest.TestCase):
         rows, notes = plots._ranking_formula_content(
             {"scenario": "Observation-based / intention motivation (agents)"}, {})
         equation = "\n".join(rows)
-        self.assertIn(r"BI_i(t)=A_i(t)+\eta q_i(t)", equation)
+        self.assertIn(r"BI_i(t)=A_i(t)+\mathtt{social\_norm\_factor}\,q_i(t)", equation)
+        self.assertNotIn(r"\eta", equation)
         self.assertIn(r"\mathbf{1}_{q_i(t)\geq\phi}", equation)
         self.assertIn(r"b_i(t)=\mathbf{1}_{BI_i(t)\geq\psi}", equation)
         self.assertIn(r"\mathrm{Uniform}(0,2\beta)", equation)
@@ -288,6 +309,15 @@ class RankingBarplotTests(unittest.TestCase):
         self.assertIn(r"\mathtt{temperature\_factor}", equation)
         self.assertNotIn(r"\dot{x}", equation)
         self.assertTrue(any("BI remains continuous" in note for note in notes))
+
+    def test_saved_agent_formulas_keep_historical_eta_name(self):
+        rows, notes = plots._ranking_formula_content(
+            {"scenario": "Observation-based / intention motivation (agents)",
+             "problem": {"names": ["eta", "phi", "psi"]}}, {"eta": .5})
+        equation = "\n".join(rows)
+        self.assertIn(r"BI_i(t)=A_i(t)+\eta\,q_i(t)", equation)
+        self.assertNotIn(r"\mathtt{social\_norm\_factor}", equation)
+        self.assertTrue(any("historical parameter definitions" in note for note in notes))
 
     def test_formulas_distinguish_current_delay_factor_from_saved_free_theta(self):
         metadata = {"scenario": "Descriptive, injunctive, dynamic2"}

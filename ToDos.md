@@ -1,9 +1,9 @@
 # Aktuelle ToDos:
-1. chati anpassungen an sensi entwickeln lassen
-1. Sensi nochmal laufen lassen
-1. Danach die bereits erstellten Auswertungen um peak temperature erweitern (plots in den results-ordnern auch aktualisieren) UND kontrollieren, ob sich etwas verändert hat weil jetzt first x>=95% fehlt.
+1. aktuellen stand commiten, pushen und pullen
+1. alle varianten nochmal laufen lassen (verschiedene x0, standard und const_temperature)
 1. globale sensi analysieren und auswerten
     1. jeden Ordner einzeln durchgehen
+        1. largest annual change nochmal kontrollieren. Vorher waren oscillations nicht in steeper/flatter/... enthalten. Jetzt schon. NOt comparable wurde dort entfernt.
     1. Vergleiche zwischen den Normen
     1. Research Questions beantworten
 1. globale sensi mit konsanten Temperaturkosten auswerten und vergleichen
@@ -20,7 +20,7 @@
 
 
 ## ToDos für codex
-1. [x] ein script schreiben, das ich nutzen kann um die 4 relevanten pngs aus den jeweiligen Norm-ordern auf E: in die jeweiligen Norm-Ordner in Results/global sensi zu kopieren. (die gleichen 4 plots, die bei einigen Normen dort schon liegen) Das script soll bereits existierende einfach überschreiben — `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`; Details in `SCRIPTS.md`. Bei `No social norm` entfällt der Vergleichsplot.
+
 
 # ToDos die ich auf jeden Fall noch machen muss
 1. related work chapter (chatis Entwurf) kontrollieren

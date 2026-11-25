@@ -33,7 +33,7 @@ class AgentSensitivityTests(unittest.TestCase):
             self.assertIn(SCENARIO, run.call_args.args[0])
         problem = sensitivity.build_problem(SCENARIO)
         self.assertEqual(set(problem["names"]),
-                         {"temperature_factor", "beta", "network_size", "eta", "phi", "psi"})
+                         {"temperature_factor", "beta", "network_size", "social_norm_factor", "phi", "psi"})
         self.assertEqual(problem["bounds"][problem["names"].index("network_size")],
                          [1, sensitivity.ABM_AGENT_COUNT - 1])
 

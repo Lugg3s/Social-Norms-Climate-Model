@@ -49,7 +49,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1080, deviceScaleFactor: 1, mobile: false });
   await call('Page.navigate', { url: 'http://127.0.0.1:8765/' });
   for (let count = 0; count < 50; count++) { if (await evaluate('!!document.querySelector("#norm-content h1")')) break; await pause(100); }
-  assert.equal(await evaluate('document.querySelectorAll(".norm-link").length'), 9);
+  assert.equal(await evaluate('document.querySelectorAll(".norm-link").length'), 10);
   assert.equal(await evaluate('[...document.querySelectorAll("#norm-content textarea")].every(t => t.value === "")'), true);
   assert.equal(await evaluate('document.querySelectorAll("math").length'), 2);
   // Persistence across refresh and separation between norms.
@@ -58,7 +58,8 @@ try {
   assert.equal(await evaluate('document.querySelector("textarea[data-norm-field=meaning]").value'), 'Meine eigene Testnotiz');
   await evaluate('location.hash="agents"'); await pause(150);
   assert.equal(await evaluate('document.querySelector("textarea[data-norm-field=meaning]").value'), '');
-  assert.equal(await evaluate('!!document.querySelector("details[data-parameter=eta]")'), true);
+  assert.equal(await evaluate('!!document.querySelector("details[data-parameter=social_norm_factor]")'), true);
+  assert.equal(await evaluate('!!document.querySelector("details[data-parameter=eta]")'), false);
   assert.equal(await evaluate('!!document.querySelector("details[data-parameter=kappa]")'), false);
   // All norms render with their complete mathematical definitions.
   const models = await evaluate('NormWorkbook.NORMS.map(m=>({key:m.key,name:m.name,params:m.parameters.length,variables:m.variables.length,papers:m.paperReferences.map(r=>NormWorkbook.PAPERS[r.paper].url)}))');
@@ -160,10 +161,10 @@ try {
   // The delivered index.html must work directly, without a local server.
   await call('Page.navigate', { url: pathToFileURL(path.resolve('dist/index.html')).href });
   for (let count = 0; count < 50; count++) { if (await evaluate('!!document.querySelector("#norm-content h1")')) break; await pause(100); }
-  assert.equal(await evaluate('document.querySelectorAll(".norm-link").length'), 9);
+  assert.equal(await evaluate('document.querySelectorAll(".norm-link").length'), 10);
   assert.equal(await evaluate('[...document.querySelectorAll("#norm-content textarea")].every(t => t.value === "")'), true);
   assert.deepEqual(errors, []);
-  console.log('Browser QA passed: nine norms, corresponding paper links, blank fields, persistence, separated notes, equations, desktop/mobile layout, navigation, actual backup download/import, safe string rendering, direct file opening, no JS exceptions.');
+  console.log('Browser QA passed: ten norms, corresponding paper links, blank fields, persistence, separated notes, equations, desktop/mobile layout, navigation, actual backup download/import, safe string rendering, direct file opening, no JS exceptions.');
 } finally {
   socket?.close();
   browser.kill();

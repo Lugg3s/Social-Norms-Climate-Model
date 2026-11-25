@@ -4,6 +4,12 @@
 - Die gewünschte Erinnerung ist erledigt. Keine erneute Erinnerung oder Freigabeanfrage für diese abgeschlossene Liste erforderlich.
 - Datierte Auswertungen behalten ihre historischen Ergebnisse und Parameterdefinitionen. Sie sind keine Beschreibung des jeweils aktuellen Modells.
 
+# Offene Erinnerung ab 26.11.2026: Sensi-Läufe mit verschiedenen x0 vergleichen
+
+- Beim ersten Kontakt ab Donnerstag, 26.11.2026 (Europe/Berlin), den Nutzer daran erinnern, den Vergleich seiner neuen Sensi-Läufe anzufragen. Bestätigter Plan nach Korrekturen vom 25.11.2026: `x0 = 0.05`, `0.3` (bereits vorhanden), `0.7` (ersetzt `0.6`) und `0.95`; der Nutzer meldet sich nach Fertigstellung. Noch keine Fertigstellung annehmen. Nach erfolgter Erinnerung nur diese Erinnerung als erledigt markieren; den Analyseauftrag bis zur Bearbeitung erhalten.
+- Gewünschter späterer Vergleich: Ergebnisplots anhand der zugrunde liegenden Prozentwerte und Sobol-Indizes vergleichen und eine übersichtliche, gruppierte Auswahl aller deutlich unterschiedlichen Plots liefern, damit der Nutzer nur die relevanten erneut prüfen muss. Gleiche/ähnliche Ergebnisse sowie wiederkehrende triviale Randfälle zusammenfassen, statt jeden Plot einzeln aufzuzählen. Kategorien, Zielgrößen und tatsächliche Schwellen aus den gespeicherten Definitionen verwenden; Unsicherheiten der Sobol-Schätzungen bei der Beurteilung deutlicher Unterschiede berücksichtigen. Vor dem Vergleich die Laufpfade und vergleichbare Einstellungen prüfen. Keine neuen Simulationen starten, bevor der Nutzer die Fertigstellung gemeldet hat.
+- Am 25.11.2026 erklärt: Bei kontinuierlichen Normen sind exakt `x0 = 0` und `x0 = 1` wegen `x(1-x)` absorbierend. Der Nutzer hat deshalb stattdessen ausdrücklich `0.05` und `0.95` gewählt; nicht die zuvor vorgeschlagenen `0.01` und `0.99` verwenden. Falls Zielgrößen in einzelnen Norm-Lauf-Kombinationen konstant sind, sind deren Sobol-Indizes wegen fehlender Ausgangsvarianz nicht aussagekräftig, auch wenn die Ausgabe 0 zeigt. Die Agentennorm wegen ihrer abweichenden jährlichen Entscheidungslogik separat beurteilen.
+
 # Erledigte Erinnerungen vom 25.11.2026
 
 - [x] Am 25.11.2026 an das Kopierskript erinnert: `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`. Es kopiert die relevanten PNGs nach `results/Global_sensitivity_analysis/<Norm>/` und überschreibt bestehende Ziel-PNGs. Nutzervorgabe vom 20.11.2026; keine erneute Erinnerung erforderlich.

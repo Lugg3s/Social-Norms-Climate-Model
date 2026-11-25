@@ -44,6 +44,14 @@ removed. When loading older browser notes or JSON backups, any written alpha
 notes are retained, labelled, in the corresponding sf fields. Note keys for
 active parameters and the backup version remain unchanged.
 
+The agent norm now also uses `social_norm_factor` (displayed as `sf`) for its
+thresholded social contribution `sf*q_i`, with the shared sensitivity range
+`[0,5]` and the unchanged configured weight `0.5`. It has no `eta` parameter
+card. Earlier localStorage saves and JSON backups automatically move the
+agent's eta notes into social_norm_factor. If both note fields are present,
+their contents are retained together, with the earlier eta context labelled.
+New exports use only the current name; the backup version remains unchanged.
+
 Likewise, standalone `Static injunctive` now uses `sf*(x_target-x)` without its
 own `c_inj` card. Older static c_inj notes migrate, labelled, into sf notes.
 Combined norms keep their c_inj fields, notes and formulas unchanged.

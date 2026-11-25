@@ -75,7 +75,7 @@
             "temperature_factor": 1,
             "beta": 1,
             "network_size": 50,
-            "eta": 0.5,
+            "social_norm_factor": 0.5,
             "phi": 0.6,
             "psi": 0.6
         }
@@ -245,7 +245,6 @@
             "tau_xp": [0.1, 10.0],
             "N": [-1.0, 1.0],
             "network_size": [1, 999],
-            "eta": [0.0, 1.0],
             "phi": [0.0, 1.0],
             "psi": [0.0, 1.0],
             "x_target": [0.0, 1.0],

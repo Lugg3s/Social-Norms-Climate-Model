@@ -91,13 +91,23 @@ class ParameterRangeTests(unittest.TestCase):
             self.assertNotIn(key, data["common_parameters"])
         params = model.resolve_parameters("Observation-based / intention motivation (agents)")
         self.assertNotIn("kappa", params)
-        self.assertNotIn("social_norm_factor", params)
+        self.assertIn("social_norm_factor", params)
+        self.assertNotIn("eta", params)
+        self.assertEqual(params["social_norm_factor"], 0.5)
         self.assertIn("beta", params)
         self.assertIn("temperature_factor", params)
 
-    def test_agent_ranges_exclude_unused_ode_weights(self):
+    def test_agent_ranges_share_norm_strength_but_exclude_unused_replicator_rate(self):
         problem = sensitivity.build_problem("Observation-based / intention motivation (agents)")
-        self.assertNotIn("social_norm_factor", problem["names"])
+        self.assertIn("social_norm_factor", problem["names"])
+        self.assertNotIn("eta", problem["names"])
+        for scenario in ("Observation-based / intention motivation (agents)", "baseline"):
+            bounds = ranges.get_parameter_ranges(scenario)
+            self.assertEqual(bounds["social_norm_factor"], [0.0, 5.0])
+            overridden = sensitivity.build_problem(scenario, {"social_norm_factor": [1, 3]})
+            self.assertEqual(overridden["bounds"][overridden["names"].index("social_norm_factor")], [1, 3])
+            np.testing.assert_allclose(diagram.scenario_grids([scenario], "social_norm_factor", num_points=3)[scenario],
+                                       [0, 2.5, 5])
         self.assertNotIn("kappa", problem["names"])
         with self.assertRaises(KeyError):
             sensitivity.build_problem("baseline", {"betaa": [0, 1]})

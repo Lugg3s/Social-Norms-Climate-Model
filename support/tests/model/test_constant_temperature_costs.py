@@ -56,7 +56,7 @@ class ConstantTemperatureCostsTests(unittest.TestCase):
 
     def test_agents_use_constant_response_without_clipping_intentions(self):
         params = {**resolve_parameters(AGENTS), 'beta': 0, 'temperature_factor': .6,
-                  'eta': 0, 'phi': .5, 'psi': .5, 'network_size': 3}
+                  'social_norm_factor': 0, 'phi': .5, 'psi': .5, 'network_size': 3}
         options = dict(simulation_time=218, n_agents=11, coupling_interval=1,
                        output_points_per_year=2, simulate_only_x=True, verbose=False)
         constant = simulate(params, **options, constant_temperature_costs=True)

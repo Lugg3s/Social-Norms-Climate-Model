@@ -80,11 +80,14 @@ Note: In this file i want to store all relevant informations that can be extract
 ## Observation-based___intention_motivation_(agents)
 ### Parameter
 
+- TODO: eta wird in neuen simulationen durch social_norm_factor ersetzt und erhält neuen Wertebereich.
+- Daher muss diese Norm nochmal neu analysiert werden
+
+
 - temperature_factor and beta dominate mitigation
 - climate is dominated by the temperature_factor
 - dynamics are dominated by beta
-- network_size has a value of 0 in mean x, end temperature and cumulative emissions. However, it has little influence on if x ever reaches >=95% (value = 0.1)
-- MISSING: social_norm_factor
+- network_size has a value of 0 in mean x, peak temperature anomaly and cumulative emissions. However, it has little influence on if x ever reaches >=95% and oscillations
 
 ![Parameter ranking by group](<Observation-based___intention_motivation_(agents)/ranking_balken_gruppen_gesamt.png>)
 
@@ -92,7 +95,7 @@ Note: In this file i want to store all relevant informations that can be extract
 
 ### Classifications
 
-- TODO: ich mach hier erstmal nicht weiter, da ich vermute, dass die Sensi für diese Norm nochmal neu durchgeführt werden muss
+- ...
 
 ![Behavioural classifications](<Observation-based___intention_motivation_(agents)/behaviour_class_frequencies.png>)
 
@@ -125,7 +128,7 @@ Note: In this file i want to store all relevant informations that can be extract
 ### Parameter
 
 - social_norm_factor has high impact on the dynamics (first x>=95% & oscillations), but low impact on the climate (cumulative emissions & finaltemperature)
-- ...?
+    - it has low impact on the actual outcome after 600 years, but high impact on fluctuations
 
 ![Parameter ranking by group](<Static_injunctive/ranking_balken_gruppen_gesamt.png>)
 
@@ -142,7 +145,7 @@ Note: In this file i want to store all relevant informations that can be extract
 -> faster if x->1, slower if x->0 (only cases where both reach x>=95% or x<=5% are considered here)
 - most runs (54.2%) are flatter comapred to the no-norm reference
 - 29.4% are not comaprable
-    - Why is that?
+    - TODO: This will be fixed in new simulations
 
 ![Behavioural classifications](<Static_injunctive/behaviour_class_frequencies.png>)
 
@@ -151,7 +154,9 @@ Note: In this file i want to store all relevant informations that can be extract
 ## Dynamic_social_norm
 ### Parameter
 
-- ...
+- dominated by temperature_factor, beta has second highest impact
+- tau_xp has lowest impact (0.002)
+
 
 ![Parameter ranking by group](<Dynamic_social_norm/ranking_balken_gruppen_gesamt.png>)
 
@@ -174,7 +179,8 @@ Note: In this file i want to store all relevant informations that can be extract
 ## Dynamic_social_norm 2
 ### Parameter
 
-- ...
+- interesting: here the norm-specific parameter all have 0.001 Mean ST. (extreme low impact)
+- dominated by temperature_factor, second highest is beta, kappa has low impact
 
 ![Parameter ranking by group](<dynamic_social_norm2/ranking_balken_gruppen_gesamt.png>)
 
@@ -196,7 +202,9 @@ Note: In this file i want to store all relevant informations that can be extract
 ## Descriptive,_injunctive,_dynamic
 ### Parameter
 
-- ...
+- x_target has higher impact than temperature_factor.
+- norm with most evenly distribted parameters so far.
+- 
 
 ![Parameter ranking by group](<Descriptive,_injunctive,_dynamic/ranking_balken_gruppen_gesamt.png>)
 
@@ -225,7 +233,8 @@ Note: In this file i want to store all relevant informations that can be extract
 ## Descriptive,_injunctive,_dynamic 2
 ### Parameter
 
-- 
+- here temperature_factor has slightly higher value than x_target
+- temperature_factor has low impact on Oscillations per 500 years. tau has pretty high impact here.
 
 
 ![Parameter ranking by group](<Descriptive,_injunctive,_dynamic2/ranking_balken_gruppen_gesamt.png>)

@@ -89,8 +89,8 @@ def create_classification_overview_svg(run_root: Path, scenario_dirs=None) -> Pa
     ET.SubElement(sheet, f"{{{SVG_NS}}}title", id="overview_title").text = "Behavioural classifications — all norms"
     ET.SubElement(sheet, f"{{{SVG_NS}}}desc", id="overview_description").text = (
         "One section per norm: behavioural classes on the left; saved without-norm timing "
-        "and change comparisons on the right when available. Each chart uses all requested "
-        "sample rows of its norm as denominator, including failures. Original metric labels "
+        "and change comparisons on the right when available. Each chart retains its stated "
+        "denominator; annual-change charts can use comparable pairs only. Original metric labels "
         "and finite-observation definitions are retained. All plots are embedded vectors."
     )
     ET.SubElement(sheet, f"{{{SVG_NS}}}rect", width=f"{width:g}", height=f"{height:g}", fill="#edf2f6")
@@ -103,7 +103,7 @@ def create_classification_overview_svg(run_root: Path, scenario_dirs=None) -> Pa
 
     label(sheet, margin, 40, "Behavioural classifications — all norms", 28, True)
     label(sheet, margin, 73, "Left: behavioural classes | Right: without-norm comparisons, when available")
-    label(sheet, margin, 104, "Per-norm shares of all requested runs; not real-world probabilities.", 17)
+    label(sheet, margin, 104, "Per-norm sample shares; see each chart's denominator. Not real-world probabilities.", 17)
     top = 130
     for index, ((scenario, _, _), row) in enumerate(zip(sections, panels)):
         section = ET.SubElement(sheet, f"{{{SVG_NS}}}g", {"data-scenario": scenario, "id": f"norm_section_{index}"})
@@ -177,50 +177,97 @@ def create_cross_norm_classification_plots(run_root: Path, scenario_dirs=None) -
                 if len(totals) != 1 or totals[0] <= 0:
                     raise ValueError(f"Invalid requested-run denominator: {path}")
                 counts = part.groupby("category")["count"].sum()
-                if (counts < 0).any() or counts.sum() != totals[0]:
+                definition = metadata.get("without_norm_comparison") or {}
+                annual = (kind == "slope" and definition.get(
+                    "version", 3 if "frequency_denominator" in part else 2) >= 3)
+                denominator = int(totals[0])
+                if "frequency_denominator" in part:
+                    saved_denominators = part["frequency_denominator"].unique()
+                    excluded = part["excluded_runs"].unique()
+                    if (len(saved_denominators) != 1 or len(excluded) != 1
+                            or saved_denominators[0] < 0 or excluded[0] < 0
+                            or saved_denominators[0] + excluded[0] != totals[0]
+                            or counts.sum() != saved_denominators[0]
+                            or (not annual and saved_denominators[0] != totals[0])):
+                        raise ValueError(f"Invalid saved comparison denominator: {path}")
+                    denominator = int(saved_denominators[0])
+                elif counts.sum() != totals[0]:
                     raise ValueError(f"Category counts do not sum to requested runs: {path}")
-                groups.setdefault(kind, []).append((scenario, int(totals[0]), counts))
+                if (counts < 0).any():
+                    raise ValueError(f"Negative category count: {path}")
+                if annual:
+                    # Old annual-change CSVs still contain the excluded category.
+                    denominator -= int(counts.get("Not comparable", 0))
+                    counts = counts.drop("Not comparable", errors="ignore")
+                key = (kind, annual if kind == "slope" else None)
+                groups.setdefault(key, []).append((scenario, denominator, counts,
+                                                   definition.get("version") == 3, int(totals[0])))
 
     orders = {"behaviour": [*CLASS_ORDER, INVALID, FAILED, UNAVAILABLE],
               "x0_timing": TIMING_ORDER, "x1_timing": TIMING_ORDER, "slope": SLOPE_ORDER}
     titles = {"behaviour": "Behavioural class", "x0_timing": "First time x ≤ 5%",
               "x1_timing": "First time x ≥ 95%", "slope": "Change comparison"}
     paths = []
-    for kind, entries in groups.items():
+    for (kind, annual), entries in groups.items():
         entries.sort(key=lambda row: (row[0] != "No social norm", row[0].casefold()))
         present = set().union(*(set(row[2].index) for row in entries))
-        if present - set(orders[kind]):
-            raise ValueError(f"Unknown categories for {kind}: {present - set(orders[kind])}")
-        for index, category in enumerate(orders[kind]):
+        order = orders[kind]
+        if kind == "slope":
+            order = [label for label in SLOPE_ORDER if label != "Not comparable"]
+            if not annual:
+                order.append("Not comparable")
+        if present - set(order):
+            raise ValueError(f"Unknown categories for {kind}: {present - set(order)}")
+        for index, category in enumerate(order):
             if category not in present:
                 continue
-            heights = [counts.get(category, 0) / total for _, total, counts in entries]
+            heights = [counts.get(category, 0) / total if total else np.nan
+                       for _, total, counts, _, _ in entries]
             fig, ax = plt.subplots(figsize=(max(12, 1.5 * len(entries)), 8))
             ax.bar(range(len(entries)), heights, color=CLASS_COLORS.get(category, "#4c78a8"), width=.7)
             for position, height in enumerate(heights):
+                if not np.isfinite(height):
+                    ax.annotate("No comparable runs", (position, 0), xytext=(0, 5),
+                                textcoords="offset points", ha="center", fontsize=9)
+                    continue
                 ax.annotate(f"{height:.1%}",
                             (position, height), xytext=(0, -6 if height > .94 else 5),
                             textcoords="offset points", ha="center",
                             va="top" if height > .94 else "bottom",
                             color="white" if height > .94 else "#263238", fontsize=9)
             ax.set_xticks(range(len(entries)), [textwrap.fill(name, 24, break_long_words=False)
-                                               for name, _, _ in entries], rotation=35, ha="right")
+                                               for name, _, _, _, _ in entries], rotation=35, ha="right")
+            if annual:
+                for position, (_, comparable, _, _, requested) in enumerate(entries):
+                    if comparable < requested:
+                        ax.text(position, 1.015, f"Unavailable: {1 - comparable / requested:.1%}",
+                                transform=ax.get_xaxis_transform(), ha="center", fontsize=8,
+                                color="#52667a")
             ax.set_ylim(0, 1)
             ax.yaxis.set_major_formatter(PercentFormatter(1))
-            ax.set_ylabel("Share of all requested runs within each norm")
+            ax.set_ylabel("Share of comparable pairs within each norm" if annual else
+                          "Share of all requested runs within each norm")
             ax.set_xlabel("Social norm")
-            ax.set_title(titles[kind] + "\n" + category, pad=18)
+            title = ("Largest annual change in x" if annual else
+                     "10%–90% transition speed" if kind == "slope" else titles[kind])
+            ax.set_title(title + "\n" + category, pad=18)
             ax.grid(axis="y", alpha=.25)
             ax.set_axisbelow(True)
             conditions = ("\nFor this class: no oscillation detected; x varies by at most 2 percentage points over the last 100 years."
                           if kind == "behaviour" and category in CLASS_ORDER[:2] else "")
-            fig.text(.5, .015, "Saved classifications; failures remain in each norm's denominator. "
-                     "Missing comparison datasets are excluded.\n"
-                     "Descriptive shares of sampled parameter ranges; not real-world probabilities." + conditions,
+            denominator_note = ("Saved annual-change comparisons; unavailable pairs are excluded from the denominator. "
+                                if annual else
+                                "Saved classifications; failures remain in each norm's denominator. ")
+            legacy_note = ("\nSaved definitions that excluded oscillating runs retain those exclusions; "
+                           "annual changes are not recomputed." if annual and any(row[3] for row in entries) else "")
+            fig.text(.5, .015, denominator_note + "Missing comparison datasets are excluded.\n"
+                     "Descriptive shares of sampled parameter ranges; not real-world probabilities." + conditions + legacy_note,
                      ha="center", fontsize=9)
-            fig.tight_layout(rect=(0, .085 if conditions else .065, 1, 1))
+            fig.tight_layout(rect=(0, .085 if conditions or legacy_note else .065, 1, 1))
             slug = re.sub(r"[^A-Za-z0-9]+", "_", category).strip("_").lower()
-            path = root / f"classification_{kind}_{index + 1:02d}_{slug}.png"
+            family = ("transition_speed" if kind == "slope" and not annual
+                      and ("slope", True) in groups else kind)
+            path = root / f"classification_{family}_{index + 1:02d}_{slug}.png"
             temporary = path.with_suffix(".tmp.png")
             try:
                 fig.savefig(temporary, dpi=180)
@@ -229,6 +276,9 @@ def create_cross_norm_classification_plots(run_root: Path, scenario_dirs=None) -
                 plt.close(fig)
                 temporary.unlink(missing_ok=True)
             paths.append(path)
+    if ("slope", True) in groups:
+        # Earlier versions wrote this obsolete annual-change category separately.
+        (root / "classification_slope_05_not_comparable.png").unlink(missing_ok=True)
     return paths
 
 
@@ -316,15 +366,15 @@ def create_plots(input_root: Path, output_root: Path | None = None, *, scenarios
         if reclassify:
             outputs = _reclassify(folder, outputs)
         target = destination / folder.name
-        save_classification_outputs(outputs, target, scenario,
-                                    comparison=metadata.get("without_norm_comparison", {"version": 2}))
+        comparison = metadata.get("without_norm_comparison") or {"version": 2}
+        save_classification_outputs(outputs, target, scenario, comparison=comparison)
         definition = classification_definition() if reclassify else metadata.get("behaviour_classification")
         (target / "classification_metadata.json").write_text(json.dumps({
             "scenario": scenario, "source": str(folder), "reclassified": reclassify,
             "definition": definition,
-            "without_norm_comparison": metadata.get("without_norm_comparison"),
+            "without_norm_comparison": comparison,
             "without_norm_comparison_source": "Saved paired comparison columns; not recomputed by --reclassify.",
-            "denominator": "All requested Sobol samples; zero-boundary runs excluded; failures shown separately.",
+            "denominator": "See chart-specific denominators: behavioural and first-reach charts use all requested Sobol samples; annual-change charts use comparable pairs. Zero-boundary runs excluded.",
         }, indent=2), encoding="utf-8")
         reports.append(target)
     if set(scenarios or []) - matched:

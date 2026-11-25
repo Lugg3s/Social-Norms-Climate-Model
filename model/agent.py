@@ -9,7 +9,7 @@ import numpy as np
 # Norm/attitude weight ratios are 0.2/0.8 = 0.25 and 0.4/0.6 = 2/3.
 # With an attitude coefficient of one, 0.5 is an illustrative intermediate
 # relative norm weight, not an empirical calibration of this climate model.
-# eta, phi and psi are set explicitly in scenarios.json.
+# social_norm_factor, phi and psi are set explicitly in scenarios.json.
 
 
 @dataclass
@@ -90,14 +90,14 @@ def evaluate_intentions(agents, temperature, p, f_T):
     https://doi.org/10.1088/1748-9326/ae3b55
     Our climate extension is A_i(t) = -beta_i + temperature_factor*f_T(T).
     In the review's notation the weight/activation threshold are omega/tau;
-    here they are eta/phi, to avoid the existing temperature/delay parameters.
-    BI_i = A_i + eta*q_i if q_i >= phi, otherwise BI_i = A_i.
+    here they are social_norm_factor/phi, respectively.
+    BI_i = A_i + social_norm_factor*q_i if q_i >= phi, otherwise BI_i = A_i.
     BI is a net score; it is not a probability and is not clipped to [0,1].
     """
     peer_norms = calculate_peer_norms(agents)  # q_i = NB/N: tatsächliches Verhalten der Nachbarn.
     climate_benefit = float(p["temperature_factor"] * f_T(temperature))  # Temperaturanteil von A_i.
-    # Normbeitrag: eta*q_i ab q_i >= phi, sonst 0.
-    norm_terms = np.where(peer_norms >= p["phi"], p["eta"] * peer_norms, 0.0)
+    # Normbeitrag: social_norm_factor*q_i ab q_i >= phi, sonst 0.
+    norm_terms = np.where(peer_norms >= p["phi"], p["social_norm_factor"] * peer_norms, 0.0)
     intentions = np.empty(len(agents), dtype=float)
     for i, individual in enumerate(agents):
         individual.peer_norm = float(peer_norms[i])

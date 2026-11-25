@@ -136,10 +136,10 @@ class ReferenceCacheTests(unittest.TestCase):
                 with ReferenceCache(directory, changed) as cache:
                     self.assertNotEqual(original, cache.key(control))
 
-    def test_agents_are_separate_and_only_eta_changes_are_reused(self):
+    def test_agents_are_separate_and_only_social_norm_factor_changes_are_reused(self):
         with tempfile.TemporaryDirectory() as directory, ReferenceCache(directory, sensi.SensitivityConfig()) as cache:
             agents = resolve_parameters("Observation-based / intention motivation (agents)")
-            self.assertEqual(cache.key(agents), cache.key({**agents, "eta": 0.}))
+            self.assertEqual(cache.key(agents), cache.key({**agents, "social_norm_factor": 0.}))
             self.assertNotEqual(cache.key(agents), cache.key(resolve_parameters("No social norm")))
             for key in ("network_size", "phi", "psi"):
                 self.assertNotEqual(cache.key(agents), cache.key({**agents, key: agents[key] + 1}))

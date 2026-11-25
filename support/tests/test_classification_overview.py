@@ -141,6 +141,125 @@ class ClassificationOverviewTests(unittest.TestCase):
                                 for text in fig.axes[0].texts))
         self.assertTrue(all(path.parent == self.root and path.suffix == '.png' for path in paths))
 
+    def test_annual_change_excludes_unavailable_pairs_but_timing_retains_them(self):
+        folder = self.norm('annual', 'Annual norm')
+        stale = self.root / 'classification_slope_05_not_comparable.png'
+        stale.write_bytes(b'old unavailable-category plot')
+        (folder / 'metadata.json').write_text(json.dumps({
+            'scenario': 'Annual norm', 'without_norm_comparison': {'version': 4},
+        }), encoding='utf-8')
+        pd.DataFrame([
+            dict(comparison='slope', category=category, count=count,
+                 total_requested_runs=4, frequency_denominator=2, excluded_runs=2)
+            for category, count in [('Steeper', 1), ('Flatter', 1), ('Equal', 0), ('Opposite directions', 0)]
+        ] + [
+            dict(comparison='x1_timing', category=category, count=count,
+                 total_requested_runs=4, frequency_denominator=4, excluded_runs=0)
+            for category, count in [('Earlier', 2), ('Not comparable', 2)]
+        ]).to_csv(folder / 'without_norm_comparison_frequencies.csv', sep=';', index=False)
+        figures = []
+
+        def capture(fig, path, **kwargs):
+            figures.append(fig)
+            Path(path).write_bytes(b'preview')
+
+        with patch.object(plt.Figure, 'savefig', autospec=True, side_effect=capture):
+            create_cross_norm_classification_plots(self.root, [folder])
+        annual = [fig.axes[0] for fig in figures if 'Largest annual change' in fig.axes[0].get_title()]
+        self.assertEqual(len(annual), 4)
+        self.assertFalse(any('Not comparable' in ax.get_title() for ax in annual))
+        self.assertAlmostEqual(sum(ax.containers[0][0].get_height() for ax in annual), 1)
+        self.assertTrue(all('comparable pairs' in ax.get_ylabel() for ax in annual))
+        self.assertTrue(all(any(text.get_text() == 'Unavailable: 50.0%' for text in ax.texts)
+                            for ax in annual))
+        timing = next(fig.axes[0] for fig in figures if 'Not comparable' in fig.axes[0].get_title())
+        self.assertEqual(timing.containers[0][0].get_height(), .5)
+        self.assertIn('all requested runs', timing.get_ylabel())
+        self.assertFalse(stale.exists())
+
+    def test_saved_annual_exclusions_are_not_recomputed_and_legacy_speed_stays_separate(self):
+        annual = self.norm('annual', 'Annual norm')
+        legacy = self.norm('legacy', 'Legacy norm')
+        for folder, version in [(annual, 3), (legacy, 2)]:
+            (folder / 'metadata.json').write_text(json.dumps({
+                'scenario': folder.name, 'without_norm_comparison': {'version': version},
+            }), encoding='utf-8')
+            pd.DataFrame([
+                dict(comparison='slope', category='Steeper', count=1,
+                     total_requested_runs=2, relative_frequency=.5),
+                dict(comparison='slope', category='Not comparable', count=1,
+                     total_requested_runs=2, relative_frequency=.5),
+            ]).to_csv(folder / 'without_norm_comparison_frequencies.csv', sep=';', index=False)
+        figures = []
+
+        def capture(fig, path, **kwargs):
+            figures.append(fig)
+            Path(path).write_bytes(b'preview')
+
+        with patch.object(plt.Figure, 'savefig', autospec=True, side_effect=capture), \
+             patch('model.model_equations.simulate', side_effect=AssertionError('must not simulate')):
+            paths = create_cross_norm_classification_plots(self.root, [annual, legacy])
+        annual_figure = next(fig for fig in figures if 'Largest annual change' in fig.axes[0].get_title())
+        self.assertEqual(annual_figure.axes[0].containers[0][0].get_height(), 1)
+        self.assertTrue(any('excluded oscillating runs' in text.get_text() for text in annual_figure.texts))
+        legacy_axes = [fig.axes[0] for fig in figures if 'transition speed' in fig.axes[0].get_title()]
+        self.assertEqual(len(legacy_axes), 2)
+        self.assertTrue(all(ax.containers[0][0].get_height() == .5 for ax in legacy_axes))
+        self.assertTrue(any('Not comparable' in ax.get_title() for ax in legacy_axes))
+        self.assertEqual(len({path.name for path in paths}), len(paths))
+
+    def test_annual_change_without_comparable_runs_is_unavailable_not_zero(self):
+        folder = self.norm('annual', 'Annual norm')
+        (folder / 'metadata.json').write_text(json.dumps({
+            'scenario': 'Annual norm', 'without_norm_comparison': {'version': 4},
+        }), encoding='utf-8')
+        pd.DataFrame([
+            dict(comparison='slope', category=category, count=0,
+                 total_requested_runs=2, frequency_denominator=0, excluded_runs=2)
+            for category in ['Steeper', 'Flatter', 'Equal', 'Opposite directions']
+        ]).to_csv(folder / 'without_norm_comparison_frequencies.csv', sep=';', index=False)
+        figures = []
+
+        def capture(fig, path, **kwargs):
+            figures.append(fig)
+            Path(path).write_bytes(b'preview')
+
+        with patch.object(plt.Figure, 'savefig', autospec=True, side_effect=capture):
+            create_cross_norm_classification_plots(self.root, [folder])
+        self.assertEqual(len(figures), 4)
+        for fig in figures:
+            self.assertTrue(pd.isna(fig.axes[0].containers[0][0].get_height()))
+            self.assertEqual([text.get_text() for text in fig.axes[0].texts],
+                             ['No comparable runs', 'Unavailable: 100.0%'])
+
+    def test_replot_without_comparison_metadata_retains_legacy_definition(self):
+        folder = self.norm('legacy', 'Legacy norm')
+        outputs = pd.read_csv(folder / 'simulation_outputs.csv', sep=';')
+        outputs['norm_comparison_slope'] = ['Steeper', 'Not comparable']
+        outputs['norm_comparison_x0_timing'] = ['Earlier', 'Not comparable']
+        outputs['norm_comparison_x1_timing'] = ['Neither reached', 'Not comparable']
+        outputs.to_csv(folder / 'simulation_outputs.csv', sep=';', index=False)
+        figures = []
+
+        def capture(fig, path, **kwargs):
+            figures.append(fig)
+            Path(path).write_bytes(b'preview')
+
+        with patch.object(plt.Figure, 'savefig', autospec=True, side_effect=capture), \
+             patch('analysis.behaviour_classification_plots.create_classification_overview_svg'):
+            reports = create_plots(self.root, scenarios=['Legacy norm'])
+        metadata = json.loads((reports[0] / 'classification_metadata.json').read_text(encoding='utf-8'))
+        self.assertEqual(metadata['without_norm_comparison'], {'version': 2})
+        frequencies = pd.read_csv(reports[0] / 'without_norm_comparison_frequencies.csv', sep=';')
+        slope = frequencies[frequencies['comparison'] == 'slope']
+        self.assertTrue(slope['frequency_denominator'].eq(2).all())
+        self.assertEqual(slope.set_index('category').loc['Not comparable', 'count'], 1)
+        legacy_axes = [fig.axes[0] for fig in figures if len(fig.axes) == 1
+                       and 'transition speed' in fig.axes[0].get_title()]
+        unavailable = next(ax for ax in legacy_axes if 'Not comparable' in ax.get_title())
+        self.assertEqual(unavailable.containers[0][0].get_height(), .5)
+        self.assertFalse(any('Largest annual change' in fig.axes[0].get_title() for fig in figures))
+
 
 if __name__ == '__main__':
     unittest.main()

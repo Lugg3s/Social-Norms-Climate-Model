@@ -157,7 +157,7 @@ the same run. Metadata distinguishes additional simulations from reused referenc
   initial conditions, forcing and solver settings. ODE references switch only
   `social_norm` to `No social norm`; all other inputs, including kappa, remain.
   Agent references keep the annual decision model, costs, peers, agent count and
-  seed, and set only `eta=0`. Comparing the ABM to the configured replicator-based
+  seed, and set only `social_norm_factor=0`. Comparing the ABM to the configured replicator-based
   `No social norm` scenario would also change the decision mechanism and require
   an arbitrary kappa, so it is deliberately avoided. Explicit `No social norm`
   samples reuse their own results instead of simulating again.
@@ -170,7 +170,7 @@ the same run. Metadata distinguishes additional simulations from reused referenc
   interpolated; ABM decisions retain their exact step times.
 - Timing labels are `Earlier`, `Later`, `Equal`, `Reached with norm; not reached in reference`,
   `Not reached with norm; reached in reference`, `Neither reached`, and `Not comparable`.
-  The reference is the matched ODE without social norms, or the matched ABM with eta = 0.
+  The reference is the matched ODE without social norms, or the matched ABM with social_norm_factor = 0.
   Old saved labels are translated for plots without changing their numerical definitions.
   "Not reached" always refers to the finite common observation horizon.
 - The change metric is `max(abs(x(y+1)-x(y)))` over complete integer-year
@@ -178,7 +178,9 @@ the same run. Metadata distinguishes additional simulations from reused referenc
   agent behaviour is held until the next decision. This is an annual change,
   not an instantaneous derivative or a rolling one-year maximum. Intrayear
   peaks can therefore be missed. No 10%-90% passage is required, so monotonic
-  increases from the standard x0=0.3 are eligible.
+  increases from the standard x0=0.3 and oscillating trajectories are eligible.
+  For oscillating trajectories, this measures rapid movement rather than lasting
+  adoption; their separate behavioural classification is retained.
 - Save its positive magnitude in the existing `comparison_profile_slope` field,
   its sign in `comparison_profile_signed_annual_change`, its direction and the
   interval in `comparison_profile_slope_start`/`comparison_profile_slope_end`.
@@ -186,16 +188,24 @@ the same run. Metadata distinguishes additional simulations from reused referenc
   For exactly tied maxima, retain the earliest interval. Magnitudes <=1e-12
   are numerical zero with direction `Stationary`.
 - Constant trajectories have zero change and can be compared with nonzero
-  changes. Opposite nonzero directions remain a separate category. Detected
-  oscillations, invalid trajectories and observations without a complete
+  changes. Opposite nonzero directions remain a separate category. Invalid
+  trajectories, failed simulations/references and observations without a complete
   calendar-year interval have no comparable change; timing remains independent.
-- Comparison protocol version 3 replaces the former full-passage metric.
+- Comparison protocol version 4 includes oscillating trajectories in the annual
+  change metric; version 3 introduced this metric in place of full-passage speed.
   New comparisons cannot be appended to a run with enabled older comparison
   definitions. Reference-cache source hashes also prevent stale reuse. Plotting
   saved older results retains their original metric label and does not recompute
-  their comparison values.
+  their comparison values. An older profile excluded because of oscillations
+  cannot acquire a change value just by rerendering a plot; a new calculation
+  would need both trajectories and the current comparison definition.
+  Rerendered version-3 annual-change panels also omit unavailable comparisons
+  and identify saved oscillation exclusions; version-2 full-passage panels keep
+  their historical categories, including `Not comparable`.
 - Slope labels are `Steeper`, `Flatter`, `Equal`, `Opposite directions`, and
-  `Not comparable`, with the per-run reason retained.
+  `Not comparable`, with the per-run reason retained in the audit tables.
+  Only the first four appear in the annual-change plot. Timing plots retain
+  `Not comparable`.
 - Timing equality uses an absolute tolerance of 0.0001 years. Slope equality
   uses `rtol=0.0001`, `atol=1e-8` fraction/year. These numerical tolerances are
   explicit project conventions, not claims of empirical equivalence.
@@ -215,8 +225,16 @@ the individual transition profiles (`comparison_profile_`), while final paired
 comparisons live in the CSVs. Metadata records the protocol and reference count.
 
 `without_norm_comparison_frequencies.csv/.svg/.png` reports three panels per norm:
-low-threshold timing, high-threshold timing and transition speed. All requested
-sample rows form the denominator, including unavailable comparisons. These shares
+first reach of x <= 5%, first reach of x >= 95%, and largest annual change in x.
+For the timing panels, all requested sample rows form the denominator, including
+unavailable comparisons. The annual-change panel omits `Not comparable` and
+normalizes its four remaining categories over comparable pairs; an annotation
+reports the omitted share of all requested pairs. If no pair is comparable,
+percentages are undefined and the plot shows that no comparison is available.
+The annual-change frequency CSV contains only the four plotted categories, with
+`frequency_denominator` equal to the comparable count, `excluded_runs` equal to
+the omitted count, and `total_requested_runs` retaining the requested count.
+Per-run exclusions remain available in the comparison audit tables. These shares
 describe the sampling design, not real-world probabilities. The existing
 classification plotting command also recreates these panels from saved comparison
 columns without rerunning any model. Older runs without matched references cannot

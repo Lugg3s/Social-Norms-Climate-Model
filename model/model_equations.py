@@ -126,7 +126,8 @@ def resolve_parameters(extension):
                          "ABM=True supports only this norm.")
     if is_agent_norm:
         parameters["agent_decision_model"] = "annual_intention_threshold"
-        renamed = {"agent_norm_weight": "eta", "agent_norm_threshold": "phi",
+        renamed = {"eta": "social_norm_factor", "agent_norm_weight": "social_norm_factor",
+                   "agent_norm_threshold": "phi",
                    "agent_behavior_threshold": "psi"}
         for old, new in renamed.items():
             if old in parameters:
@@ -134,15 +135,15 @@ def resolve_parameters(extension):
         for removed in ("agent_susceptibility", "agent_update_rate"):
             if removed in parameters:
                 raise ValueError(f"{removed} has been removed from the intention model; "
-                                 "use eta and annual threshold decisions.")
-        # eta: norm weight; phi: observed-share threshold; psi: BI action threshold.
-        for name in ("eta", "phi", "psi"):
+                                 "use social_norm_factor and annual threshold decisions.")
+        # social_norm_factor: norm weight; phi: observed share; psi: BI threshold.
+        for name in ("social_norm_factor", "phi", "psi"):
             value = float(parameters[name])
             if not np.isfinite(value):
                 raise ValueError(f"{name} must be finite")
             parameters[name] = value
-        if parameters["eta"] < 0:
-            raise ValueError("eta must be nonnegative")
+        if parameters["social_norm_factor"] < 0:
+            raise ValueError("social_norm_factor must be nonnegative")
         if not 0 <= parameters["phi"] <= 1:
             raise ValueError("phi must be between 0 and 1")
     return parameters

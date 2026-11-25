@@ -133,6 +133,12 @@ Metrik gespeichert, wird aber nicht mehr für Sobol oder Rankings verwendet.
 Bestehende Ergebnisordner behalten ihre ursprüngliche Zielgrößenauswahl; neue
 Analysen benötigen einen neuen Ergebnisordner.
 
+Ranking-Plots nennen die Anzahl der Sobol-Modelläufe, beispielsweise
+`12,300 model runs`, statt der Basisstichprobengröße. Zusätzliche Referenz- und
+Nullrandläufe zählen nicht dazu. Fehlt die gespeicherte Anzahl, wird sie bei
+bekannter Parameterzahl aus dem gespeicherten Sobol-Design rekonstruiert;
+ohne ausreichende Metadaten wird keine Anzahl angegeben.
+
 Im Ergebnis-Hauptordner hält `run_arguments.json` vor dem Simulationsstart alle
 CLI-Argumente einschließlich Standardwerten fest: ursprünglicher Aufruf,
 geparste und tatsächlich verwendete Werte (inklusive aufgelöster Workerzahl und
@@ -177,8 +183,13 @@ Ohne-Norm-Szenario werden die benötigten Referenzen einmalig bei Bedarf berechn
 
 Kontinuierliche Referenzen behalten die Eingaben und verwenden Normterm null.
 Die Agentenreferenz heißt `Agent model without social influence` und behält
-Agenten, Netzwerk, Seed und jährliche Entscheidungen mit `eta=0`; sie wird
+Agenten, Netzwerk, Seed und jährliche Entscheidungen mit `social_norm_factor=0`; sie wird
 getrennt von den ODE-Referenzen gespeichert und ebenfalls dedupliziert.
+Auch die Agentennorm nutzt `social_norm_factor` (bisher `eta`) mit dem gemeinsamen
+Parameterbereich `[0,5]`; der konfigurierte Einzelwert bleibt `0.5`.
+`--parameter-range social_norm_factor MIN MAX` überschreibt diesen Bereich wie
+bei den anderen Normen. Historische Ergebnisse behalten ihre ursprünglichen Namen
+und Wertebereiche.
 Zusätzliche Referenzen besitzen eigene Zeitlimits.
 Ihre Fehler beeinflussen weder die ursprünglichen Sobol-Zielgrößen noch die
 Auswahl vollständiger Sobol-Blöcke. Gespeichert werden Vergleiche der ersten
@@ -186,11 +197,26 @@ Auswahl vollständiger Sobol-Blöcke. Gespeichert werden Vergleiche der ersten
 von `abs(x(y+1)-x(y))` über vollständige Kalenderjahre ab 2017. Richtung und
 Jahresintervall werden mitgespeichert; ein 10-%–90-%-Übergang ist nicht nötig.
 ODE-Werte werden an Jahresgrenzen linear interpoliert, Agentenwerte bis zur
-nächsten Entscheidung konstant gehalten. Erkannte Oszillationen bleiben vom
-Steigungsvergleich ausgeschlossen. Neue Vergleiche verwenden Protokollversion 3;
+nächsten Entscheidung konstant gehalten. Oszillierende Verläufe werden beim
+Vergleich der größten jährlichen Veränderung eingeschlossen; ihre separate
+Verhaltensklassifikation bleibt erhalten. Neue Vergleiche verwenden Protokollversion 4;
 Append mischt diese nicht mit aktivierten Vergleichen früherer Versionen.
-Fehlende Ereignisse, Gleichstand und nicht vergleichbare Verläufe bleiben eigene
-Kategorien. Tabellen: `without_norm_outputs.csv`, `without_norm_comparisons.csv`
+Fehlende Ereignisse und Gleichstand bleiben eigene Kategorien. Nur im Plot
+`Largest annual change in x` entfällt `Not comparable`: Die vier sichtbaren
+Kategorien werden auf die vergleichbaren Paare normiert; eine Annotation nennt
+den ausgelassenen Anteil. Tatsächlich fehlende Vergleiche bleiben mit Begründung
+in den Audit-Tabellen. Timing-Plots behalten `Not comparable` und alle
+angeforderten Läufe im Nenner. Beim Neuzeichnen alter Ergebnisse bleiben deren
+gespeicherte Definitionen und Werte erhalten; früher wegen Oszillationen
+ausgeschlossene Veränderungen lassen sich ohne Zeitreihen nicht nachträglich
+berechnen. Auch Version-3-Plots der jährlichen Veränderung blenden diese Kategorie
+aus und weisen auf gespeicherte Oszillationsausschlüsse hin. Historische
+Version-2-Plots der vollständigen Übergangsgeschwindigkeit behalten dagegen
+`Not comparable`. Die jährliche Häufigkeitstabelle speichert den tatsächlichen
+Nenner als `frequency_denominator`, die ausgelassene Anzahl als `excluded_runs`
+und die Gesamtanzahl als `total_requested_runs`. Ohne vergleichbare Paare bleiben
+Prozentwerte undefiniert; der Plot zeigt einen entsprechenden Hinweis.
+Tabellen: `without_norm_outputs.csv`, `without_norm_comparisons.csv`
 und `without_norm_comparison_frequencies.csv`; die englischen Balkendiagramme
 heißen `without_norm_comparison_frequencies.svg` / `.png`. Die Vergleichsfelder
 stehen auch in `simulation_outputs.csv` und `behaviour_classes.csv`. Sie sind

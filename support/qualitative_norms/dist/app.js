@@ -144,7 +144,7 @@
     const primary = document.createElement('div'); primary.className = 'formula-primary';
     primary.append(formula.querySelector('.section-top'), formula.querySelector('.main-equation'));
     const aliases = document.createElement('p'); aliases.className = 'formula-aliases';
-    aliases.textContent = model.kind === 'DGL' ? 'tf = temperature_factor · sf = social_norm_factor' : 'tf = temperature_factor';
+    aliases.textContent = 'tf = temperature_factor · sf = social_norm_factor';
     primary.append(aliases);
     const definitions = document.createElement('div'); definitions.className = 'formula-definitions';
     definitions.setAttribute('tabindex', '0');
