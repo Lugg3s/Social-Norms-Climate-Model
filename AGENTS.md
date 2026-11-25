@@ -4,9 +4,10 @@
 - Die gewünschte Erinnerung ist erledigt. Keine erneute Erinnerung oder Freigabeanfrage für diese abgeschlossene Liste erforderlich.
 - Datierte Auswertungen behalten ihre historischen Ergebnisse und Parameterdefinitionen. Sie sind keine Beschreibung des jeweils aktuellen Modells.
 
-# Offene Erinnerung: Kopierskript
+# Erledigte Erinnerungen vom 25.11.2026
 
-- Beim ersten Kontakt ab Montag, 23.11.2026 (Europe/Berlin), einmal an das Kopierskript erinnern: `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`. Es kopiert die relevanten PNGs nach `results/Global_sensitivity_analysis/<Norm>/` und überschreibt bestehende Ziel-PNGs. Nach erfolgter Erinnerung diesen Punkt als erledigt markieren. Nutzervorgabe vom 20.11.2026; unabhängig von der bereits erledigten Dokumentations-Erinnerung oben.
+- [x] Am 25.11.2026 an das Kopierskript erinnert: `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`. Es kopiert die relevanten PNGs nach `results/Global_sensitivity_analysis/<Norm>/` und überschreibt bestehende Ziel-PNGs. Nutzervorgabe vom 20.11.2026; keine erneute Erinnerung erforderlich.
+- [x] Am 25.11.2026 daran erinnert: Laut Nutzer sind die beiden Sensi-Läufe mit konstantem Temperaturterm (`--constant-temperature-costs`) und mit normalem temperaturabhängigem Term bereits gelaufen. Es müssen nur noch die Ergebnisdateien vom Cluster heruntergeladen werden; die Läufe dafür nicht erneut starten. Damit ist nur die Erinnerung erledigt, nicht das Herunterladen bestätigt. Nutzervorgabe vom 20.11.2026; keine erneute Erinnerung erforderlich.
 
 # Literaturrecherchen
 

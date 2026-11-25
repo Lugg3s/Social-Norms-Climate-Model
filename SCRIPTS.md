@@ -207,6 +207,7 @@ gespeichert. `metadata.json` nennt zusätzliche und wiederverwendete Referenzen.
 | Argument | Standard bei Weglassen | Bedeutung |
 | --- | --- | --- |
 | `--scenarios NAME ...` | Die zehn Einträge aus `parameter_ranges.sensitivity_scenarios` in `scenarios.json` | Auswahl der Normen. |
+| `--x0 ANTEIL` | `None`: Wert aus `scenarios.json`, aktuell `common_parameters.x0 = 0.3`; Szenario-Defaults können ihn überschreiben | Fester anfänglicher Mitigationsanteil zwischen 0 und 1 für alle ausgewählten Normen und ihre Referenzen; kein zusätzlicher Sobol-Parameter. |
 | `--parameter-range NAME MIN MAX` | Globale Bereiche aus `parameter_ranges.bounds` für die Einträge unter Szenario-`defaults` | Bereich für einen unter `defaults` deklarierten Parameter angeben/überschreiben; wiederholbar. Gilt für alle gewählten Szenarien, die diesen Eintrag jeweils enthalten müssen. |
 | `--simulation-time JAHRE` | `600` | Simulationsdauer. |
 | `--base-sample-size ANZAHL` | `256` | Sobol-Basisstichprobe; üblicherweise Zweierpotenz. |
@@ -225,6 +226,17 @@ gespeichert. `metadata.json` nennt zusätzliche und wiederverwendete Referenzen.
 | `--solver NAME` | `BDF` | `BDF`, `LSODA` oder `RK4`. |
 | `--dt JAHRE` | `None` | Erforderlicher positiver RK4-Schritt; bei adaptiven Solvern ungenutzt. |
 | `--simulate-only-x` / `--no-simulate-only-x` | `False` | Kohlenstoffspeicher einfrieren bzw. Einfrieren deaktivieren; Temperatur entwickelt sich weiter. |
+
+Beispiel mit einem festen Startanteil von 5 % (gilt auch für `sensitivity_pipeline`):
+
+```powershell
+python -m analysis.sensitivity.sensitivity_analysis --x0 0.05 --base-sample-size 512
+```
+
+Der tatsächlich verwendete Wert steht je Norm in `parameters.json`, `metadata.json`
+und im Laufprotokoll `run_arguments.json` unter `model_parameters_by_scenario`.
+Beim Anhängen muss derselbe effektive `x0` verwendet werden. In diesem Modell
+beeinflusst `x0` auch die historische Emissionsphase vor Beginn der Entscheidungen.
 
 ### PIK-Slurm-Job
 

@@ -97,10 +97,13 @@ class SensitivityConfig:
     save_time_series: bool = True
     compare_without_norm: bool = True
     parameter_ranges: dict[str, list[float]] | None = None
+    x0: float | None = None
 
     def __post_init__(self):
         if not np.isfinite(self.sample_timeout_minutes) or self.sample_timeout_minutes <= 0:
             raise ValueError("sample-timeout-minutes must be finite and positive")
+        if self.x0 is not None and (not np.isfinite(self.x0) or not 0 <= self.x0 <= 1):
+            raise ValueError("x0 must be finite and between 0 and 1")
 
 
 def build_problem(scenario_name: str, parameter_ranges=None) -> dict[str, Any]:
@@ -110,6 +113,15 @@ def build_problem(scenario_name: str, parameter_ranges=None) -> dict[str, Any]:
         "names": list(parameter_bounds.keys()),
         "bounds": [list(bounds) for bounds in parameter_bounds.values()],
     }
+
+
+def _scenario_parameters(scenario_name: str, config: SensitivityConfig) -> dict[str, Any]:
+    params = resolve_parameters(scenario_name)
+    if config.x0 is not None:
+        if "x0" in build_problem(scenario_name, config.parameter_ranges)["names"]:
+            raise ValueError("x0 cannot be both fixed with --x0 and sampled in the Sobol design")
+        params["x0"] = float(config.x0)
+    return params
 
 
 def _oscillations_per_window(metrics: dict[str, Any], simulation_time: float) -> float:
@@ -590,6 +602,7 @@ def run_sensitivity_analysis(
     if scenario_name not in scenarios:
         raise KeyError(f"Unknown scenario: {scenario_name}")
     problem = build_problem(scenario_name, config.parameter_ranges)
+    base_params = _scenario_parameters(scenario_name, config)
     scenario_dir = run_root / scenario_name.replace("/", "_").replace(" ", "_")
     scenario_dir.mkdir(parents=True, exist_ok=True)
 
@@ -598,7 +611,6 @@ def run_sensitivity_analysis(
             f"Scenario results already exist and will not be overwritten: {scenario_dir}"
         )
 
-    base_params = resolve_parameters(scenario_name)
     a, b, sampling_design = prepare_shared_design(run_root, config)
     samples = scenario_samples(problem, a, b, sampling_design)
     print(
@@ -778,6 +790,7 @@ def run_sensitivity_analysis(
         "output_points_per_year": config.output_points_per_year,
         "score_mode": config.score_mode,
         "constant_temperature_costs": config.constant_temperature_costs,
+        "x0": float(base_params["x0"]),
         "temperature_response_definition": (
             "f_T(T) = 1; behavioural contribution = temperature_factor"
             if config.constant_temperature_costs else
@@ -909,6 +922,9 @@ def parse_args(argv=None) -> argparse.Namespace:
         ),
     )
     add_simulation_arguments(parser)
+    parser.add_argument("--x0", type=float, default=None,
+                        help="Fix the initial mitigation share in [0, 1] for all selected scenarios. "
+                             "Default: use each scenario's value from scenarios.json; not a Sobol input.")
     parser.add_argument("--base-sample-size", type=int, default=DEFAULT_BASE_SAMPLE_SIZE)
     parser.add_argument("--workers", type=int, default=None,
                         help="Parallel workers; default: CPU count minus one.")
@@ -988,13 +1004,27 @@ def _scenario_directory(run_root: Path, scenario_name: str) -> Path:
 
 
 def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_temperature_costs=False,
-                               simulation_settings=None, compare_without_norm=True) -> None:
+                               simulation_settings=None, compare_without_norm=True, x0=None) -> None:
     for scenario_name in scenario_names:
         scenario_dir = _scenario_directory(run_root, scenario_name)
         if scenario_dir.exists() and any(scenario_dir.iterdir()):
             raise FileExistsError(
                 f"Scenario results already exist and will not be overwritten: {scenario_dir}"
             )
+    def check_initial_share(saved_x0, scenario):
+        expected = float(x0) if x0 is not None else float(resolve_parameters(scenario)["x0"])
+        if float(saved_x0) != expected:
+            raise ValueError("Existing sensitivity results use a different x0. "
+                             "Use the same initial mitigation share or start a new result folder.")
+
+    # Arguments survive interrupted runs even if no scenario metadata exists yet.
+    arguments_path = run_root / "run_arguments.json"
+    if arguments_path.is_file():
+        arguments = json.loads(arguments_path.read_text(encoding="utf-8"))
+        for invocation in arguments["invocations"]:
+            for name, params in invocation.get("model_parameters_by_scenario", {}).items():
+                check_initial_share(params["x0"], name)
+
     for metadata_path in run_root.glob("*/metadata.json"):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         comparison = metadata.get("without_norm_comparison", {})
@@ -1013,6 +1043,15 @@ def _validate_append_scenarios(run_root: Path, scenario_names, *, constant_tempe
         if metadata.get("constant_temperature_costs", False) != constant_temperature_costs:
             raise ValueError("Existing sensitivity results use a different constant-temperature-costs mode. "
                              "Use the same flag or start a new result folder.")
+        parameters_path = metadata_path.parent / metadata.get("parameters_file", "parameters.json")
+        if parameters_path.is_file():
+            saved_x0 = json.loads(parameters_path.read_text(encoding="utf-8"))["x0"]
+        else:
+            saved_x0 = metadata.get("x0")
+        if saved_x0 is not None:
+            check_initial_share(saved_x0, metadata.get("scenario", metadata_path.parent.name))
+        elif x0 is not None:
+            raise ValueError("Cannot verify x0 for existing sensitivity results. Start a new result folder.")
         if simulation_settings is not None:
             # Older runs recorded only some settings at the top level. Compare
             # those known values without inventing missing historical inputs.
@@ -1043,6 +1082,9 @@ def _save_run_arguments(args, scenario_names, run_root, config):
         "effective_arguments": arguments,
         "parameter_ranges_by_scenario": {
             name: get_parameter_ranges(name, config.parameter_ranges) for name in scenario_names
+        },
+        "model_parameters_by_scenario": {
+            name: {"x0": float(_scenario_parameters(name, config)["x0"])} for name in scenario_names
         },
     })
     temporary = path.with_suffix(".json.tmp")
@@ -1077,7 +1119,10 @@ def main() -> None:
         save_time_series=args.save_time_series,
         compare_without_norm=getattr(args, "compare_without_norm", True),
         parameter_ranges=range_overrides,
+        x0=getattr(args, "x0", None),
     )
+    for scenario_name in scenario_names:
+        _scenario_parameters(scenario_name, config)
 
     if args.append_existing_folder is not None:
         run_root = args.output_root / args.append_existing_folder
@@ -1088,7 +1133,8 @@ def main() -> None:
         _validate_append_scenarios(run_root, scenario_names,
                                    constant_temperature_costs=config.constant_temperature_costs,
                                    simulation_settings=simulation_kwargs(config),
-                                   compare_without_norm=config.compare_without_norm)
+                                   compare_without_norm=config.compare_without_norm,
+                                   x0=config.x0)
     else:
         timestamp = datetime.now().strftime(DEFAULT_TIME_FORMAT)
         run_root = args.output_root / timestamp

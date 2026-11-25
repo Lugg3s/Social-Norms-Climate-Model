@@ -819,6 +819,14 @@ The original `analysis/sensitivity/sensitivity_analysis.py` command continues to
 
 ### Current Sobol targets
 
+Use `--x0 0.05` to fix the initial mitigation share at 5% for all selected norms
+and their matched references. Omitting the option retains each scenario's value
+from `config/scenarios.json` (currently 0.3 in the shared configuration).
+This is a fixed model input, not an additional Sobol dimension. The pipeline
+accepts the same option. Effective values are recorded in `parameters.json`,
+`metadata.json` and `run_arguments.json`; append mode requires matching initial
+shares. In this model, `x0` also affects emissions during the historical phase.
+
 The Sobol analysis uses seven active targets. `x_mean` is the time-weighted mean over
 the entire simulated interval, `integral(x dt)/(t_end - t_start)`, including
 the prescribed historical period. ODE output uses trapezoidal integration;

@@ -20,8 +20,6 @@
 
 
 ## ToDos für codex
-1. [x] peak temperature anomaly zu sensi als zielvariable hinzufügen (group: climate) — `max_temperature`, Maximum über die gespeicherten Zeitpunkte des gesamten Laufs; auch Standard-Zielgröße der Regressionsbäume.
-1. [x] first x>=95% (0=never) als zielvariable weglassen — aus Sobol, Rankings und Standard-Regressionsbäumen entfernt; als beschreibende Metrik und für Timingvergleiche weiter gespeichert.
 1. [x] ein script schreiben, das ich nutzen kann um die 4 relevanten pngs aus den jeweiligen Norm-ordern auf E: in die jeweiligen Norm-Ordner in Results/global sensi zu kopieren. (die gleichen 4 plots, die bei einigen Normen dort schon liegen) Das script soll bereits existierende einfach überschreiben — `python -m analysis.sensitivity.copy_result_plots --input-root "<Sensi-Lauf>"`; Details in `SCRIPTS.md`. Bei `No social norm` entfällt der Vergleichsplot.
 
 # ToDos die ich auf jeden Fall noch machen muss

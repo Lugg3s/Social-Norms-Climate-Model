@@ -4,27 +4,38 @@ Note: In this file i want to store all relevant informations that can be extract
 
 ## No social norm
 ### Parameter
+
 - kappa has least influence
 - qualitatively same distribution over all goal-variables
 
+![Parameter ranking by group](<No_social_norm/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<No_social_norm/ranking_balken_zielvariablen.png>)
 
 ### Classifications
+
 - no damped/persistent oscillations
 - 56.2% approach to 1
 - 10.9% collapse to 0
 - 32.8% transitional / unresolved
-- 22% of all cases never reached x<=5%
-- 12% of all cases never reached x>=95%
+
+![Behavioural classifications](<No_social_norm/behaviour_class_frequencies.png>)
 
 ## Baseline
 ### Parameter
+
 - temperature_factor dominates all categories. 
 - Kappa has almost no influence
--> This differs from the bury-paper where kappa was more influential than beta. Why is that? in the bury paper they used the same exact norm? The plot for Endtemperatur should be exactly the same as in the bury model (some parameters might vary)
+-> This differs from the bury-paper where kappa was more influential than beta. Why is that? in the bury paper they used the same exact norm? (but a local sensi)
 - beta and social_norm_factor are almost same influential
 - results of the sensitivity are almost the same for all goal-variables
 
+![Parameter ranking by group](<baseline/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<baseline/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - in 89.9% the maximum annual slope is steeper than the reference without a norm implementation
 - in 78% of all cases where x reaches <= 5%, it's reached earlier than the reference
 - in 73.3% of all cases where x reaches >= 95%, it's reached later than the reference
@@ -36,16 +47,25 @@ Note: In this file i want to store all relevant informations that can be extract
 - Only 2.7% are transitional/unresolved.
     - Reason: The norm-equation of baseline promotes trajectories towards 0/1. Therefore there are less runs where x is still transitional
 
+![Behavioural classifications](<baseline/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<baseline/without_norm_comparison_frequencies.png>)
 
 ## Belief-based / intention motivation
 ### Parameter
+
 - kappa is least influential (that differs to the bury paper)
 - temperature-factor dominates
 - beta and N have almost the same values
 - social_norm_factor is second last place
 - results do not change qualitatively between the different goal-variables
 
+![Parameter ranking by group](<Belief-based___intention_motivation/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Belief-based___intention_motivation/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - similar classifications to the no-norm reference
     - 30% of all runs are transitional/unresolved
     - 58.6% approaches to 1
@@ -53,23 +73,43 @@ Note: In this file i want to store all relevant informations that can be extract
 - timing and slope are pretty even. Seems like they do change depending on N. Due to the fact that N is evenly distributed between -1 an 1, thats the  that i expected
 - no damped/persistent oscilaations
 
+![Behavioural classifications](<Belief-based___intention_motivation/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Belief-based___intention_motivation/without_norm_comparison_frequencies.png>)
+
 ## Observation-based___intention_motivation_(agents)
 ### Parameter
+
 - temperature_factor and beta dominate mitigation
 - climate is dominated by the temperature_factor
 - dynamics are dominated by beta
 - network_size has a value of 0 in mean x, end temperature and cumulative emissions. However, it has little influence on if x ever reaches >=95% (value = 0.1)
 - MISSING: social_norm_factor
 
+![Parameter ranking by group](<Observation-based___intention_motivation_(agents)/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Observation-based___intention_motivation_(agents)/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - TODO: ich mach hier erstmal nicht weiter, da ich vermute, dass die Sensi für diese Norm nochmal neu durchgeführt werden muss
+
+![Behavioural classifications](<Observation-based___intention_motivation_(agents)/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Observation-based___intention_motivation_(agents)/without_norm_comparison_frequencies.png>)
 
 ## Observation_based___approval_(punish_only_one_behaviour)
 ### Parameter
+
 - dominated by temperature_factor
 - beta has second highest impact
 
+![Parameter ranking by group](<Observation_based___approval_(punish_only_one_behaviour)/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Observation_based___approval_(punish_only_one_behaviour)/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - 86.5% of all runs end at x>=95%
 - no damped/persistent oscillations
 - 88% of those runs that end at x>=95% are faster (makes sense because only mitigators benefit from this norm)
@@ -77,12 +117,22 @@ Note: In this file i want to store all relevant informations that can be extract
 - 63.6% of all runs have a higher max annual change: runs where x->1
 - 31.1% are flatter: runs where x->0
 
+![Behavioural classifications](<Observation_based___approval_(punish_only_one_behaviour)/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Observation_based___approval_(punish_only_one_behaviour)/without_norm_comparison_frequencies.png>)
+
 ## Static injunctive
 ### Parameter
+
 - social_norm_factor has high impact on the dynamics (first x>=95% & oscillations), but low impact on the climate (cumulative emissions & finaltemperature)
 - ...?
 
+![Parameter ranking by group](<Static_injunctive/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Static_injunctive/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - 16% stable intermediate level (no oscillation)
 - 24.5% damped oscillations
 - 0% persistent oscillations
@@ -94,12 +144,21 @@ Note: In this file i want to store all relevant informations that can be extract
 - 29.4% are not comaprable
     - Why is that?
 
+![Behavioural classifications](<Static_injunctive/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Static_injunctive/without_norm_comparison_frequencies.png>)
 
 ## Dynamic_social_norm
 ### Parameter
+
 - ...
 
+![Parameter ranking by group](<Dynamic_social_norm/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Dynamic_social_norm/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - no damped/persistent oscilations
 - 71.7% approach to 1
 - 78% of all runs reach x<=5% earlier compared to the no-norm reference (0% are later)
@@ -108,11 +167,21 @@ Note: In this file i want to store all relevant informations that can be extract
 - obviously most runs are steeper than the no-norm-reference (94.8%)
 - only 1.4% are flatter
 
+![Behavioural classifications](<Dynamic_social_norm/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Dynamic_social_norm/without_norm_comparison_frequencies.png>)
+
 ## Dynamic_social_norm 2
 ### Parameter
+
 - ...
 
+![Parameter ranking by group](<dynamic_social_norm2/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<dynamic_social_norm2/ranking_balken_zielvariablen.png>)
+
 ### Classifications
+
 - no damped/persistent oscilations
 - 63.5% approach to 1
 - 43.8% of all runs reach x<=5% equally(!) fast compared to the no-norm reference (34.2% are earlier) (0% are later)
@@ -120,20 +189,65 @@ Note: In this file i want to store all relevant informations that can be extract
 - 59.8% of all runs reach x<=95% earlier compared to the no-norm reference (28.1% are earlier) 
 - In 67% of the runs the largest annual change is steeper than the no-norm reference (16.8% flatter)
 
+![Behavioural classifications](<dynamic_social_norm2/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<dynamic_social_norm2/without_norm_comparison_frequencies.png>)
+
 ## Descriptive,_injunctive,_dynamic
 ### Parameter
+
 - ...
+
+![Parameter ranking by group](<Descriptive,_injunctive,_dynamic/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Descriptive,_injunctive,_dynamic/ranking_balken_zielvariablen.png>)
 
 ### Classifications
 
+- mixed classifications
+- 16% stable intermediate level
+- only 5.2% damped oscillations 
+- only 1 run (0%) with persistent oscillations
+- approx. 30% differ in whether theyve reached x<=5% or x>=95% at all
+    - 8.8% of simulations with the no-norm-reference (with same parameters) didnt reach x<=5% at all, even though the norm-version reached it
+    - 21.1% of simulations with this norm didnt reach x<=5% even though the no-norm-reference reached it
+    - 26.1% of simulations with this norm didnt reach x>=95% even though the no-norm-reference reached it
+- this norm is faster than the no-norm-reference, for those runs where x reaches x<=5%
+- it's obviously steeper, due to the dynamic influence
+
+-> using this may lead to completely different behaviour
+    
+
+![Behavioural classifications](<Descriptive,_injunctive,_dynamic/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Descriptive,_injunctive,_dynamic/without_norm_comparison_frequencies.png>)
 
 ## Descriptive,_injunctive,_dynamic 2
 ### Parameter
-- ...
+
+- 
+
+
+![Parameter ranking by group](<Descriptive,_injunctive,_dynamic2/ranking_balken_gruppen_gesamt.png>)
+
+![Parameter ranking by output](<Descriptive,_injunctive,_dynamic2/ranking_balken_zielvariablen.png>)
 
 ### Classifications
 
+- lots of stable intermediate runs (37.3%)
+- lots of transitional / unresolved runs
+- only 0.2% persistent oscillations
+- 8.7% damped oscillations
 
+- approximately equally fast as no-norm-reference
+- 38.1% of simulations with this norm didnt reach x<=5% even though the no-norm-reference reached it
+- 48.3 of simulations with this norm didnt reach x>=95% even though the no-norm-reference reached it
+-> using this may lead to completely different behaviour
+
+
+![Behavioural classifications](<Descriptive,_injunctive,_dynamic2/behaviour_class_frequencies.png>)
+
+![Comparison with no-norm reference](<Descriptive,_injunctive,_dynamic2/without_norm_comparison_frequencies.png>)
 
 
 ## Comparing the norms
@@ -141,8 +255,9 @@ Note: In this file i want to store all relevant informations that can be extract
 
 
 ## Main results
-- If a dynamic norm is used and x reaches <=5% then the norm implementation always reaches this point faster or equally fast compared to the no-norm reference. 
-    - TODO: Das gilt erstmal nur für die einfachen dynamischen normen. Für Kombinationen muss das noch nachgeschaut werden
+- If a simple dynamic norm (not combined with any other norms) is used and x reaches <=5% then the norm implementation always reaches this point faster or equally fast compared to the no-norm reference. 
+- The impact of kappa is far smaller than one would've expected after reading the bury paper?????????
+
 
 
 
